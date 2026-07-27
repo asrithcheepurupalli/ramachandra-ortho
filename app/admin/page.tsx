@@ -14,7 +14,7 @@ import {
   setAvailabilityOverride, getOverrideMode, useScheduleTick,
   type Appt, type ApptStatus, type Source,
 } from "@/lib/store";
-import { statusAt, fmt, weekdayName, type WeeklyHours, type Exception } from "@/lib/schedule";
+import { statusAt, fmt, weekdayName, type WeeklyHours } from "@/lib/schedule";
 
 type Tab = "today" | "schedule" | "patients" | "revenue";
 const money = (n: number) => `${clinic.currency}${n.toLocaleString("en-IN")}`;

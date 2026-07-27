@@ -6,7 +6,7 @@ import {
   Activity, Ambulance, Bone, CircleDot, Droplet, Dumbbell, HandHeart,
   PersonStanding, ShieldPlus, Siren, Spline, Stethoscope, Volleyball,
   Star, MapPin, MessageCircle, CalendarPlus, Phone, ChevronRight,
-  ArrowRight, Navigation, Quote, ShieldCheck, Zap, Ticket, Check,
+  ArrowRight, Navigation, Quote, ShieldCheck, Zap, Ticket,
   type LucideIcon,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
