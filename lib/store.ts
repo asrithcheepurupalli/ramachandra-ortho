@@ -3,7 +3,7 @@
 // Mock data store (localStorage-backed) so the whole product runs zero-config.
 // In production this is Supabase; every function here maps 1:1 to a table.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { clinic } from "@/clinic.config";
 import {
   ymd, weeklyHours, exceptions, applySchedule, setOverride, overrideRef,
@@ -116,10 +116,9 @@ export function todaysAppts(all: Appt[]) {
 export const activeStatuses: ApptStatus[] = ["reserved", "confirmed", "waiting", "consulting"];
 
 // avoids SSR/CSR flash: only render store-driven UI after mount
+const emptySubscribe = () => () => {};
 export function useMounted() {
-  const [m, setM] = useState(false);
-  useEffect(() => setM(true), []);
-  return m;
+  return useSyncExternalStore(emptySubscribe, () => true, () => false);
 }
 
 // ── schedule + availability override (edited in admin, read by every surface) ─
