@@ -1,0 +1,46 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// SINGLE SOURCE OF TRUTH for this clinic. Everything patient-facing reads from
+// here, so re-skinning for the next clinic = editing this one file.
+// (Fields marked EDIT are placeholders the clinic will confirm later.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const clinic = {
+  name: "Ramachandra Ortho Care & Clinics",
+  shortName: "Ramachandra Ortho Care",
+  tagline: "Bones, joints and mobility, in careful hands.",
+  doctor: {
+    name: "Dr. M. Ramachandra",
+    // EDIT: exact qualifications to be confirmed by the clinic.
+    title: "Orthopedic Surgeon & Trauma Care Specialist",
+    experienceNote: "Joint replacements, fractures and sports injuries",
+  },
+  rating: { score: 4.8, count: 123, source: "Google" },
+
+  // EDIT later: real fee. Kept editable in admin.
+  consultationFee: 499,
+  currency: "₹",
+
+  contact: {
+    // EDIT: real numbers. For the beta we run on a WhatsApp test number.
+    whatsapp: "+910000000000",
+    phone: "+910000000000",
+    email: "care@ramachandraortho.in",
+  },
+
+  location: {
+    line1: "7-181/1/1, Ground Floor, Phanidhar Plaza",
+    line2: "Main Road, Chinnamushidiwada",
+    city: "Visakhapatnam",
+    state: "Andhra Pradesh",
+    pin: "530051",
+    mapsUrl:
+      "https://www.google.com/maps/search/?api=1&query=Ramachandra+Ortho+Care+Chinnamushidiwada",
+  },
+
+  // Booking slot length in minutes (tokens are issued per slot).
+  slotMinutes: 10,
+
+  languages: ["en", "te", "hi"] as const,
+} as const;
+
+export type Lang = (typeof clinic.languages)[number];

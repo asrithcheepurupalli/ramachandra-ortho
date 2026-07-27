@@ -1,26 +1,59 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ── Ramachandra Ortho Care — art direction ──────────────────────────────────
+   Warm-clinical: bone paper, deep pine-green (healing, trust), warm amber
+   accent, editorial serif headings over a clean grotesk body. Calm, not cold. */
+@theme {
+  --color-bone: #f6f4ee;
+  --color-paper: #ffffff;
+  --color-ink: #152420;
+  --color-muted: #68766f;
+  --color-line: #e6e2d8;
+  --color-brand: #0e5a4e;
+  --color-brand-dark: #0a463c;
+  --color-brand-tint: #e6efeb;
+  --color-accent: #d9862a;
+  --color-accent-soft: #f7e7cd;
+  --color-in: #1a9e6e;
+  --color-out: #c0554a;
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  border-color: var(--color-line);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bone);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+@keyframes livepulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); }
+  70% { box-shadow: 0 0 0 7px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.pulse-dot { animation: livepulse 2s infinite; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.rise { animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+.font-display { font-family: var(--font-display); font-weight: 400; }
+
+.bone-grid {
+  background-image:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--color-brand) 14%, transparent) 1px, transparent 0);
+  background-size: 22px 22px;
 }

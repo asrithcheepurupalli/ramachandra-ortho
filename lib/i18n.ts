@@ -1,0 +1,106 @@
+import type { Lang } from "@/clinic.config";
+
+// First-pass Telugu/Hindi for the UI chrome (to be refined by a native speaker).
+// Interpolation: use {name} placeholders, filled via tr(lang, key, vars).
+type Dict = Record<string, string>;
+
+const en: Dict = {
+  "nav.services": "Services",
+  "nav.reviews": "Reviews",
+  "nav.location": "Location",
+  "nav.book": "Book",
+  "hero.kicker": "Orthopedic & Trauma Care · Chinnamushidiwada",
+  "hero.subtitle":
+    "Fractures, joint replacements and sports injuries, treated with patience and care.",
+  "cta.book": "Book appointment",
+  "cta.whatsapp": "Chat on WhatsApp",
+  "cta.hours": "View schedule",
+  "cta.call": "Call clinic",
+  "avail.label": "Live availability",
+  "avail.in": "Doctor is in today",
+  "avail.until": "until {t}",
+  "avail.soon": "Consulting today from {t}",
+  "avail.out": "Not in today",
+  "avail.next": "Next: {day} · {t}",
+  "sec.services": "What we treat",
+  "sec.reviews": "What patients say",
+  "sec.location": "Find us",
+  "sec.hours": "Consulting hours",
+  "fee.line": "Consultation {cur}{fee}",
+  "reviews.rating": "{score} · {count} Google reviews",
+  "loc.directions": "Get directions",
+  "walkin.note":
+    "Walk-in? You can also just come by during consulting hours, or reserve a token first to skip the wait.",
+};
+
+const te: Dict = {
+  "nav.services": "సేవలు",
+  "nav.reviews": "సమీక్షలు",
+  "nav.location": "చిరునామా",
+  "nav.book": "బుక్",
+  "hero.kicker": "ఆర్థోపెడిక్ & ట్రామా కేర్ · చిన్నముషిడివాడ",
+  "hero.subtitle":
+    "ఎముకలు, కీళ్ల మార్పిడి, క్రీడా గాయాలకు ఓపికగా, శ్రద్ధగా చికిత్స.",
+  "cta.book": "అపాయింట్‌మెంట్ బుక్ చేయండి",
+  "cta.whatsapp": "వాట్సాప్‌లో చాట్ చేయండి",
+  "cta.hours": "షెడ్యూల్ చూడండి",
+  "cta.call": "క్లినిక్‌కు కాల్ చేయండి",
+  "avail.label": "ప్రత్యక్ష లభ్యత",
+  "avail.in": "ఈరోజు డాక్టర్ అందుబాటులో ఉన్నారు",
+  "avail.until": "{t} వరకు",
+  "avail.soon": "ఈరోజు {t} నుండి",
+  "avail.out": "ఈరోజు అందుబాటులో లేరు",
+  "avail.next": "తర్వాత: {day} · {t}",
+  "sec.services": "మేము చికిత్స చేసేవి",
+  "sec.reviews": "రోగులు ఏమంటున్నారు",
+  "sec.location": "మమ్మల్ని కనుగొనండి",
+  "sec.hours": "కన్సల్టింగ్ సమయాలు",
+  "fee.line": "కన్సల్టేషన్ {cur}{fee}",
+  "reviews.rating": "{score} · {count} గూగుల్ సమీక్షలు",
+  "loc.directions": "దారి చూపించు",
+  "walkin.note":
+    "నేరుగా వస్తున్నారా? కన్సల్టింగ్ సమయాల్లో రావచ్చు, లేదా వెయిటింగ్ తప్పించుకోవడానికి ముందే టోకెన్ బుక్ చేసుకోండి.",
+};
+
+const hi: Dict = {
+  "nav.services": "सेवाएं",
+  "nav.reviews": "समीक्षाएं",
+  "nav.location": "पता",
+  "nav.book": "बुक करें",
+  "hero.kicker": "ऑर्थोपेडिक और ट्रॉमा केयर · चिन्नामुशिडिवाड़ा",
+  "hero.subtitle":
+    "हड्डियों, जोड़ प्रत्यारोपण और खेल चोटों का धैर्य और देखभाल के साथ इलाज।",
+  "cta.book": "अपॉइंटमेंट बुक करें",
+  "cta.whatsapp": "व्हाट्सएप पर चैट करें",
+  "cta.hours": "शेड्यूल देखें",
+  "cta.call": "क्लिनिक को कॉल करें",
+  "avail.label": "लाइव उपलब्धता",
+  "avail.in": "डॉक्टर आज उपलब्ध हैं",
+  "avail.until": "{t} तक",
+  "avail.soon": "आज {t} से",
+  "avail.out": "आज उपलब्ध नहीं",
+  "avail.next": "अगला: {day} · {t}",
+  "sec.services": "हम क्या इलाज करते हैं",
+  "sec.reviews": "मरीज़ क्या कहते हैं",
+  "sec.location": "हमें ढूंढें",
+  "sec.hours": "परामर्श समय",
+  "fee.line": "परामर्श {cur}{fee}",
+  "reviews.rating": "{score} · {count} गूगल समीक्षाएं",
+  "loc.directions": "दिशा-निर्देश पाएं",
+  "walkin.note":
+    "सीधे आ रहे हैं? परामर्श समय में आ सकते हैं, या इंतज़ार से बचने के लिए पहले टोकन बुक करें।",
+};
+
+const dicts: Record<Lang, Dict> = { en, te, hi };
+
+export const langLabels: Record<Lang, string> = {
+  en: "EN",
+  te: "తెలుగు",
+  hi: "हिंदी",
+};
+
+export function tr(lang: Lang, key: string, vars: Record<string, string | number> = {}) {
+  let s = dicts[lang][key] ?? dicts.en[key] ?? key;
+  for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, String(v));
+  return s;
+}
