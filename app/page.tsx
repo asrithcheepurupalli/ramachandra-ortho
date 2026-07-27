@@ -13,6 +13,7 @@ import { tr, langLabels } from "@/lib/i18n";
 import { serviceGroups } from "@/lib/services";
 import { reviews } from "@/lib/reviews";
 import { weeklyHours, statusAt, fmt, weekdayName, type Status } from "@/lib/schedule";
+import { hydrateSchedule } from "@/lib/store";
 
 const iconMap: Record<string, LucideIcon> = {
   Bone, PersonStanding, Activity, Spline, Volleyball, Ambulance, Dumbbell,
@@ -31,11 +32,16 @@ export default function Home() {
   const t = (k: string, v?: Record<string, string | number>) => tr(lang, k, v);
 
   // Compute availability on the client so the banner reflects real time
-  // without a hydration mismatch.
+  // without a hydration mismatch. hydrateSchedule() pulls the latest schedule +
+  // override the admin saved (localStorage), and the storage listener makes the
+  // banner update live when the admin changes it in another tab.
   useEffect(() => {
-    setStatus(statusAt());
-    const id = setInterval(() => setStatus(statusAt()), 60_000);
-    return () => clearInterval(id);
+    const recompute = () => { hydrateSchedule(); setStatus(statusAt()); };
+    recompute();
+    const id = setInterval(recompute, 60_000);
+    const onStorage = (e: StorageEvent) => { if (!e.key || e.key === "roc.schedule.v1") recompute(); };
+    window.addEventListener("storage", onStorage);
+    return () => { clearInterval(id); window.removeEventListener("storage", onStorage); };
   }, []);
 
   return (

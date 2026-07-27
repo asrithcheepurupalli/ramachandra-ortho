@@ -58,8 +58,37 @@ export type Status =
   | { state: "soon"; opensAt: string; note?: string }
   | { state: "out"; next?: { date: Date; opensAt: string }; note?: string };
 
+// Manual override the front desk can flip for today ("doctor stepped in / out"),
+// independent of the weekly schedule. Wins over the schedule for today only.
+export type Override = { date: string; mode: "in" | "out" };
+export const overrideRef: { current: Override | null } = { current: null };
+export function setOverride(o: Override | null) {
+  overrideRef.current = o;
+}
+
+// next open window in the coming 14 days
+function nextOpen(now: Date): { date: Date; opensAt: string } | undefined {
+  for (let i = 1; i <= 14; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
+    const w = windowsFor(d)[0];
+    if (w) return { date: d, opensAt: w.start };
+  }
+  return undefined;
+}
+
 export function statusAt(now = new Date()): Status {
   const note = exceptions[ymd(now)]?.note;
+
+  // manual override for today wins
+  const ov = overrideRef.current;
+  if (ov && ov.date === ymd(now)) {
+    if (ov.mode === "out")
+      return { state: "out", next: nextOpen(now), note: note ?? "Marked away today" };
+    const wins = windowsFor(now);
+    return { state: "in", until: wins.length ? wins[wins.length - 1].end : "21:00", note };
+  }
+
   const mins = now.getHours() * 60 + now.getMinutes();
   const today = windowsFor(now);
   for (const w of today) {
@@ -69,14 +98,7 @@ export function statusAt(now = new Date()): Status {
   const laterToday = today.find((w) => toMin(w.start) > mins);
   if (laterToday) return { state: "soon", opensAt: laterToday.start, note };
 
-  // scan up to 14 days ahead for the next open window
-  for (let i = 1; i <= 14; i++) {
-    const d = new Date(now);
-    d.setDate(now.getDate() + i);
-    const w = windowsFor(d)[0];
-    if (w) return { state: "out", next: { date: d, opensAt: w.start }, note };
-  }
-  return { state: "out", note };
+  return { state: "out", next: nextOpen(now), note };
 }
 
 // Bookable slots for a given date (respects windows, minus already-taken).

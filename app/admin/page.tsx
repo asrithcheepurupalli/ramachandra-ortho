@@ -11,9 +11,10 @@ import { clinic } from "@/clinic.config";
 import {
   useAppts, useMounted, todaysAppts, addWalkIn, setStatus, togglePaid,
   resetDemo, loadSchedule, saveSchedule, hydrateSchedule,
+  setAvailabilityOverride, getOverrideMode, useScheduleTick,
   type Appt, type ApptStatus, type Source,
 } from "@/lib/store";
-import { statusAt, fmt, type WeeklyHours, type Exception } from "@/lib/schedule";
+import { statusAt, fmt, weekdayName, type WeeklyHours, type Exception } from "@/lib/schedule";
 
 type Tab = "today" | "schedule" | "patients" | "revenue";
 const money = (n: number) => `${clinic.currency}${n.toLocaleString("en-IN")}`;
@@ -90,6 +91,7 @@ export default function Admin() {
 /* ── Doctor live status (shared availability engine) ───────────────────────── */
 function DoctorStatus() {
   const [, force] = useState(0);
+  useScheduleTick(); // re-render when availability override changes
   useEffect(() => { const id = setInterval(() => force((n) => n + 1), 30_000); return () => clearInterval(id); }, []);
   const s = statusAt();
   const label = s.state === "in" ? "In consult now" : s.state === "soon" ? `In at ${fmt(s.opensAt)}` : "Not in today";
@@ -98,6 +100,43 @@ function DoctorStatus() {
     <div className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 text-sm">
       <span className="h-2 w-2 rounded-full" style={{ background: color }} />
       <span className="text-muted">Doctor:</span> <span className="font-semibold">{label}</span>
+    </div>
+  );
+}
+
+/* ── Availability toggle (Auto / In now / Away today) ──────────────────────── */
+function AvailabilityControl() {
+  useScheduleTick(); // re-render on toggle
+  const mode = getOverrideMode();
+  const s = statusAt();
+  const statusText =
+    s.state === "in" ? `In now, until ${fmt(s.until)}`
+      : s.state === "soon" ? `Consulting today from ${fmt(s.opensAt)}`
+      : s.next ? `Not in. Next: ${weekdayName(s.next.date)} ${fmt(s.next.opensAt)}`
+      : "Not in today";
+  const color = s.state === "in" ? "var(--color-in)" : s.state === "soon" ? "var(--color-accent)" : "var(--color-out)";
+  const opts: { m: "auto" | "in" | "out"; label: string; active: string }[] = [
+    { m: "auto", label: "Auto (schedule)", active: "bg-brand text-white" },
+    { m: "in", label: "In now", active: "bg-in text-white" },
+    { m: "out", label: "Away today", active: "bg-out text-white" },
+  ];
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <span className="pulse-dot h-2.5 w-2.5 rounded-full" style={{ color, background: color }} />
+          Doctor availability
+        </div>
+        <div className="mt-0.5 text-xs text-muted">{statusText}. Shown live on the website and WhatsApp.</div>
+      </div>
+      <div className="flex self-start rounded-full border border-line bg-white p-0.5 sm:self-auto">
+        {opts.map((o) => (
+          <button key={o.m} onClick={() => setAvailabilityOverride(o.m)}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition sm:text-sm ${mode === o.m ? o.active : "text-muted hover:text-ink"}`}>
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -119,6 +158,7 @@ function Today({ appts }: { appts: Appt[] }) {
 
   return (
     <div className="space-y-6">
+      <AvailabilityControl />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Appointments today" value={String(active.length)} icon={CalendarCog} />
         <Stat label="In queue" value={String(inQueue.length)} icon={Clock} />
@@ -271,7 +311,7 @@ function Schedule() {
   const addWin = (d: number) => setWeekly((w) => ({ ...w, [d]: [...w[d], { start: "18:00", end: "20:00" }] }));
   const rmWin = (d: number, i: number) => setWeekly((w) => ({ ...w, [d]: w[d].filter((_, j) => j !== i) }));
 
-  const save = () => { saveSchedule(weekly, init.exceptions as Record<string, Exception>); setSaved(true); setTimeout(() => setSaved(false), 2500); };
+  const save = () => { saveSchedule(weekly, init.exceptions, init.override); setSaved(true); setTimeout(() => setSaved(false), 2500); };
 
   return (
     <div className="max-w-3xl space-y-4">

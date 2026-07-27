@@ -6,8 +6,8 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { clinic } from "@/clinic.config";
 import {
-  ymd, weeklyHours, exceptions, applySchedule,
-  type WeeklyHours, type Exception,
+  ymd, weeklyHours, exceptions, applySchedule, setOverride, overrideRef,
+  type WeeklyHours, type Exception, type Override,
 } from "@/lib/schedule";
 
 export type ApptStatus =
@@ -122,24 +122,45 @@ export function useMounted() {
   return m;
 }
 
-// ── schedule override (edited in the admin, read by every surface) ───────────
+// ── schedule + availability override (edited in admin, read by every surface) ─
 const SKEY = "roc.schedule.v1";
-export function loadSchedule(): { weekly: WeeklyHours; exceptions: Record<string, Exception> } {
+type Saved = { weekly: WeeklyHours; exceptions: Record<string, Exception>; override: Override | null };
+
+export function loadSchedule(): Saved {
   if (typeof window !== "undefined") {
     try {
       const raw = localStorage.getItem(SKEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) { const s = JSON.parse(raw); return { weekly: s.weekly, exceptions: s.exceptions ?? {}, override: s.override ?? null }; }
     } catch {}
   }
-  return { weekly: { ...weeklyHours }, exceptions: { ...exceptions } };
+  return { weekly: { ...weeklyHours }, exceptions: { ...exceptions }, override: null };
 }
-export function saveSchedule(weekly: WeeklyHours, ex: Record<string, Exception>) {
-  try { localStorage.setItem(SKEY, JSON.stringify({ weekly, exceptions: ex })); } catch {}
+let scheduleTick = 0;
+export function saveSchedule(weekly: WeeklyHours, ex: Record<string, Exception>, override: Override | null = null) {
+  try { localStorage.setItem(SKEY, JSON.stringify({ weekly, exceptions: ex, override })); } catch {}
   applySchedule(weekly, ex);
+  setOverride(override);
+  scheduleTick++;
   listeners.forEach((l) => l());
+}
+// Subscribe to schedule/override changes (appts snapshot doesn't change on a
+// schedule edit, so components that show availability need this to re-render).
+export function useScheduleTick() {
+  return useSyncExternalStore(subscribe, () => scheduleTick, () => 0);
 }
 // Call on client mount so statusAt()/slotsFor() reflect the saved schedule.
 export function hydrateSchedule() {
   const s = loadSchedule();
   applySchedule(s.weekly, s.exceptions);
+  setOverride(s.override);
+}
+// Front-desk toggle: force the doctor in / away for today, or follow the schedule.
+export function setAvailabilityOverride(mode: "auto" | "in" | "out") {
+  const s = loadSchedule();
+  const override = mode === "auto" ? null : { date: ymd(new Date()), mode };
+  saveSchedule(s.weekly, s.exceptions, override);
+}
+export function getOverrideMode(): "auto" | "in" | "out" {
+  const ov = overrideRef.current;
+  return ov && ov.date === ymd(new Date()) ? ov.mode : "auto";
 }
