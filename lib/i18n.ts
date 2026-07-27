@@ -31,7 +31,7 @@ const en: Dict = {
   "loc.directions": "Get directions",
   "walkin.note":
     "Walk-in? You can also just come by during consulting hours, or reserve a token first to skip the wait.",
-  "hero.title": "Orthopedic care in Chinnamushidiwada you can rely on.",
+  "hero.title": "Orthopedic care in Vizag you can rely on.",
   "hero.trust": "Trusted by families across Visakhapatnam",
   "help.title": "Everything you need before you visit",
   "help.know.t": "Know before you go",
@@ -71,7 +71,7 @@ const te: Dict = {
   "loc.directions": "దారి చూపించు",
   "walkin.note":
     "నేరుగా వస్తున్నారా? కన్సల్టింగ్ సమయాల్లో రావచ్చు, లేదా వెయిటింగ్ తప్పించుకోవడానికి ముందే టోకెన్ బుక్ చేసుకోండి.",
-  "hero.title": "చిన్నముషిడివాడలో నమ్మదగిన ఆర్థోపెడిక్ సంరక్షణ.",
+  "hero.title": "విజాగ్‌లో నమ్మదగిన ఆర్థోపెడిక్ సంరక్షణ.",
   "hero.trust": "విశాఖపట్నం కుటుంబాల నమ్మకం",
   "help.title": "మీ సందర్శనకు ముందు కావలసినదంతా",
   "help.know.t": "రాకముందే తెలుసుకోండి",
@@ -111,7 +111,7 @@ const hi: Dict = {
   "loc.directions": "दिशा-निर्देश पाएं",
   "walkin.note":
     "सीधे आ रहे हैं? परामर्श समय में आ सकते हैं, या इंतज़ार से बचने के लिए पहले टोकन बुक करें।",
-  "hero.title": "चिन्नामुशिडिवाड़ा में भरोसेमंद ऑर्थोपेडिक देखभाल।",
+  "hero.title": "विजाग में भरोसेमंद ऑर्थोपेडिक देखभाल।",
   "hero.trust": "विशाखापत्तनम के परिवारों का भरोसा",
   "help.title": "आने से पहले जो कुछ चाहिए",
   "help.know.t": "आने से पहले जानें",

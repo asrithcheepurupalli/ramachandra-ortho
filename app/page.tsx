@@ -68,8 +68,8 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
     <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "border-b border-line bg-bg/85 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.02)]" : "bg-transparent"}`}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 md:px-8 h-16">
         <Link href="/" className="flex items-center gap-2.5 group">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-white transition group-hover:rotate-6"><Bone className="h-[18px] w-[18px]" /></span>
-          <span className="text-[15px] md:text-base font-semibold leading-none">Ramachandra <span className="text-brand">Ortho Care</span></span>
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white transition group-hover:rotate-6"><Bone className="h-[18px] w-[18px]" /></span>
+          <span className="whitespace-nowrap text-[15px] md:text-base font-semibold leading-none">Ramachandra <span className="text-brand">Ortho<span className="hidden sm:inline"> Care</span></span></span>
         </Link>
         <div className="flex items-center gap-1.5 md:gap-2">
           <div className="hidden md:flex items-center gap-1 mr-1">
@@ -78,7 +78,8 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
             ))}
           </div>
           <LangToggle lang={lang} setLang={setLang} />
-          <Link href="/book" className="press ml-0.5 inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark">
+          {/* Book lives in the mobile action bar on phones, so the nav stays clean */}
+          <Link href="/book" className="press ml-0.5 hidden md:inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark">
             {t("nav.book")} <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
@@ -107,7 +108,7 @@ function Hero({ status, t }: { status: Status | null; t: T }) {
         <div className="blob absolute -top-32 -right-24 h-[26rem] w-[26rem] rounded-full bg-brand-tint blur-3xl opacity-70" />
         <div className="blob absolute top-40 -left-32 h-80 w-80 rounded-full bg-accent-tint blur-3xl opacity-60" style={{ animationDelay: "-6s" }} />
       </div>
-      <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 md:px-8 pt-10 pb-16 md:pt-16 md:pb-24 lg:grid-cols-12">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-5 md:gap-10 md:px-8 pt-6 pb-12 md:pt-16 md:pb-24 lg:grid-cols-12">
         <div className="lg:col-span-7">
           <Reveal>
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] font-medium text-brand shadow-soft">
@@ -115,13 +116,15 @@ function Hero({ status, t }: { status: Status | null; t: T }) {
             </span>
           </Reveal>
           <Reveal delay={60}>
-            <h1 className="mt-6 text-4xl font-semibold leading-[1.05] md:text-[3.4rem] md:leading-[1.03] text-ink">{t("hero.title")}</h1>
+            <h1 className="mt-5 text-[2.15rem] font-semibold leading-[1.08] md:mt-6 md:text-[3.4rem] md:leading-[1.03] text-ink text-balance">{t("hero.title")}</h1>
           </Reveal>
           <Reveal delay={120}>
-            <p className="mt-5 max-w-lg text-[17px] leading-relaxed text-muted">{t("hero.subtitle")} {t("help.know.d")}</p>
+            <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-muted md:mt-5 md:text-[17px]">{t("hero.subtitle")}</p>
           </Reveal>
+          {/* On phones the Today card + sticky bar carry the actions, so this
+              button pair is desktop-only to keep the mobile hero uncluttered. */}
           <Reveal delay={180}>
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-8 hidden flex-wrap items-center gap-3 md:flex">
               <Link href="/book" className="press group inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3.5 text-[15px] font-semibold text-white shadow-soft transition hover:bg-brand-dark">
                 <CalendarPlus className="h-[18px] w-[18px]" /> {t("cta.book")}
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
@@ -132,14 +135,14 @@ function Hero({ status, t }: { status: Status | null; t: T }) {
             </div>
           </Reveal>
           <Reveal delay={240}>
-            <div className="mt-8 flex items-center gap-4">
+            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 md:mt-8">
               <div className="flex items-center gap-2">
                 <Stars n={5} />
                 <span className="font-semibold text-ink">{clinic.rating.score}</span>
                 <span className="text-sm text-muted">· {clinic.rating.count} {clinic.rating.source} reviews</span>
               </div>
               <span className="hidden sm:block h-4 w-px bg-line" />
-              <span className="hidden sm:block text-sm text-muted">{t("hero.trust")}</span>
+              <span className="text-sm text-muted">{t("hero.trust")}</span>
             </div>
           </Reveal>
         </div>
@@ -221,7 +224,7 @@ function HelpBand({ t }: { t: T }) {
 /* ── Services ────────────────────────────────────────────────────────────── */
 function Services({ t }: { t: T }) {
   return (
-    <section id="services" className="mx-auto max-w-6xl px-5 md:px-8 py-16 md:py-24">
+    <section id="services" className="mx-auto max-w-6xl scroll-mt-16 px-5 md:px-8 py-16 md:py-24">
       <Reveal><SectionHead n="01" title={t("sec.services")} /></Reveal>
       <div className="mt-10 space-y-8">
         {serviceGroups.map((g) => (
@@ -250,7 +253,7 @@ function Services({ t }: { t: T }) {
 /* ── Reviews ─────────────────────────────────────────────────────────────── */
 function Reviews({ t }: { t: T }) {
   return (
-    <section id="reviews" className="border-y border-line bg-brand-tint/30">
+    <section id="reviews" className="scroll-mt-16 border-y border-line bg-brand-tint/30">
       <div className="mx-auto max-w-6xl px-5 md:px-8 py-16 md:py-24">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <Reveal><SectionHead n="02" title={t("sec.reviews")} /></Reveal>
@@ -283,7 +286,7 @@ function DoctorStrip({ t }: { t: T }) {
   return (
     <section className="mx-auto max-w-6xl px-5 md:px-8 py-16 md:py-20">
       <Reveal>
-        <div className="grid items-center gap-8 rounded-3xl border border-line bg-surface p-8 md:grid-cols-12 md:p-12">
+        <div className="grid grid-cols-1 items-center gap-8 rounded-3xl border border-line bg-surface p-8 md:grid-cols-12 md:p-12">
           <div className="md:col-span-4 flex md:justify-center">
             <div className="relative">
               <div className="grid h-32 w-32 place-items-center rounded-3xl bg-brand text-4xl font-bold text-white">MR</div>
@@ -310,7 +313,7 @@ function DoctorStrip({ t }: { t: T }) {
 /* ── Location + hours ────────────────────────────────────────────────────── */
 function LocationHours({ t }: { t: T }) {
   return (
-    <section id="location" className="mx-auto grid max-w-6xl gap-8 px-5 md:px-8 pb-16 md:pb-24 lg:grid-cols-2">
+    <section id="location" className="mx-auto grid max-w-6xl scroll-mt-16 gap-8 px-5 md:px-8 pb-16 md:pb-24 lg:grid-cols-2">
       <Reveal>
         <SectionHead n="03" title={t("sec.location")} />
         <div className="lift mt-8 rounded-3xl border border-line bg-surface p-6">
@@ -368,7 +371,7 @@ function Footer({ t }: { t: T }) {
         </div>
       </div>
       <div className="border-t border-white/10">
-        <div className="mx-auto max-w-6xl px-5 md:px-8 py-4 text-xs text-white/35">© {new Date().getFullYear()} {clinic.name}. {clinic.location.city}, {clinic.location.state}.</div>
+        <div className="mx-auto max-w-6xl px-5 md:px-8 py-4 pb-24 text-xs text-white/35 md:pb-4">© {new Date().getFullYear()} {clinic.name}. {clinic.location.city}, {clinic.location.state}.</div>
       </div>
     </footer>
   );
