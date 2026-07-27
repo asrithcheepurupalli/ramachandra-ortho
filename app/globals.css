@@ -1,59 +1,80 @@
 @import "tailwindcss";
 
-/* ── Ramachandra Ortho Care — art direction ──────────────────────────────────
-   Warm-clinical: bone paper, deep pine-green (healing, trust), warm amber
-   accent, editorial serif headings over a clean grotesk body. Calm, not cold. */
+/* ── Ramachandra Ortho Care — the clinic's own design system ──────────────────
+   Warm, reassuring, utility-first. One confident sans, an emerald that reads as
+   "healthy", a soft mint paper. Built to make patients feel looked after. */
 @theme {
-  --color-bone: #f6f4ee;
+  --color-bg: #f5f8f6;
+  --color-surface: #ffffff;
+  --color-ink: #0e1a17;
+  --color-muted: #5c6b66;
+  --color-line: #e3ebe7;
+  --color-brand: #0c7a68;
+  --color-brand-dark: #0a5d50;
+  --color-brand-tint: #e2f1ec;
+  --color-accent: #ef6f53;
+  --color-accent-tint: #fdeae4;
+  --color-in: #13a06d;
+  --color-out: #d0594a;
+
+  /* aliases so the admin + booking surfaces keep working */
+  --color-bone: #f5f8f6;
   --color-paper: #ffffff;
-  --color-ink: #152420;
-  --color-muted: #68766f;
-  --color-line: #e6e2d8;
-  --color-brand: #0e5a4e;
-  --color-brand-dark: #0a463c;
-  --color-brand-tint: #e6efeb;
-  --color-accent: #d9862a;
-  --color-accent-soft: #f7e7cd;
-  --color-in: #1a9e6e;
-  --color-out: #c0554a;
 
-  --font-display: var(--font-fraunces), Georgia, serif;
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --shadow-soft: 0 1px 2px rgba(14, 26, 23, 0.04), 0 12px 32px -18px rgba(12, 122, 104, 0.28);
+  --shadow-lift: 0 2px 6px rgba(14, 26, 23, 0.06), 0 24px 48px -24px rgba(12, 122, 104, 0.4);
 }
 
-* {
-  border-color: var(--color-line);
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
+* { border-color: var(--color-line); }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
-  background: var(--color-bone);
+  background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  letter-spacing: -0.011em;
 }
+::selection { background: var(--color-brand-tint); }
 
-@keyframes livepulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); }
-  70% { box-shadow: 0 0 0 7px transparent; }
+h1, h2, h3 { letter-spacing: -0.03em; }
+
+/* admin/booking use this for headings; now a confident sans */
+.font-display { font-family: var(--font-sans); font-weight: 600; letter-spacing: -0.02em; }
+
+/* ── motion ──────────────────────────────────────────────────────────────── */
+.reveal { opacity: 0; transform: translateY(18px); }
+.reveal.in {
+  opacity: 1; transform: none;
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lift { transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease, border-color 0.2s ease; }
+.lift:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+.press { transition: transform 0.12s ease; }
+.press:active { transform: scale(0.97); }
+
+@keyframes pulsering {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 50%, transparent); }
+  70% { box-shadow: 0 0 0 8px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
-.pulse-dot { animation: livepulse 2s infinite; }
+.pulse-dot { animation: pulsering 2.2s infinite; }
 
-@keyframes rise {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: none; }
+@keyframes floaty {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(12px, -16px) scale(1.06); }
 }
-.rise { animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.blob { animation: floaty 14s ease-in-out infinite; }
 
-.font-display { font-family: var(--font-display); font-weight: 400; }
+@keyframes shimmer { to { background-position: 200% 0; } }
 
-.bone-grid {
-  background-image:
-    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--color-brand) 14%, transparent) 1px, transparent 0);
-  background-size: 22px 22px;
+/* subtle underline grow for links */
+.ulink { background-image: linear-gradient(currentColor, currentColor); background-size: 0% 1.5px; background-repeat: no-repeat; background-position: 0 100%; transition: background-size 0.3s ease; }
+.ulink:hover { background-size: 100% 1.5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; }
+  .blob, .pulse-dot { animation: none; }
+  * { scroll-behavior: auto; }
 }
