@@ -94,6 +94,24 @@ export function addWalkIn(input: { name: string; phone: string; reason: string; 
   write([...all, appt]);
   return appt;
 }
+// A patient booking a specific date + time from the website (or WhatsApp).
+export function addBooking(input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }): Appt {
+  const all = read();
+  const dayAppts = all.filter((a) => a.date === input.date);
+  const token = (dayAppts.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
+  const appt: Appt = {
+    id: rid(), token, name: input.name.trim(), phone: input.phone.trim(),
+    reason: input.reason.trim() || "Consultation", date: input.date, time: input.time,
+    status: "reserved", source: input.source ?? "website", fee: clinic.consultationFee,
+    paid: false, createdAt: Date.now(),
+  };
+  write([...all, appt]);
+  return appt;
+}
+// Times already taken on a date (so the slot picker can hide them).
+export function takenSlots(date: string): string[] {
+  return read().filter((a) => a.date === date && a.status !== "cancelled").map((a) => a.time);
+}
 export function setStatus(id: string, status: ApptStatus) {
   write(read().map((a) => (a.id === id ? { ...a, status, paid: status === "done" ? true : a.paid } : a)));
 }
