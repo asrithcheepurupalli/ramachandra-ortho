@@ -6,13 +6,14 @@ import {
   Activity, Ambulance, Bone, CircleDot, Droplet, Dumbbell, HandHeart,
   PersonStanding, ShieldPlus, Siren, Spline, Stethoscope, Volleyball,
   Star, MapPin, MessageCircle, CalendarPlus, Phone, ChevronRight,
-  ArrowRight, Navigation, Quote, ShieldCheck, Zap, Ticket,
+  ArrowRight, Navigation, Quote, ShieldCheck, Zap, Ticket, Check,
   type LucideIcon,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { serviceGroups } from "@/lib/services";
 import { reviews } from "@/lib/reviews";
+import { WhatsAppDemo } from "@/components/WhatsAppDemo";
 import { weeklyHours, statusAt, fmt, weekdayName, type Status } from "@/lib/schedule";
 import { hydrateSchedule } from "@/lib/store";
 
@@ -46,6 +47,7 @@ export default function Home() {
       <Nav lang={lang} setLang={setLang} t={t} />
       <Hero status={status} t={t} />
       <HelpBand t={t} />
+      <WhatsAppSection />
       <Services t={t} />
       <Reviews t={t} />
       <DoctorStrip t={t} />
@@ -216,6 +218,48 @@ function HelpBand({ t }: { t: T }) {
             </div>
           </Reveal>
         ))}
+      </div>
+    </section>
+  );
+}
+
+/* ── WhatsApp booking + live demo ──────────────────────────────────────────── */
+function WhatsAppSection() {
+  const features = [
+    "Instant booking confirmation",
+    "Cancellation and reschedule updates",
+    "Day-before reminders",
+    "“Is the doctor in?” answered any time",
+  ];
+  return (
+    <section id="whatsapp" className="scroll-mt-16 border-y border-line bg-brand-tint/25">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-5 md:px-8 py-16 md:py-24 lg:grid-cols-2">
+        <Reveal>
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] font-medium text-[#075E54]">
+              <MessageCircle className="h-4 w-4" /> WhatsApp booking
+            </span>
+            <h2 className="mt-5 text-3xl font-semibold md:text-4xl">Book on WhatsApp, in your language.</h2>
+            <p className="mt-4 max-w-md leading-relaxed text-muted">
+              Patients message the clinic just like they message anyone. The assistant checks if the doctor is in, books a slot and sends a token, in Telugu, English or Hindi.
+            </p>
+            <ul className="mt-6 space-y-2.5">
+              {features.map((f) => (
+                <li key={f} className="flex items-center gap-2.5 text-[15px]">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#075E54] text-white"><Check className="h-3 w-3" /></span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="press mt-7 inline-flex items-center gap-2 rounded-full bg-[#075E54] px-6 py-3.5 text-[15px] font-semibold text-white transition hover:brightness-110">
+              <MessageCircle className="h-[18px] w-[18px]" /> Open WhatsApp
+            </a>
+            <p className="mt-3 text-xs text-muted">Try the live demo yourself. It really books into the clinic dashboard.</p>
+          </div>
+        </Reveal>
+        <Reveal delay={120}>
+          <WhatsAppDemo />
+        </Reveal>
       </div>
     </section>
   );
