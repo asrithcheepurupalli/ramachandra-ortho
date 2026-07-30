@@ -8,6 +8,7 @@ export const clinic = {
   name: "Ramachandra Ortho Care & Clinics",
   shortName: "Ramachandra Ortho Care",
   tagline: "Bones, joints and mobility, in careful hands.",
+  url: "https://ortho-clinic-jet.vercel.app", // EDIT: point to the real domain later
   doctor: {
     name: "Dr. M. Ramachandra",
     // EDIT: exact qualifications to be confirmed by the clinic.

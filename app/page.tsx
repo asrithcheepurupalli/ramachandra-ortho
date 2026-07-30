@@ -14,6 +14,7 @@ import { tr, langLabels } from "@/lib/i18n";
 import { serviceGroups } from "@/lib/services";
 import { reviews } from "@/lib/reviews";
 import { WhatsAppDemo } from "@/components/WhatsAppDemo";
+import { DoctorPhoto } from "@/components/DoctorPhoto";
 import { weeklyHours, statusAt, fmt, weekdayName, type Status } from "@/lib/schedule";
 import { hydrateSchedule } from "@/lib/store";
 
@@ -182,7 +183,7 @@ function TodayCard({ status, t }: { status: Status | null; t: T }) {
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand text-sm font-bold text-white">MR</span>
+        <DoctorPhoto className="h-11 w-11 shrink-0 rounded-xl text-sm" />
         <div className="min-w-0">
           <div className="truncate text-[15px] font-semibold">{clinic.doctor.name}</div>
           <div className="truncate text-xs text-muted">{clinic.doctor.title}</div>
@@ -333,7 +334,7 @@ function DoctorStrip({ t }: { t: T }) {
         <div className="grid grid-cols-1 items-center gap-8 rounded-3xl border border-line bg-surface p-8 md:grid-cols-12 md:p-12">
           <div className="md:col-span-4 flex md:justify-center">
             <div className="relative">
-              <div className="grid h-32 w-32 place-items-center rounded-3xl bg-brand text-4xl font-bold text-white">MR</div>
+              <DoctorPhoto className="h-36 w-36 rounded-3xl text-4xl" />
               <span className="absolute -bottom-2 -right-2 flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-xs font-semibold shadow-soft"><Star className="h-3.5 w-3.5 fill-accent text-accent" /> {clinic.rating.score}</span>
             </div>
           </div>

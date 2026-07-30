@@ -5,6 +5,7 @@ import { Phone, Video, MoreVertical, ArrowLeft, Send, CheckCheck } from "lucide-
 import { clinic, type Lang } from "@/clinic.config";
 import { langLabels } from "@/lib/i18n";
 import { botStart, botReply, mkMsg, type ChatMsg, type BotState } from "@/lib/bot";
+import { DoctorPhoto } from "@/components/DoctorPhoto";
 
 // render WhatsApp-style *bold* and line breaks
 function fmt(s: string) {
@@ -68,7 +69,7 @@ export function WhatsAppDemo() {
         {/* header */}
         <div className="flex items-center gap-2.5 bg-[#075E54] px-3 py-2.5 text-white">
           <ArrowLeft className="h-5 w-5 opacity-90" />
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-white/20 text-sm font-bold">R</span>
+          <DoctorPhoto className="h-9 w-9 shrink-0 rounded-full text-sm" monogramText="R" />
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-[15px] font-semibold">{clinic.shortName}</div>
             <div className="text-[11px] text-white/70">online</div>
