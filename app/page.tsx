@@ -111,18 +111,18 @@ function Hero({ status, t }: { status: Status | null; t: T }) {
         <div className="blob absolute -top-32 -right-24 h-[26rem] w-[26rem] rounded-full bg-brand-tint blur-3xl opacity-70" />
         <div className="blob absolute top-40 -left-32 h-80 w-80 rounded-full bg-accent-tint blur-3xl opacity-60" style={{ animationDelay: "-6s" }} />
       </div>
-      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-5 md:gap-10 md:px-8 pt-6 pb-12 md:pt-16 md:pb-24 lg:grid-cols-12">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-7 px-5 md:gap-10 md:px-8 pt-4 pb-10 md:pt-16 md:pb-24 lg:grid-cols-12">
         <div className="lg:col-span-7">
           <Reveal>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] font-medium text-brand shadow-soft">
-              <ShieldCheck className="h-4 w-4" /> {t("hero.kicker")}
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-brand shadow-soft md:px-3 md:py-1.5 md:text-[13px]">
+              <ShieldCheck className="h-3.5 w-3.5 md:h-4 md:w-4" /> {t("hero.kicker")}
             </span>
           </Reveal>
           <Reveal delay={60}>
-            <h1 className="mt-5 text-[2.15rem] font-semibold leading-[1.08] md:mt-6 md:text-[3.4rem] md:leading-[1.03] text-ink text-balance">{t("hero.title")}</h1>
+            <h1 className="mt-4 text-[1.6rem] font-semibold leading-[1.15] tracking-[-0.02em] md:mt-6 md:text-[3.4rem] md:leading-[1.03] text-ink text-balance">{t("hero.title")}</h1>
           </Reveal>
           <Reveal delay={120}>
-            <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-muted md:mt-5 md:text-[17px]">{t("hero.subtitle")}</p>
+            <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-muted md:mt-5 md:text-[17px]">{t("hero.subtitle")}</p>
           </Reveal>
           {/* On phones the Today card + sticky bar carry the actions, so this
               button pair is desktop-only to keep the mobile hero uncluttered. */}
@@ -168,32 +168,32 @@ function TodayCard({ status, t }: { status: Status | null; t: T }) {
   const line2 = !status ? "" : status.state === "in" ? t("avail.until", { t: fmt(status.until) }) : status.state === "out" && status.next ? t("avail.next", { day: weekdayName(status.next.date), t: fmt(status.next.opensAt) }) : "";
 
   return (
-    <div className="rounded-3xl border border-line bg-surface p-6 shadow-lift">
+    <div className="rounded-3xl border border-line bg-surface p-5 shadow-lift md:p-6">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted">{t("today.card")}</span>
-        <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color }}>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted md:text-xs">{t("today.card")}</span>
+        <span className="flex items-center gap-1.5 text-[11px] font-medium md:text-xs" style={{ color }}>
           <span className="relative flex h-2 w-2"><span className="pulse-dot absolute h-full w-full rounded-full" style={{ color }} /><span className="relative h-2 w-2 rounded-full" style={{ background: color }} /></span>
           {t("avail.label")}
         </span>
       </div>
 
-      <div className="mt-4 rounded-2xl p-4" style={{ background: inState ? "var(--color-brand-tint)" : "color-mix(in srgb, var(--color-bg) 60%, white)" }}>
-        <div className="text-xl font-semibold" style={{ color: inState ? "var(--color-brand-dark)" : "var(--color-ink)" }}>{line1}</div>
-        {line2 && <div className="mt-0.5 text-sm text-muted">{line2}</div>}
+      <div className="mt-3.5 rounded-2xl p-3.5 md:p-4" style={{ background: inState ? "var(--color-brand-tint)" : "color-mix(in srgb, var(--color-bg) 60%, white)" }}>
+        <div className="text-[17px] font-semibold md:text-xl" style={{ color: inState ? "var(--color-brand-dark)" : "var(--color-ink)" }}>{line1}</div>
+        {line2 && <div className="mt-0.5 text-[13px] text-muted md:text-sm">{line2}</div>}
       </div>
 
-      <div className="mt-4 flex items-center gap-3">
-        <DoctorPhoto className="h-11 w-11 shrink-0 rounded-xl text-sm" />
+      <div className="mt-3.5 flex items-center gap-3">
+        <DoctorPhoto className="h-10 w-10 shrink-0 rounded-xl text-sm md:h-11 md:w-11" />
         <div className="min-w-0">
-          <div className="truncate text-[15px] font-semibold">{clinic.doctor.name}</div>
-          <div className="truncate text-xs text-muted">{clinic.doctor.title}</div>
+          <div className="truncate text-[14px] font-semibold md:text-[15px]">{clinic.doctor.name}</div>
+          <div className="truncate text-[11px] text-muted md:text-xs">{clinic.doctor.title}</div>
         </div>
         <span className="ml-auto shrink-0 rounded-full bg-brand-tint px-2.5 py-1 text-xs font-semibold text-brand">{clinic.currency}{clinic.consultationFee}</span>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <Link href="/book" className="press flex items-center justify-center gap-1.5 rounded-xl bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark"><Ticket className="h-4 w-4" /> {t("cta.book")}</Link>
-        <a href={`tel:${clinic.contact.phone}`} className="press flex items-center justify-center gap-1.5 rounded-xl border border-line py-3 text-sm font-semibold text-ink transition hover:border-brand/40"><Phone className="h-4 w-4 text-brand" /> {t("cta.call")}</a>
+      <div className="mt-3.5 grid grid-cols-2 gap-2">
+        <Link href="/book" className="press flex items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-dark md:py-3 md:text-sm"><Ticket className="h-4 w-4" /> {t("cta.book")}</Link>
+        <a href={`tel:${clinic.contact.phone}`} className="press flex items-center justify-center gap-1.5 rounded-xl border border-line py-2.5 text-[13px] font-semibold text-ink transition hover:border-brand/40 md:py-3 md:text-sm"><Phone className="h-4 w-4 text-brand" /> {t("cta.call")}</a>
       </div>
     </div>
   );
@@ -234,25 +234,25 @@ function WhatsAppSection() {
   ];
   return (
     <section id="whatsapp" className="scroll-mt-16 border-y border-line bg-brand-tint/25">
-      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-5 md:px-8 py-16 md:py-24 lg:grid-cols-2">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-5 md:gap-12 md:px-8 py-12 md:py-24 lg:grid-cols-2">
         <Reveal>
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] font-medium text-[#075E54]">
-              <MessageCircle className="h-4 w-4" /> WhatsApp booking
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-[#075E54] md:px-3 md:py-1.5 md:text-[13px]">
+              <MessageCircle className="h-3.5 w-3.5 md:h-4 md:w-4" /> WhatsApp booking
             </span>
-            <h2 className="mt-5 text-3xl font-semibold md:text-4xl">Book on WhatsApp, in your language.</h2>
-            <p className="mt-4 max-w-md leading-relaxed text-muted">
+            <h2 className="mt-4 text-2xl font-semibold md:mt-5 md:text-4xl">Book on WhatsApp, in your language.</h2>
+            <p className="mt-3 max-w-md text-[14px] leading-relaxed text-muted md:mt-4 md:text-base">
               Patients message the clinic just like they message anyone. The assistant checks if the doctor is in, books a slot and sends a token, in Telugu, English or Hindi.
             </p>
-            <ul className="mt-6 space-y-2.5">
+            <ul className="mt-5 space-y-2 md:mt-6 md:space-y-2.5">
               {features.map((f) => (
-                <li key={f} className="flex items-center gap-2.5 text-[15px]">
+                <li key={f} className="flex items-center gap-2.5 text-[14px] md:text-[15px]">
                   <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#075E54] text-white"><Check className="h-3 w-3" /></span>
                   {f}
                 </li>
               ))}
             </ul>
-            <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="press mt-7 inline-flex items-center gap-2 rounded-full bg-[#075E54] px-6 py-3.5 text-[15px] font-semibold text-white transition hover:brightness-110">
+            <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="press mt-6 inline-flex items-center gap-2 rounded-full bg-[#075E54] px-5 py-3 text-[14px] font-semibold text-white transition hover:brightness-110 md:mt-7 md:px-6 md:py-3.5 md:text-[15px]">
               <MessageCircle className="h-[18px] w-[18px]" /> Open WhatsApp
             </a>
             <p className="mt-3 text-xs text-muted">Try the live demo yourself. It really books into the clinic dashboard.</p>
@@ -269,7 +269,7 @@ function WhatsAppSection() {
 /* ── Services ────────────────────────────────────────────────────────────── */
 function Services({ t }: { t: T }) {
   return (
-    <section id="services" className="mx-auto max-w-6xl scroll-mt-16 px-5 md:px-8 py-16 md:py-24">
+    <section id="services" className="mx-auto max-w-6xl scroll-mt-16 px-5 md:px-8 py-12 md:py-24">
       <Reveal><SectionHead n="01" title={t("sec.services")} /></Reveal>
       <div className="mt-10 space-y-8">
         {serviceGroups.map((g) => (
@@ -299,7 +299,7 @@ function Services({ t }: { t: T }) {
 function Reviews({ t }: { t: T }) {
   return (
     <section id="reviews" className="scroll-mt-16 border-y border-line bg-brand-tint/30">
-      <div className="mx-auto max-w-6xl px-5 md:px-8 py-16 md:py-24">
+      <div className="mx-auto max-w-6xl px-5 md:px-8 py-12 md:py-24">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <Reveal><SectionHead n="02" title={t("sec.reviews")} /></Reveal>
           <Reveal delay={80}>
@@ -329,12 +329,12 @@ function Reviews({ t }: { t: T }) {
 /* ── Doctor strip ────────────────────────────────────────────────────────── */
 function DoctorStrip({ t }: { t: T }) {
   return (
-    <section className="mx-auto max-w-6xl px-5 md:px-8 py-16 md:py-20">
+    <section className="mx-auto max-w-6xl px-5 md:px-8 py-12 md:py-20">
       <Reveal>
-        <div className="grid grid-cols-1 items-center gap-8 rounded-3xl border border-line bg-surface p-8 md:grid-cols-12 md:p-12">
+        <div className="grid grid-cols-1 items-center gap-6 rounded-3xl border border-line bg-surface p-6 md:grid-cols-12 md:gap-8 md:p-12">
           <div className="md:col-span-4 flex md:justify-center">
             <div className="relative">
-              <DoctorPhoto className="h-36 w-36 rounded-3xl text-4xl" />
+              <DoctorPhoto className="h-28 w-28 rounded-3xl text-3xl md:h-36 md:w-36 md:text-4xl" />
               <span className="absolute -bottom-2 -right-2 flex items-center gap-1 rounded-full bg-surface px-2.5 py-1 text-xs font-semibold shadow-soft"><Star className="h-3.5 w-3.5 fill-accent text-accent" /> {clinic.rating.score}</span>
             </div>
           </div>
@@ -358,7 +358,7 @@ function DoctorStrip({ t }: { t: T }) {
 /* ── Location + hours ────────────────────────────────────────────────────── */
 function LocationHours({ t }: { t: T }) {
   return (
-    <section id="location" className="mx-auto grid max-w-6xl scroll-mt-16 gap-8 px-5 md:px-8 pb-16 md:pb-24 lg:grid-cols-2">
+    <section id="location" className="mx-auto grid max-w-6xl scroll-mt-16 gap-8 px-5 md:px-8 pb-12 md:pb-24 lg:grid-cols-2">
       <Reveal>
         <SectionHead n="03" title={t("sec.location")} />
         <div className="lift mt-8 rounded-3xl border border-line bg-surface p-6">
@@ -425,10 +425,10 @@ function Footer({ t }: { t: T }) {
 /* ── Mobile sticky action bar ────────────────────────────────────────────── */
 function MobileBar({ t }: { t: T }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-bg/90 backdrop-blur-md px-4 py-3 md:hidden" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-bg/90 px-3 py-2 backdrop-blur-md md:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}>
       <div className="flex gap-2">
-        <Link href="/book" className="press flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand py-3 text-sm font-semibold text-white"><CalendarPlus className="h-4 w-4" /> {t("cta.book")}</Link>
-        <a href={waLink("Hi, I would like to book an appointment.")} target="_blank" rel="noreferrer" className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-brand/25 bg-surface py-3 text-sm font-semibold text-brand"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
+        <Link href="/book" className="press flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-[13px] font-semibold text-white"><CalendarPlus className="h-4 w-4" /> {t("cta.book")}</Link>
+        <a href={waLink("Hi, I would like to book an appointment.")} target="_blank" rel="noreferrer" className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-brand/25 bg-surface py-2.5 text-[13px] font-semibold text-brand"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
       </div>
     </div>
   );
@@ -451,7 +451,7 @@ function SectionHead({ n, title }: { n: string; title: string }) {
   return (
     <div>
       <span className="font-mono text-xs text-accent">/{n}</span>
-      <h2 className="mt-1.5 text-3xl font-semibold md:text-4xl">{title}</h2>
+      <h2 className="mt-1 text-2xl font-semibold md:mt-1.5 md:text-4xl">{title}</h2>
     </div>
   );
 }
