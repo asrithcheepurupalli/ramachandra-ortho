@@ -13,6 +13,7 @@ const en: Dict = {
   "hero.subtitle":
     "Fractures, joint replacements and sports injuries, treated with patience and care.",
   "cta.book": "Book appointment",
+  "cta.bookShort": "Book",
   "cta.whatsapp": "Chat on WhatsApp",
   "cta.hours": "View schedule",
   "cta.call": "Call clinic",
@@ -73,6 +74,7 @@ const te: Dict = {
   "hero.subtitle":
     "ఎముకలు, కీళ్ల మార్పిడి, క్రీడా గాయాలకు ఓపికగా, శ్రద్ధగా చికిత్స.",
   "cta.book": "అపాయింట్‌మెంట్ బుక్ చేయండి",
+  "cta.bookShort": "బుక్ చేయండి",
   "cta.whatsapp": "వాట్సాప్‌లో చాట్ చేయండి",
   "cta.hours": "షెడ్యూల్ చూడండి",
   "cta.call": "క్లినిక్‌కు కాల్ చేయండి",
@@ -133,6 +135,7 @@ const hi: Dict = {
   "hero.subtitle":
     "हड्डियों, जोड़ प्रत्यारोपण और खेल चोटों का धैर्य और देखभाल के साथ इलाज।",
   "cta.book": "अपॉइंटमेंट बुक करें",
+  "cta.bookShort": "बुक करें",
   "cta.whatsapp": "व्हाट्सएप पर चैट करें",
   "cta.hours": "शेड्यूल देखें",
   "cta.call": "क्लिनिक को कॉल करें",

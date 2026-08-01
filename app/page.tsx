@@ -192,8 +192,8 @@ function TodayCard({ status, t }: { status: Status | null; t: T }) {
       </div>
 
       <div className="mt-3.5 grid grid-cols-2 gap-2">
-        <Link href="/book" className="press flex items-center justify-center gap-1.5 rounded-xl bg-brand py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-dark md:py-3 md:text-sm"><Ticket className="h-4 w-4" /> {t("cta.book")}</Link>
-        <a href={`tel:${clinic.contact.phone}`} className="press flex items-center justify-center gap-1.5 rounded-xl border border-line py-2.5 text-[13px] font-semibold text-ink transition hover:border-brand/40 md:py-3 md:text-sm"><Phone className="h-4 w-4 text-brand" /> {t("cta.call")}</a>
+        <Link href="/book" className="press flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-brand px-2 py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-dark md:py-3 md:text-sm"><Ticket className="h-4 w-4 shrink-0" /> {t("cta.bookShort")}</Link>
+        <a href={`tel:${clinic.contact.phone}`} className="press flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-line px-2 py-2.5 text-[13px] font-semibold text-ink transition hover:border-brand/40 md:py-3 md:text-sm"><Phone className="h-4 w-4 shrink-0 text-brand" /> {t("cta.call")}</a>
       </div>
     </div>
   );
@@ -427,8 +427,8 @@ function MobileBar({ t }: { t: T }) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-bg/90 px-3 py-2 backdrop-blur-md md:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}>
       <div className="flex gap-2">
-        <Link href="/book" className="press flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-[13px] font-semibold text-white"><CalendarPlus className="h-4 w-4" /> {t("cta.book")}</Link>
-        <a href={waLink("Hi, I would like to book an appointment.")} target="_blank" rel="noreferrer" className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-brand/25 bg-surface py-2.5 text-[13px] font-semibold text-brand"><MessageCircle className="h-4 w-4" /> WhatsApp</a>
+        <Link href="/book" className="press flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-brand px-2 py-2.5 text-[13px] font-semibold text-white"><CalendarPlus className="h-4 w-4 shrink-0" /> {t("cta.bookShort")}</Link>
+        <a href={waLink("Hi, I would like to book an appointment.")} target="_blank" rel="noreferrer" className="press flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-brand/25 bg-surface px-2 py-2.5 text-[13px] font-semibold text-brand"><MessageCircle className="h-4 w-4 shrink-0" /> WhatsApp</a>
       </div>
     </div>
   );
