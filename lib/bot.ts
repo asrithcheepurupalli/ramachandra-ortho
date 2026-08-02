@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { clinic, type Lang } from "@/clinic.config";
 import { statusAt, fmt, weekdayName, slotsFor, ymd } from "@/lib/schedule";
-import { addBooking, takenSlots, setStatus } from "@/lib/store";
+import { addBooking, takenSlots, setStatus, type Source } from "@/lib/store";
 
 export type Sender = "bot" | "user";
 export type ChatMsg = { id: string; from: Sender; text: string };
@@ -147,13 +147,13 @@ export function botStart(lang: Lang): BotOut {
   return { reply: [t.greet], chips: [t.chips.avail, t.chips.book, t.chips.timings, t.chips.location], state: { stage: "idle" } };
 }
 
-export function botReply(input: string, lang: Lang, state: BotState): BotOut {
+export function botReply(input: string, lang: Lang, state: BotState, source: Source = "whatsapp"): BotOut {
   const t = P[lang];
   const c = t.chips;
 
   // completing a booking: this input is the patient's name
   if (state.stage === "await_name" && state.slot) {
-    const appt = addBooking({ name: input.trim() || "Patient", phone: "", reason: "WhatsApp booking", date: state.slot.date, time: state.slot.time, source: "whatsapp" });
+    const appt = addBooking({ name: input.trim() || "Patient", phone: "", reason: source === "website" ? "Booked via Ramu (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
     lastBookingId = appt.id;
     return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle" } };
   }

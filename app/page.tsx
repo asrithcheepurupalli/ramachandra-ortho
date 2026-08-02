@@ -15,6 +15,7 @@ import { serviceGroups } from "@/lib/services";
 import { reviews } from "@/lib/reviews";
 import { WhatsAppDemo } from "@/components/WhatsAppDemo";
 import { DoctorPhoto } from "@/components/DoctorPhoto";
+import { RamuChat } from "@/components/RamuChat";
 import { weeklyHours, statusAt, fmt, weekdayName, type Status } from "@/lib/schedule";
 import { hydrateSchedule } from "@/lib/store";
 
@@ -55,6 +56,7 @@ export default function Home() {
       <LocationHours t={t} />
       <Footer t={t} />
       <MobileBar t={t} />
+      <RamuChat />
     </>
   );
 }
