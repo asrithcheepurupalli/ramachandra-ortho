@@ -13,7 +13,7 @@ export const clinic = {
     name: "Dr. M. Ramachandra",
     // EDIT: exact qualifications to be confirmed by the clinic.
     title: "Orthopedic Surgeon & Trauma Care Specialist",
-    experienceNote: "Joint replacements, fractures and sports injuries",
+    experienceNote: "10 years of experience in joint replacements, fractures and sports injuries",
   },
   rating: { score: 4.8, count: 123, source: "Google" },
 
@@ -22,9 +22,10 @@ export const clinic = {
   currency: "₹",
 
   contact: {
-    // EDIT: real numbers. For the beta we run on a WhatsApp test number.
-    whatsapp: "+910000000000",
-    phone: "+910000000000",
+    whatsapp: "+919381439203",
+    phone: "+919381439203",
+    landline: "+918913541573",
+    emergency: "+919441156566", // emergency-only, label it as such wherever shown
     email: "care@ramachandraortho.in",
   },
 

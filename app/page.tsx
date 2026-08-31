@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Activity, Ambulance, Bone, CircleDot, Droplet, Dumbbell, HandHeart,
-  PersonStanding, ShieldPlus, Siren, Spline, Stethoscope, Volleyball,
+  PersonStanding, ShieldPlus, Siren, Spline, Stethoscope, Volleyball, Scan,
   Star, MapPin, MessageCircle, CalendarPlus, Phone, ChevronRight,
-  ArrowRight, Navigation, Quote, ShieldCheck, Zap, Ticket, Check,
+  ArrowRight, Navigation, Quote, ShieldCheck, Zap, Ticket, Check, TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
@@ -21,7 +21,7 @@ import { hydrateSchedule } from "@/lib/store";
 
 const iconMap: Record<string, LucideIcon> = {
   Bone, PersonStanding, Activity, Spline, Volleyball, Ambulance, Dumbbell,
-  HandHeart, Siren, Stethoscope, ShieldPlus, Droplet, CircleDot,
+  HandHeart, Siren, Stethoscope, ShieldPlus, Droplet, CircleDot, Scan,
 };
 const waLink = (msg: string) =>
   `https://wa.me/${clinic.contact.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
@@ -232,6 +232,7 @@ function WhatsAppSection() {
     "Instant booking confirmation",
     "Cancellation and reschedule updates",
     "Day-before reminders",
+    "Missed a slot? Auto-moved to the next working day",
     "“Is the doctor in?” answered any time",
   ];
   return (
@@ -346,7 +347,7 @@ function DoctorStrip({ t }: { t: T }) {
             <p className="mt-1 text-brand font-medium">{clinic.doctor.title}</p>
             <p className="mt-4 max-w-xl leading-relaxed text-muted">{clinic.doctor.experienceNote}. Patients across Visakhapatnam trust Dr. Ramachandra for clear explanations, unhurried consultations and honest advice, from a hairline fracture to a full joint replacement.</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              {["Fractures", "Joint replacement", "Sports injuries", "Trauma care", "Physiotherapy"].map((s) => (
+              {["10 years experience", "Fractures", "Joint replacement", "Sports injuries", "Trauma care", "Physiotherapy"].map((s) => (
                 <span key={s} className="rounded-full bg-brand-tint px-3 py-1 text-xs font-medium text-brand">{s}</span>
               ))}
             </div>
@@ -369,6 +370,21 @@ function LocationHours({ t }: { t: T }) {
             <address className="not-italic text-[15px] leading-relaxed">{clinic.location.line1}<br />{clinic.location.line2}<br />{clinic.location.city}, {clinic.location.state} {clinic.location.pin}</address>
           </div>
           <a href={clinic.location.mapsUrl} target="_blank" rel="noreferrer" className="press mt-5 inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark"><Navigation className="h-4 w-4" /> {t("loc.directions")}</a>
+
+          <div className="mt-6 space-y-2.5 border-t border-line pt-5">
+            <a href={`tel:${clinic.contact.landline}`} className="ulink flex items-center gap-3 text-[15px]">
+              <Phone className="h-4 w-4 shrink-0 text-brand" /> {clinic.contact.landline.replace("+91", "0")}
+              <span className="text-xs text-muted">Clinic landline</span>
+            </a>
+            <a href={`tel:${clinic.contact.phone}`} className="ulink flex items-center gap-3 text-[15px]">
+              <MessageCircle className="h-4 w-4 shrink-0 text-brand" /> {clinic.contact.phone.replace("+91", "")}
+              <span className="text-xs text-muted">Mobile / WhatsApp</span>
+            </a>
+            <a href={`tel:${clinic.contact.emergency}`} className="ulink flex items-center gap-3 text-[15px]">
+              <TriangleAlert className="h-4 w-4 shrink-0 text-brand" /> {clinic.contact.emergency.replace("+91", "")}
+              <span className="text-xs text-muted">Emergency only</span>
+            </a>
+          </div>
         </div>
       </Reveal>
       <Reveal delay={100}>
@@ -381,12 +397,12 @@ function LocationHours({ t }: { t: T }) {
               return (
                 <li key={d} className={`flex items-center justify-between py-2.5 text-sm ${today ? "font-semibold text-ink" : "text-muted"}`}>
                   <span className="flex items-center gap-2">{today && <span className="h-1.5 w-1.5 rounded-full bg-in" />}{d}</span>
-                  <span className="text-right">{d === "Saturday" ? "By appointment" : wins.length ? wins.map((w) => `${fmt(w.start)} – ${fmt(w.end)}`).join(", ") : "Closed"}</span>
+                  <span className="text-right">{wins.length ? wins.map((w) => `${fmt(w.start)} – ${fmt(w.end)}`).join(", ") : "Closed"}</span>
                 </li>
               );
             })}
           </ul>
-          <p className="mt-4 text-xs text-muted">Saturdays vary. Check the live status at the top before visiting.</p>
+          <p className="mt-4 text-xs text-muted">Closed Sundays. Check the live status at the top before visiting.</p>
         </div>
       </Reveal>
     </section>

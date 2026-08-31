@@ -6,7 +6,7 @@
 import { useSyncExternalStore } from "react";
 import { clinic } from "@/clinic.config";
 import {
-  ymd, weeklyHours, exceptions, applySchedule, setOverride, overrideRef,
+  ymd, weeklyHours, exceptions, applySchedule, setOverride, overrideRef, windowsFor,
   type WeeklyHours, type Exception, type Override,
 } from "@/lib/schedule";
 
@@ -56,6 +56,35 @@ function seed(): Appt[] {
   }));
 }
 
+// ── no-show policy: a slot nobody was marked into by day's end auto-moves to
+// the next working day, so patients never lose their place just for missing
+// the exact date (clinic policy — announced on the booking page + WhatsApp).
+const carryOverStatuses: ApptStatus[] = ["reserved", "confirmed", "waiting"];
+
+function nextWorkingDayAfter(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  for (let i = 0; i < 30; i++) {
+    d.setDate(d.getDate() + 1);
+    if (windowsFor(d).length > 0) return ymd(d);
+  }
+  return ymd(d);
+}
+
+function rescheduleNoShows(all: Appt[]): Appt[] {
+  const today = ymd(new Date());
+  const stale = all.filter((a) => a.date < today && carryOverStatuses.includes(a.status));
+  if (!stale.length) return all;
+
+  const result = all.filter((a) => !(a.date < today && carryOverStatuses.includes(a.status)));
+  for (const a of [...stale].sort((x, y) => x.createdAt - y.createdAt)) {
+    let newDate = a.date;
+    do { newDate = nextWorkingDayAfter(newDate); } while (newDate < today);
+    const token = (result.filter((x) => x.date === newDate).reduce((m, x) => Math.max(m, x.token), 0) || 0) + 1;
+    result.push({ ...a, date: newDate, status: "reserved", token });
+  }
+  return result;
+}
+
 // ── low-level persistence + subscription (for useSyncExternalStore) ─────────
 let cache: Appt[] | null = null;
 const listeners = new Set<() => void>();
@@ -63,13 +92,15 @@ const listeners = new Set<() => void>();
 function read(): Appt[] {
   if (cache) return cache;
   if (typeof window === "undefined") return [];
+  let loaded: Appt[];
   try {
     const raw = localStorage.getItem(KEY);
-    cache = raw ? (JSON.parse(raw) as Appt[]) : seed();
+    loaded = raw ? (JSON.parse(raw) as Appt[]) : seed();
   } catch {
-    cache = seed();
+    loaded = seed();
   }
-  if (!localStorage.getItem(KEY)) localStorage.setItem(KEY, JSON.stringify(cache));
+  cache = rescheduleNoShows(loaded);
+  try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch {}
   return cache;
 }
 function write(next: Appt[]) {

@@ -75,6 +75,7 @@ export default function BookPage() {
             <Row icon={Ticket} v={`${clinic.doctor.name} · ${clinic.currency}${booked.fee}`} />
           </dl>
           <p className="mt-5 text-sm leading-relaxed text-muted">{t("book.done.msg")}</p>
+          <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>
           <div className="mt-6 flex flex-col gap-2">
             <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark"><MessageCircle className="h-4 w-4" /> {t("cta.whatsapp")}</a>
             <div className="flex gap-2">
@@ -120,6 +121,7 @@ export default function BookPage() {
               );
             })}
           </div>
+          <p className="mt-2 text-xs text-muted">{t("book.noshow")}</p>
         </div>
 
         {/* time */}

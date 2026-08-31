@@ -44,15 +44,15 @@ create table if not exists public.settings (
   updated_at  timestamptz not null default now()
 );
 
--- seed the schedule the app already uses (Mon 10-11, Tue/Thu 6-8, Wed 7-8, Fri 6-7)
+-- seed the schedule the app already uses (Mon-Sat 10:00-12:30 & 18:00-20:00, Sun holiday)
 insert into public.settings (id, weekly) values (1, '{
   "0": [],
-  "1": [{"start":"10:00","end":"11:00"}],
-  "2": [{"start":"18:00","end":"20:00"}],
-  "3": [{"start":"19:00","end":"20:00"}],
-  "4": [{"start":"18:00","end":"20:00"}],
-  "5": [{"start":"18:00","end":"19:00"}],
-  "6": []
+  "1": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
+  "2": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
+  "3": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
+  "4": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
+  "5": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
+  "6": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}]
 }'::jsonb)
 on conflict (id) do nothing;
 

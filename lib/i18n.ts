@@ -64,6 +64,7 @@ const en: Dict = {
   "book.done.title": "You're booked!",
   "book.done.token": "Your token",
   "book.done.msg": "We'll send a confirmation to your WhatsApp. Please arrive a few minutes before your time.",
+  "book.noshow": "Miss your slot? No problem, it's automatically moved to the next working day, no need to rebook.",
   "book.done.home": "Back to home",
   "book.done.another": "Book another",
 };
@@ -128,6 +129,7 @@ const te: Dict = {
   "book.done.title": "బుక్ అయ్యింది!",
   "book.done.token": "మీ టోకెన్",
   "book.done.msg": "నిర్ధారణ మీ వాట్సాప్‌కు పంపుతాము. మీ సమయానికి కొన్ని నిమిషాల ముందు రండి.",
+  "book.noshow": "మీ సమయం మిస్ అయిందా? దిగులు లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది, మళ్ళీ బుక్ చేయనవసరం లేదు.",
   "book.done.home": "హోమ్‌కు తిరిగి",
   "book.done.another": "మరొకటి బుక్ చేయండి",
 };
@@ -192,6 +194,7 @@ const hi: Dict = {
   "book.done.title": "बुकिंग हो गई!",
   "book.done.token": "आपका टोकन",
   "book.done.msg": "पुष्टि आपके व्हाट्सएप पर भेजेंगे। अपने समय से कुछ मिनट पहले पहुँचें।",
+  "book.noshow": "अपना समय मिस कर दिया? चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा, दोबारा बुक करने की ज़रूरत नहीं।",
   "book.done.home": "होम पर वापस",
   "book.done.another": "एक और बुक करें",
 };

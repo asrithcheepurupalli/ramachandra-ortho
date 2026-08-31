@@ -10,16 +10,17 @@ export type Window = { start: string; end: string }; // "HH:MM" 24h
 // 0 = Sunday … 6 = Saturday
 export type WeeklyHours = Record<number, Window[]>;
 
-// Seeded from the clinic's listed OPD windows. Fully editable in admin.
-// Saturday is intentionally empty by default (mostly off, adjustable per week).
+// Seeded from the clinic's listed OPD windows: Mon–Sat, morning and evening.
+// Sunday is a holiday. Fully editable in admin.
+const OPD: Window[] = [{ start: "10:00", end: "12:30" }, { start: "18:00", end: "20:00" }];
 export const weeklyHours: WeeklyHours = {
-  0: [], // Sun closed
-  1: [{ start: "10:00", end: "11:00" }], // Mon
-  2: [{ start: "18:00", end: "20:00" }], // Tue (evening OPD)
-  3: [{ start: "19:00", end: "20:00" }], // Wed
-  4: [{ start: "18:00", end: "20:00" }], // Thu (evening OPD)
-  5: [{ start: "18:00", end: "19:00" }], // Fri
-  6: [], // Sat — adjustable; add an exception to open it
+  0: [], // Sun — holiday
+  1: OPD, // Mon
+  2: OPD, // Tue
+  3: OPD, // Wed
+  4: OPD, // Thu
+  5: OPD, // Fri
+  6: OPD, // Sat
 };
 
 // Date-specific overrides. key = "YYYY-MM-DD".
