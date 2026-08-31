@@ -4,7 +4,13 @@ import { NextResponse, type NextRequest } from "next/server";
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-export async function middleware(req: NextRequest) {
+// Supabase signup is open to the public — a valid session alone doesn't mean
+// staff. Only these emails may reach /admin. Comma-separated in the env.
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
+  .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+const isStaff = (email?: string | null) => !!email && ADMIN_EMAILS.includes(email.toLowerCase());
+
+export async function proxy(req: NextRequest) {
   // If the DB isn't configured (mock mode), don't gate anything.
   if (!URL || !ANON) return NextResponse.next();
 
@@ -22,15 +28,16 @@ export async function middleware(req: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Lock the dashboard; bounce logged-out users to /login (remember where they were).
-  if (req.nextUrl.pathname.startsWith("/admin") && !user) {
+  // Lock the dashboard; bounce logged-out (or non-staff) users to /login.
+  if (req.nextUrl.pathname.startsWith("/admin") && !isStaff(user?.email)) {
+    if (user) await supabase.auth.signOut(); // logged in but not staff — don't leave a dangling session
     const to = req.nextUrl.clone();
     to.pathname = "/login";
     to.searchParams.set("next", req.nextUrl.pathname);
     return NextResponse.redirect(to);
   }
-  // Already signed in? Skip the login page.
-  if (req.nextUrl.pathname === "/login" && user) {
+  // Already signed in as staff? Skip the login page.
+  if (req.nextUrl.pathname === "/login" && isStaff(user?.email)) {
     const to = req.nextUrl.clone();
     to.pathname = "/admin";
     return NextResponse.redirect(to);
