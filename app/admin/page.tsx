@@ -1,20 +1,49 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, CalendarCog, Users, IndianRupee, ArrowLeft, Plus,
   Megaphone, PhoneCall, Check, X, Play, Clock, CircleDot, Globe, MessageCircle,
-  Footprints, RotateCcw, TriangleAlert,
+  Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff,
 } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import {
-  useAppts, useMounted, todaysAppts, addWalkIn, setStatus, togglePaid,
-  resetDemo, loadSchedule, saveSchedule, hydrateSchedule,
+  useMounted, apptsForDate, addWalkIn, setStatus, togglePaid,
+  resetDemo, saveSchedule, hydrateSchedule,
   setAvailabilityOverride, getOverrideMode, useScheduleTick,
   type Appt, type ApptStatus, type Source,
 } from "@/lib/store";
-import { statusAt, fmt, weekdayName, type WeeklyHours } from "@/lib/schedule";
+import {
+  statusAt, fmt, weekdayName, defaultWeeklyHours, applySchedule, setOverride,
+  weeklyHours, exceptions, overrideRef, ymd, type WeeklyHours, type Exception,
+} from "@/lib/schedule";
+import { hasSupabase } from "@/lib/supabase";
+import {
+  useAdminAppts, dbAddWalkIn, dbTogglePaidClient,
+  dbLoadScheduleClient, dbSaveScheduleClient, dbSetAvailabilityOverride,
+  useDbScheduleTick,
+} from "@/lib/admin-db";
+
+function changeStatus(id: string, status: ApptStatus) {
+  // DB mode goes through the API route (not a direct client write) so a
+  // cancellation can also fire the WhatsApp cancellation notice server-side.
+  if (hasSupabase()) {
+    fetch("/api/appointments/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    }).catch((err) => console.error("admin: could not update status", err));
+  }
+  else setStatus(id, status);
+}
+function changePaid(id: string, currentPaid: boolean) {
+  if (hasSupabase()) dbTogglePaidClient(id, currentPaid).catch((err) => console.error("admin: could not toggle paid", err));
+  else togglePaid(id);
+}
+async function addWalkInAny(f: { name: string; phone: string; reason: string }): Promise<{ token: number }> {
+  return hasSupabase() ? dbAddWalkIn(f) : addWalkIn(f);
+}
 
 type Tab = "today" | "schedule" | "patients" | "revenue";
 const money = (n: number) => `${clinic.currency}${n.toLocaleString("en-IN")}`;
@@ -29,8 +58,18 @@ const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
 export default function Admin() {
   const [tab, setTab] = useState<Tab>("today");
   const mounted = useMounted();
-  const appts = useAppts();
-  useEffect(() => { hydrateSchedule(); }, []);
+  const appts = useAdminAppts();
+  const [scheduleLoaded, setScheduleLoaded] = useState(!hasSupabase());
+  useEffect(() => {
+    if (hasSupabase()) {
+      dbLoadScheduleClient()
+        .then((s) => { applySchedule(s.weekly, s.exceptions); setOverride(s.override); })
+        .catch((err) => console.error("admin: could not load schedule", err))
+        .finally(() => setScheduleLoaded(true));
+    } else {
+      hydrateSchedule();
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-bone text-ink flex">
@@ -50,7 +89,9 @@ export default function Admin() {
         </nav>
         <div className="p-3 border-t border-line space-y-1">
           <Link href="/" className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4" /> View site</Link>
-          <button onClick={resetDemo} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs text-muted hover:text-out"><RotateCcw className="h-3.5 w-3.5" /> Reset demo data</button>
+          {!hasSupabase() && (
+            <button onClick={resetDemo} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs text-muted hover:text-out"><RotateCcw className="h-3.5 w-3.5" /> Reset demo data</button>
+          )}
         </div>
       </aside>
 
@@ -71,7 +112,7 @@ export default function Admin() {
         </div>
 
         <div className="p-4 md:p-8">
-          {!mounted ? (
+          {!mounted || !scheduleLoaded ? (
             <div className="text-sm text-muted">Loading…</div>
           ) : tab === "today" ? (
             <Today appts={appts} />
@@ -91,7 +132,8 @@ export default function Admin() {
 /* ── Doctor live status (shared availability engine) ───────────────────────── */
 function DoctorStatus() {
   const [, force] = useState(0);
-  useScheduleTick(); // re-render when availability override changes
+  useScheduleTick(); // re-render when availability override changes (mock mode)
+  useDbScheduleTick(); // re-render when availability override changes (DB mode)
   useEffect(() => { const id = setInterval(() => force((n) => n + 1), 30_000); return () => clearInterval(id); }, []);
   const s = statusAt();
   const label = s.state === "in" ? "In consult now" : s.state === "soon" ? `In at ${fmt(s.opensAt)}` : "Not in today";
@@ -106,7 +148,8 @@ function DoctorStatus() {
 
 /* ── Availability toggle (Auto / In now / Away today) ──────────────────────── */
 function AvailabilityControl() {
-  useScheduleTick(); // re-render on toggle
+  useScheduleTick(); // re-render on toggle (mock mode)
+  useDbScheduleTick(); // re-render on toggle (DB mode)
   const mode = getOverrideMode();
   const s = statusAt();
   const statusText =
@@ -131,7 +174,10 @@ function AvailabilityControl() {
       </div>
       <div className="flex self-start rounded-full border border-line bg-white p-0.5 sm:self-auto">
         {opts.map((o) => (
-          <button key={o.m} onClick={() => setAvailabilityOverride(o.m)}
+          <button key={o.m} onClick={() => {
+            if (hasSupabase()) dbSetAvailabilityOverride(o.m).catch((err) => console.error("admin: could not set availability", err));
+            else setAvailabilityOverride(o.m);
+          }}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition sm:text-sm ${mode === o.m ? o.active : "text-muted hover:text-ink"}`}>
             {o.label}
           </button>
@@ -141,29 +187,64 @@ function AvailabilityControl() {
   );
 }
 
+/* ── shared date navigator (prev/next day + jump-to-date) ───────────────────── */
+function DateNav({ date, setDate }: { date: string; setDate: (d: string) => void }) {
+  const todayStr = ymd(new Date());
+  const isToday = date === todayStr;
+  const shift = (n: number) => {
+    const d = new Date(date + "T00:00:00");
+    d.setDate(d.getDate() + n);
+    setDate(ymd(d));
+  };
+  return (
+    <div className="flex items-center gap-1.5">
+      <button onClick={() => shift(-1)} title="Previous day" className="rounded-lg border border-line p-1.5 text-muted hover:bg-line/40 hover:text-ink"><ChevronLeft className="h-4 w-4" /></button>
+      <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm font-medium outline-none focus:border-brand" />
+      <button onClick={() => shift(1)} title="Next day" className="rounded-lg border border-line p-1.5 text-muted hover:bg-line/40 hover:text-ink"><ChevronRight className="h-4 w-4" /></button>
+      {!isToday && <button onClick={() => setDate(todayStr)} className="ml-1 rounded-full bg-brand-tint px-2.5 py-1.5 text-xs font-semibold text-brand hover:bg-brand hover:text-white">Today</button>}
+    </div>
+  );
+}
+const dateLabel = (date: string) => {
+  const d = new Date(date + "T00:00:00");
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }) });
+};
+
 /* ── TODAY: stats + live queue + walk-in + broadcast ───────────────────────── */
 function Today({ appts }: { appts: Appt[] }) {
-  const today = todaysAppts(appts);
-  const active = today.filter((a) => a.status !== "cancelled");
-  const inQueue = today.filter((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
-  const serving = today.find((a) => a.status === "consulting");
+  const [date, setDate] = useState(() => ymd(new Date()));
+  const isToday = date === ymd(new Date());
+  const list = apptsForDate(appts, date);
+  const active = list.filter((a) => a.status !== "cancelled");
+  const inQueue = list.filter((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
+  const serving = list.find((a) => a.status === "consulting");
   const next = inQueue[0];
-  const revenue = today.filter((a) => a.paid).reduce((s, a) => s + a.fee, 0);
+  const revenue = list.filter((a) => a.paid).reduce((s, a) => s + a.fee, 0);
 
   const callNext = () => {
-    if (serving) setStatus(serving.id, "done");
-    const n = todaysAppts(appts).find((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
-    if (n) setStatus(n.id, "consulting");
+    if (serving) changeStatus(serving.id, "done");
+    const n = apptsForDate(appts, date).find((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
+    if (n) changeStatus(n.id, "consulting");
   };
 
   return (
     <div className="space-y-6">
       <AvailabilityControl />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg">{isToday ? "Today" : dateLabel(date)}</h2>
+          <p className="text-xs text-muted">{list.length} appointment{list.length === 1 ? "" : "s"} on this date.</p>
+        </div>
+        <DateNav date={date} setDate={setDate} />
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Stat label="Appointments today" value={String(active.length)} icon={CalendarCog} />
+        <Stat label="Appointments" value={String(active.length)} icon={CalendarCog} />
         <Stat label="In queue" value={String(inQueue.length)} icon={Clock} />
         <Stat label="Now serving" value={serving ? `#${serving.token}` : "—"} icon={CircleDot} accent />
-        <Stat label="Collected today" value={money(revenue)} icon={IndianRupee} />
+        <Stat label="Collected" value={money(revenue)} icon={IndianRupee} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -171,16 +252,18 @@ function Today({ appts }: { appts: Appt[] }) {
         <div className="lg:col-span-2 rounded-2xl border border-line bg-paper">
           <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
             <div className="flex items-center gap-2">
-              <h2 className="font-semibold">Live queue</h2>
-              {next && <span className="text-xs text-muted">next up: <b className="text-ink">#{next.token} {next.name}</b></span>}
+              <h2 className="font-semibold">{isToday ? "Live queue" : "Queue"}</h2>
+              {isToday && next && <span className="text-xs text-muted">next up: <b className="text-ink">#{next.token} {next.name}</b></span>}
             </div>
-            <button onClick={callNext} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark">
-              <PhoneCall className="h-4 w-4" /> Call next
-            </button>
+            {isToday && (
+              <button onClick={callNext} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark">
+                <PhoneCall className="h-4 w-4" /> Call next
+              </button>
+            )}
           </div>
           <ul className="divide-y divide-line">
-            {today.map((a) => <QueueRow key={a.id} a={a} />)}
-            {today.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">No appointments today yet.</li>}
+            {list.map((a) => <QueueRow key={a.id} a={a} />)}
+            {list.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">No appointments on this date.</li>}
           </ul>
         </div>
 
@@ -224,16 +307,16 @@ function QueueRow({ a }: { a: Appt }) {
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {["reserved", "confirmed", "waiting"].includes(a.status) && (
-          <button onClick={() => setStatus(a.id, "consulting")} title="Start consult" className="rounded-lg border border-line p-1.5 text-brand hover:bg-brand-tint"><Play className="h-4 w-4" /></button>
+          <button onClick={() => changeStatus(a.id, "consulting")} title="Start consult" className="rounded-lg border border-line p-1.5 text-brand hover:bg-brand-tint"><Play className="h-4 w-4" /></button>
         )}
         {a.status === "consulting" && (
-          <button onClick={() => setStatus(a.id, "done")} title="Mark done" className="rounded-lg border border-line p-1.5 text-in hover:bg-in/10"><Check className="h-4 w-4" /></button>
+          <button onClick={() => changeStatus(a.id, "done")} title="Mark done" className="rounded-lg border border-line p-1.5 text-in hover:bg-in/10"><Check className="h-4 w-4" /></button>
         )}
         {a.status !== "done" && a.status !== "cancelled" && (
-          <button onClick={() => setStatus(a.id, "cancelled")} title="Cancel" className="rounded-lg border border-line p-1.5 text-muted hover:text-out hover:bg-out/10"><X className="h-4 w-4" /></button>
+          <button onClick={() => changeStatus(a.id, "cancelled")} title="Cancel" className="rounded-lg border border-line p-1.5 text-muted hover:text-out hover:bg-out/10"><X className="h-4 w-4" /></button>
         )}
         {a.status === "done" && (
-          <button onClick={() => togglePaid(a.id)} title="Toggle paid" className={`rounded-lg border border-line px-2 py-1 text-[11px] font-medium ${a.paid ? "text-in" : "text-out"}`}>{a.paid ? "Paid" : "Unpaid"}</button>
+          <button onClick={() => changePaid(a.id, a.paid)} title="Toggle paid" className={`rounded-lg border border-line px-2 py-1 text-[11px] font-medium ${a.paid ? "text-in" : "text-out"}`}>{a.paid ? "Paid" : "Unpaid"}</button>
         )}
       </div>
     </li>
@@ -243,12 +326,16 @@ function QueueRow({ a }: { a: Appt }) {
 function WalkIn() {
   const [f, setF] = useState({ name: "", phone: "", reason: "" });
   const [done, setDone] = useState<null | number>(null);
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.name.trim()) return;
-    const a = addWalkIn(f);
-    setDone(a.token); setF({ name: "", phone: "", reason: "" });
-    setTimeout(() => setDone(null), 3000);
+    try {
+      const a = await addWalkInAny(f);
+      setDone(a.token); setF({ name: "", phone: "", reason: "" });
+      setTimeout(() => setDone(null), 3000);
+    } catch (err) {
+      console.error("admin: could not add walk-in", err);
+    }
   };
   return (
     <div className="rounded-2xl border border-line bg-paper p-5">
@@ -267,21 +354,49 @@ function WalkIn() {
 
 function Broadcast({ count }: { count: number }) {
   const [mins, setMins] = useState(30);
-  const [sent, setSent] = useState<string | null>(null);
-  const send = (msg: string) => { setSent(msg); setTimeout(() => setSent(null), 3500); };
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ msg: string; note: string } | null>(null);
+
+  const send = async (msg: string) => {
+    setSending(true);
+    try {
+      if (hasSupabase()) {
+        const res = await fetch("/api/admin/broadcast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: msg }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "send failed");
+        const note = data.attempted === 0
+          ? "No patients with a phone number in today's queue."
+          : `Attempted ${data.attempted}${data.failed ? `, ${data.failed} did not deliver (only patients in an active WhatsApp conversation receive this)` : ", all queued for delivery"}.`;
+        setResult({ msg, note });
+      } else {
+        setResult({ msg, note: `Simulated — sent to ${count} patients (demo mode).` });
+      }
+    } catch (err) {
+      console.error("admin: broadcast failed", err);
+      setResult({ msg, note: "Could not send. Check the WhatsApp connection." });
+    } finally {
+      setSending(false);
+      setTimeout(() => setResult(null), 6000);
+    }
+  };
+
   return (
     <div className="rounded-2xl border border-line bg-paper p-5">
       <h2 className="flex items-center gap-2 font-semibold"><Megaphone className="h-4 w-4 text-accent" /> Broadcast</h2>
-      <p className="mt-1 text-xs text-muted">Notify all {count} waiting patients on WhatsApp in one tap.</p>
+      <p className="mt-1 text-xs text-muted">Notify today&apos;s {count} waiting patients on WhatsApp in one tap.</p>
       <div className="mt-3 space-y-2">
         <div className="flex items-center gap-2">
-          <button onClick={() => send(`Dr. Ramachandra is running about ${mins} minutes late today. Sorry for the wait.`)} className="flex-1 rounded-lg border border-line py-2 text-sm font-medium hover:border-accent/50">Running late</button>
+          <button disabled={sending} onClick={() => send(`Dr. Ramachandra is running about ${mins} minutes late today. Sorry for the wait.`)} className="flex-1 rounded-lg border border-line py-2 text-sm font-medium hover:border-accent/50 disabled:opacity-50">Running late</button>
           <input type="number" value={mins} onChange={(e) => setMins(+e.target.value)} className="w-16 rounded-lg border border-line bg-white px-2 py-2 text-sm" />
           <span className="text-xs text-muted">min</span>
         </div>
-        <button onClick={() => send("The clinic is closed today. We are sorry for the inconvenience and will help you rebook.")} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-out/30 py-2 text-sm font-medium text-out hover:bg-out/5"><TriangleAlert className="h-4 w-4" /> Clinic closed today</button>
+        <button disabled={sending} onClick={() => send("The clinic is closed today. We are sorry for the inconvenience and will help you rebook.")} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-out/30 py-2 text-sm font-medium text-out hover:bg-out/5 disabled:opacity-50"><TriangleAlert className="h-4 w-4" /> Clinic closed today</button>
       </div>
-      {sent && <div className="mt-3 rounded-lg bg-brand-tint px-3 py-2 text-xs text-brand"><b>Sent to {count} patients:</b> “{sent}”</div>}
+      {result && <div className="mt-3 rounded-lg bg-brand-tint px-3 py-2 text-xs text-brand"><b>“{result.msg}”</b><br />{result.note}</div>}
     </div>
   );
 }
@@ -298,12 +413,15 @@ function Stat({ label, value, icon: Icon, accent }: { label: string; value: stri
 /* ── SCHEDULE editor ───────────────────────────────────────────────────────── */
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 function Schedule() {
-  const init = loadSchedule();
+  // By the time this tab is reachable, the top-level Admin() effect has
+  // already loaded the real schedule (mock or DB) into the weeklyHours
+  // singleton — so seeding from it here is source-agnostic.
   const [weekly, setWeekly] = useState<WeeklyHours>(() => {
     const w: WeeklyHours = {};
-    for (let d = 0; d <= 6; d++) w[d] = (init.weekly[d] ?? []).map((x) => ({ ...x }));
+    for (let d = 0; d <= 6; d++) w[d] = (weeklyHours[d] ?? []).map((x) => ({ ...x }));
     return w;
   });
+  const [ex, setEx] = useState<Record<string, Exception>>(() => ({ ...exceptions }));
   const [saved, setSaved] = useState(false);
 
   const setWin = (d: number, i: number, key: "start" | "end", v: string) =>
@@ -311,7 +429,16 @@ function Schedule() {
   const addWin = (d: number) => setWeekly((w) => ({ ...w, [d]: [...w[d], { start: "18:00", end: "20:00" }] }));
   const rmWin = (d: number, i: number) => setWeekly((w) => ({ ...w, [d]: w[d].filter((_, j) => j !== i) }));
 
-  const save = () => { saveSchedule(weekly, init.exceptions, init.override); setSaved(true); setTimeout(() => setSaved(false), 2500); };
+  const save = async () => {
+    try {
+      if (hasSupabase()) await dbSaveScheduleClient(weekly, ex, overrideRef.current);
+      else saveSchedule(weekly, ex, overrideRef.current);
+      setSaved(true); setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      console.error("admin: could not save schedule", err);
+    }
+  };
+  const reset = () => setWeekly(defaultWeeklyHours());
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -319,9 +446,12 @@ function Schedule() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-semibold">Weekly consulting hours</h2>
-            <p className="text-xs text-muted">This drives the live availability on the website and the WhatsApp bot. Saturday is off by default; open it whenever the doctor is in.</p>
+            <p className="text-xs text-muted">This drives the live availability on the website and the WhatsApp bot. Mon–Sat share the same OPD hours by default; Sunday is the weekly holiday.</p>
           </div>
-          <button onClick={save} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">Save</button>
+          <div className="flex items-center gap-2">
+            <button onClick={reset} className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-line/40"><RotateCcw className="h-3.5 w-3.5" /> Reset to default</button>
+            <button onClick={save} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">Save</button>
+          </div>
         </div>
         <div className="mt-4 divide-y divide-line">
           {[1, 2, 3, 4, 5, 6, 0].map((d) => (
@@ -343,6 +473,46 @@ function Schedule() {
           ))}
         </div>
         {saved && <div className="mt-3 rounded-lg bg-in/10 px-3 py-2 text-sm text-in">Saved. Website and WhatsApp availability updated.</div>}
+      </div>
+
+      <ExceptionsEditor ex={ex} setEx={setEx} />
+    </div>
+  );
+}
+
+function ExceptionsEditor({ ex, setEx }: { ex: Record<string, Exception>; setEx: Dispatch<SetStateAction<Record<string, Exception>>> }) {
+  const [newDate, setNewDate] = useState("");
+  const [newNote, setNewNote] = useState("");
+  const dates = Object.keys(ex).sort();
+
+  const add = () => {
+    if (!newDate) return;
+    setEx((e) => ({ ...e, [newDate]: { closed: true, note: newNote.trim() || undefined } }));
+    setNewDate(""); setNewNote("");
+  };
+  const remove = (d: string) => setEx((e) => { const n = { ...e }; delete n[d]; return n; });
+
+  return (
+    <div className="rounded-2xl border border-line bg-paper p-5">
+      <h2 className="font-semibold">Holidays &amp; date overrides</h2>
+      <p className="text-xs text-muted">Mark a specific date closed (festival, doctor leave) — overrides the weekly hours above for just that date. Remember to hit Save.</p>
+
+      <div className="mt-4 space-y-2">
+        {dates.length === 0 && <div className="text-sm text-muted">No overrides set.</div>}
+        {dates.map((d) => (
+          <div key={d} className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm">
+            <CalendarOff className="h-4 w-4 shrink-0 text-out" />
+            <span className="font-medium">{dateLabel(d)}</span>
+            <span className="text-muted truncate">Closed{ex[d].note ? ` · ${ex[d].note}` : ""}</span>
+            <button onClick={() => remove(d)} title="Remove" className="ml-auto shrink-0 rounded-lg p-1 text-muted hover:text-out"><X className="h-4 w-4" /></button>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm" />
+        <input value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Note (optional, e.g. Diwali)" className="min-w-[10rem] flex-1 rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand" />
+        <button onClick={add} disabled={!newDate} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand-tint disabled:opacity-50"><Plus className="h-3.5 w-3.5" /> Add</button>
       </div>
     </div>
   );
@@ -384,30 +554,36 @@ function Patients({ appts }: { appts: Appt[] }) {
 
 /* ── REVENUE ───────────────────────────────────────────────────────────────── */
 function Revenue({ appts }: { appts: Appt[] }) {
-  const today = todaysAppts(appts).filter((a) => a.paid);
-  const total = today.reduce((s, a) => s + a.fee, 0);
+  const [date, setDate] = useState(() => ymd(new Date()));
+  const isToday = date === ymd(new Date());
+  const list = apptsForDate(appts, date).filter((a) => a.paid);
+  const total = list.reduce((s, a) => s + a.fee, 0);
   const bySource = (["website", "whatsapp", "walkin"] as Source[]).map((s) => ({
-    s, n: today.filter((a) => a.source === s).length,
+    s, n: list.filter((a) => a.source === s).length,
   }));
   return (
     <div className="max-w-3xl space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-lg">{isToday ? "Today" : dateLabel(date)}</h2>
+        <DateNav date={date} setDate={setDate} />
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat label="Collected today" value={money(total)} icon={IndianRupee} accent />
-        <Stat label="Consults paid" value={String(today.length)} icon={Check} />
+        <Stat label="Collected" value={money(total)} icon={IndianRupee} accent />
+        <Stat label="Consults paid" value={String(list.length)} icon={Check} />
         {bySource.map((b) => (
           <Stat key={b.s} label={sourceMeta[b.s].label} value={String(b.n)} icon={sourceMeta[b.s].icon} />
         ))}
       </div>
       <div className="rounded-2xl border border-line bg-paper">
-        <div className="border-b border-line px-5 py-3.5 font-semibold">Today&apos;s collections</div>
+        <div className="border-b border-line px-5 py-3.5 font-semibold">Collections {isToday ? "today" : `on ${dateLabel(date)}`}</div>
         <ul className="divide-y divide-line">
-          {today.map((a) => (
+          {list.map((a) => (
             <li key={a.id} className="flex items-center justify-between px-5 py-3 text-sm">
               <span className="flex items-center gap-2"><span className="font-mono text-xs text-muted">#{a.token}</span> {a.name}</span>
               <span className="font-medium">{money(a.fee)}</span>
             </li>
           ))}
-          {today.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">No collections yet.</li>}
+          {list.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">No collections on this date.</li>}
         </ul>
       </div>
       <p className="text-xs text-muted">Beta: consultation fees only. Procedures, UPI reconciliation and trends come later.</p>

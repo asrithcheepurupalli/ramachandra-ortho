@@ -40,5 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# local agent tooling (not project source)
+.agents/
+.claude/
+skills-lock.json
+
 # keep the template (never the real .env.local)
 !.env.local.example

@@ -158,9 +158,8 @@ export function useAppts(): Appt[] {
 }
 
 // derived
-export function todaysAppts(all: Appt[]) {
-  const today = ymd(new Date());
-  return all.filter((a) => a.date === today).sort((a, b) => a.token - b.token);
+export function apptsForDate(all: Appt[], date: string = ymd(new Date())) {
+  return all.filter((a) => a.date === date).sort((a, b) => a.token - b.token);
 }
 export const activeStatuses: ApptStatus[] = ["reserved", "confirmed", "waiting", "consulting"];
 

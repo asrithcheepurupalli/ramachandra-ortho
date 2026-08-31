@@ -7,8 +7,8 @@
 // (Anthropic API) for free-text understanding — the shapes below map 1:1.
 // ─────────────────────────────────────────────────────────────────────────────
 import { clinic, type Lang } from "@/clinic.config";
-import { statusAt, fmt, weekdayName, slotsFor, ymd } from "@/lib/schedule";
-import { addBooking, takenSlots, setStatus, type Source } from "@/lib/store";
+import { statusAt, fmt, weekdayName, slotsFor, ymd, type SchedState } from "@/lib/schedule";
+import { addBooking, takenSlots, setStatus, type Source, type Appt, type ApptStatus } from "@/lib/store";
 
 export type Sender = "bot" | "user";
 export type ChatMsg = { id: string; from: Sender; text: string };
@@ -184,5 +184,105 @@ export function botReply(input: string, lang: Lang, state: BotState, source: Sou
       return botStart(lang);
     default:
       return { reply: [t.fallback], chips: [c.avail, c.book, c.timings], state: { stage: "idle" } };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Server-side variant (WhatsApp webhook). A webhook route has no browser tab —
+// no localStorage-backed lib/store.ts, no module-singleton schedule — so this
+// mirrors botStart/botReply above but takes its data access and schedule state
+// as explicit arguments instead of reaching for module singletons, and stores
+// the last booking (for "cancel") in the per-conversation state instead of a
+// module-level variable, since a webhook serves many concurrent phone numbers.
+// Kept as a parallel path rather than folded into botReply so the two live
+// chat surfaces (RamuChat, WhatsAppDemo) that call botReply/botStart synchronously
+// are untouched.
+// ─────────────────────────────────────────────────────────────────────────────
+export type Backend = {
+  addBooking: (input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }) => Promise<Appt>;
+  takenSlots: (date: string) => Promise<string[]>;
+  setStatus: (id: string, status: ApptStatus) => Promise<void>;
+};
+export type ServerBotState = BotState & { lastBookingId?: string | null };
+
+async function nextSlotsServer(n: number, backend: Backend, sched: SchedState): Promise<Slot[]> {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const out: Slot[] = [];
+  for (let i = 0; i < 14 && out.length < n; i++) {
+    const d = new Date(now); d.setDate(now.getDate() + i);
+    const key = ymd(d);
+    let slots = slotsFor(d, await backend.takenSlots(key), sched);
+    if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + 10; });
+    for (const s of slots) {
+      const day = i === 0 ? "Today" : i === 1 ? "Tomorrow" : weekdayName(d).slice(0, 3);
+      out.push({ date: key, time: s, label: `${day} ${fmt(s)}` });
+      if (out.length >= n) break;
+    }
+  }
+  return out;
+}
+
+function availReplyServer(t: PhrasePack, sched: SchedState): string {
+  const st = statusAt(new Date(), sched);
+  if (st.state === "in") return t.availIn(fmt(st.until));
+  if (st.state === "soon") return t.availSoon(fmt(st.opensAt));
+  if (st.next) return t.availOut(weekdayName(st.next.date), fmt(st.next.opensAt));
+  return t.availNone;
+}
+
+export function botStartServer(lang: Lang): { reply: string[]; chips: string[]; state: ServerBotState } {
+  const t = P[lang];
+  return { reply: [t.greet], chips: [t.chips.avail, t.chips.book, t.chips.timings, t.chips.location], state: { stage: "idle" } };
+}
+
+export async function botReplyServer(
+  input: string,
+  lang: Lang,
+  state: ServerBotState,
+  phone: string,
+  backend: Backend,
+  sched: SchedState,
+  source: Source = "whatsapp"
+): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
+  const t = P[lang];
+  const c = t.chips;
+
+  // completing a booking: this input is the patient's name
+  if (state.stage === "await_name" && state.slot) {
+    const appt = await backend.addBooking({ name: input.trim() || "Patient", phone, reason: "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
+    return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle", lastBookingId: appt.id } };
+  }
+
+  // tapped a slot chip (matched against the same window this reply is computing)
+  const candidateSlots = await nextSlotsServer(8, backend, sched);
+  const picked = candidateSlots.find((s) => s.label === input);
+  if (picked) return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: picked, lastBookingId: state.lastBookingId } };
+
+  switch (detect(input)) {
+    case "avail":
+      return { reply: [availReplyServer(t, sched)], chips: [c.book, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+    case "book": {
+      const slots = await nextSlotsServer(4, backend, sched);
+      if (!slots.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+      return { reply: [t.bookIntro], chips: slots.map((s) => s.label), state: { stage: "idle", lastBookingId: state.lastBookingId } };
+    }
+    case "cancel": {
+      if (state.lastBookingId) {
+        await backend.setStatus(state.lastBookingId, "cancelled");
+        return { reply: [t.cancelDone], chips: [c.book], state: { stage: "idle", lastBookingId: null } };
+      }
+      return { reply: [t.cancelNone], chips: [c.book], state: { stage: "idle" } };
+    }
+    case "hours": case "fee":
+      return { reply: [t.hours], chips: [c.book, c.location], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+    case "location":
+      return { reply: [t.location], chips: [c.book, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+    case "thanks":
+      return { reply: [t.thanks], chips: [c.avail, c.book], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+    case "greet":
+      return botStartServer(lang);
+    default:
+      return { reply: [t.fallback], chips: [c.avail, c.book, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
   }
 }

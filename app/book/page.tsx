@@ -10,6 +10,7 @@ import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { slotsFor, ymd, fmt, weekdayName } from "@/lib/schedule";
 import { addBooking, takenSlots, hydrateSchedule, type Appt } from "@/lib/store";
+import { hasSupabase } from "@/lib/supabase";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const waLink = (msg: string) => `https://wa.me/${clinic.contact.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
@@ -26,33 +27,78 @@ export default function BookPage() {
   const [form, setForm] = useState({ name: "", phone: "", reason: "" });
   const [booked, setBooked] = useState<Appt | null>(null);
   const [err, setErr] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    hydrateSchedule();
+    let cancelled = false;
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
-    const list: DayOpt[] = [];
-    for (let i = 0; i < 14; i++) {
+    const keys = Array.from({ length: 14 }, (_, i) => {
       const d = new Date(now); d.setDate(now.getDate() + i);
-      const key = ymd(d);
-      let slots = slotsFor(d, takenSlots(key));
-      if (i === 0) slots = slots.filter((s) => toMin(s) > nowMin + 10); // small buffer for today
-      list.push({ date: key, d, slots });
-    }
-    setDays(list);
-    setSelDate(list.find((x) => x.slots.length > 0)?.date ?? null);
+      return { i, d, key: ymd(d) };
+    });
+
+    const load = async () => {
+      let list: DayOpt[];
+      if (hasSupabase()) {
+        list = await Promise.all(
+          keys.map(async ({ i, d, key }) => {
+            let slots: string[] = [];
+            try {
+              const res = await fetch(`/api/slots?date=${key}`);
+              const data = await res.json();
+              slots = res.ok ? (data.slots as string[]) : [];
+            } catch { slots = []; }
+            if (i === 0) slots = slots.filter((s) => toMin(s) > nowMin + 10);
+            return { date: key, d, slots };
+          })
+        );
+      } else {
+        hydrateSchedule();
+        list = keys.map(({ i, d, key }) => {
+          let slots = slotsFor(d, takenSlots(key));
+          if (i === 0) slots = slots.filter((s) => toMin(s) > nowMin + 10);
+          return { date: key, d, slots };
+        });
+      }
+      if (cancelled) return;
+      setDays(list);
+      setSelDate(list.find((x) => x.slots.length > 0)?.date ?? null);
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   const slots = useMemo(() => days.find((x) => x.date === selDate)?.slots ?? [], [days, selDate]);
-  const canBook = !!(selDate && selTime && form.name.trim());
+  const canBook = !!(selDate && selTime && form.name.trim()) && !submitting;
 
   const dayLabel = (o: DayOpt, i: number) =>
     i === 0 ? t("book.today") : i === 1 ? t("book.tomorrow") : weekdayName(o.d).slice(0, 3);
 
-  const confirm = () => {
+  const confirm = async () => {
     if (!form.name.trim()) { setErr(t("book.needname")); return; }
-    if (!selDate || !selTime) return;
-    setBooked(addBooking({ ...form, date: selDate, time: selTime, source: "website" }));
+    if (!selDate || !selTime || submitting) return;
+
+    if (hasSupabase()) {
+      setSubmitting(true);
+      try {
+        const res = await fetch("/api/book", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, date: selDate, time: selTime, source: "website" }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setErr(data.error ?? "Could not book. Please try again."); return; }
+        setBooked(data.appointment as Appt);
+      } catch {
+        setErr("Could not book. Please try again.");
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    } else {
+      setBooked(addBooking({ ...form, date: selDate, time: selTime, source: "website" }));
+    }
     if (typeof window !== "undefined") window.scrollTo(0, 0);
   };
 

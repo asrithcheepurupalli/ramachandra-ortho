@@ -13,8 +13,12 @@ create table if not exists public.patients (
   phone       text,
   created_at  timestamptz not null default now()
 );
-create unique index if not exists patients_phone_idx
-  on public.patients (phone) where phone is not null and phone <> '';
+-- Plain (non-partial) unique index — required so PostgREST's
+-- `.upsert(..., { onConflict: "phone" })` can target it via ON CONFLICT
+-- (a partial index can't be inferred as a conflict target without repeating
+-- its WHERE predicate, which PostgREST doesn't do). NULLs don't collide
+-- under a unique index, so callers must pass null (not "") for a blank phone.
+create unique index if not exists patients_phone_idx on public.patients (phone);
 
 -- Appointments ────────────────────────────────────────────────────────────────
 create table if not exists public.appointments (
@@ -74,3 +78,16 @@ create policy "staff update settings"   on public.settings     for update to aut
 
 -- Realtime: the admin dashboard subscribes to appointment changes for the live queue
 alter publication supabase_realtime add table public.appointments;
+
+-- WhatsApp conversation state ────────────────────────────────────────────────
+-- A webhook route has no memory between requests, so the bot's in-progress
+-- stage (idle / awaiting a name to complete a booking) and last booking (for
+-- "cancel") persist here per phone number. Service-role only — the webhook is
+-- the only thing that ever reads or writes it, so no RLS policies are needed.
+create table if not exists public.wa_sessions (
+  phone       text primary key,
+  lang        text not null default 'en',
+  state       jsonb not null default '{"stage":"idle"}'::jsonb,
+  updated_at  timestamptz not null default now()
+);
+alter table public.wa_sessions enable row level security;

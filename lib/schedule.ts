@@ -23,6 +23,22 @@ export const weeklyHours: WeeklyHours = {
   6: OPD, // Sat
 };
 
+// weeklyHours gets overwritten in place by applySchedule() (admin edits,
+// hydrated from localStorage) — so it's not a safe value to reset to. This
+// returns a fresh copy of the clinic's real default, untouched by any of that.
+export function defaultWeeklyHours(): WeeklyHours {
+  const fresh: Window[] = [{ start: "10:00", end: "12:30" }, { start: "18:00", end: "20:00" }];
+  return {
+    0: [],
+    1: fresh.map((w) => ({ ...w })),
+    2: fresh.map((w) => ({ ...w })),
+    3: fresh.map((w) => ({ ...w })),
+    4: fresh.map((w) => ({ ...w })),
+    5: fresh.map((w) => ({ ...w })),
+    6: fresh.map((w) => ({ ...w })),
+  };
+}
+
 // Date-specific overrides. key = "YYYY-MM-DD".
 //   closed: true            → doctor away that day (e.g. a Saturday he can't make)
 //   windows: Window[]       → custom hours that day (e.g. an open Saturday)
@@ -47,18 +63,6 @@ export const fmt = (t: string) => {
   return `${hr}${m ? ":" + String(m).padStart(2, "0") : ""} ${am ? "AM" : "PM"}`;
 };
 
-export function windowsFor(date: Date): Window[] {
-  const ex = exceptions[ymd(date)];
-  if (ex?.closed) return [];
-  if (ex?.windows) return ex.windows;
-  return weeklyHours[date.getDay()] ?? [];
-}
-
-export type Status =
-  | { state: "in"; until: string; note?: string }
-  | { state: "soon"; opensAt: string; note?: string }
-  | { state: "out"; next?: { date: Date; opensAt: string }; note?: string };
-
 // Manual override the front desk can flip for today ("doctor stepped in / out"),
 // independent of the weekly schedule. Wins over the schedule for today only.
 export type Override = { date: string; mode: "in" | "out" };
@@ -67,31 +71,64 @@ export function setOverride(o: Override | null) {
   overrideRef.current = o;
 }
 
+// Lightweight change notifier, decoupled from lib/store.ts's localStorage-bound
+// listeners, so DB-mode admin components can force a re-render off each other
+// when the schedule/override changes (mock mode keeps using lib/store.ts's
+// useScheduleTick, which is localStorage-driven).
+const scheduleListeners = new Set<() => void>();
+export function onScheduleChange(l: () => void): () => void {
+  scheduleListeners.add(l);
+  return () => scheduleListeners.delete(l);
+}
+export function notifyScheduleChange() {
+  scheduleListeners.forEach((l) => l());
+}
+
+// Everything windowsFor/statusAt/slotsFor need to compute availability. The
+// module singletons below (weeklyHours/exceptions/overrideRef) only get
+// populated in a browser tab via hydrateSchedule() — a server route (the
+// WhatsApp webhook, /api/slots) has no tab, so it fetches this shape fresh
+// from Supabase each request and passes it in explicitly instead.
+export type SchedState = { weekly: WeeklyHours; exceptions: Record<string, Exception>; override: Override | null };
+const liveState = (): SchedState => ({ weekly: weeklyHours, exceptions, override: overrideRef.current });
+
+export function windowsFor(date: Date, s: SchedState = liveState()): Window[] {
+  const ex = s.exceptions[ymd(date)];
+  if (ex?.closed) return [];
+  if (ex?.windows) return ex.windows;
+  return s.weekly[date.getDay()] ?? [];
+}
+
+export type Status =
+  | { state: "in"; until: string; note?: string }
+  | { state: "soon"; opensAt: string; note?: string }
+  | { state: "out"; next?: { date: Date; opensAt: string }; note?: string };
+
 // next open window in the coming 14 days
-function nextOpen(now: Date): { date: Date; opensAt: string } | undefined {
+function nextOpen(now: Date, s: SchedState): { date: Date; opensAt: string } | undefined {
   for (let i = 1; i <= 14; i++) {
     const d = new Date(now);
     d.setDate(now.getDate() + i);
-    const w = windowsFor(d)[0];
+    const w = windowsFor(d, s)[0];
     if (w) return { date: d, opensAt: w.start };
   }
   return undefined;
 }
 
-export function statusAt(now = new Date()): Status {
-  const note = exceptions[ymd(now)]?.note;
+export function statusAt(now = new Date(), s: SchedState = liveState()): Status {
+  const note = s.exceptions[ymd(now)]?.note;
 
   // manual override for today wins
-  const ov = overrideRef.current;
+  const ov = s.override;
   if (ov && ov.date === ymd(now)) {
     if (ov.mode === "out")
-      return { state: "out", next: nextOpen(now), note: note ?? "Marked away today" };
-    const wins = windowsFor(now);
+      return { state: "out", next: nextOpen(now, s), note: note ?? "Marked away today" };
+    const wins = windowsFor(now, s);
     return { state: "in", until: wins.length ? wins[wins.length - 1].end : "21:00", note };
   }
 
   const mins = now.getHours() * 60 + now.getMinutes();
-  const today = windowsFor(now);
+  const today = windowsFor(now, s);
   for (const w of today) {
     if (mins >= toMin(w.start) && mins < toMin(w.end))
       return { state: "in", until: w.end, note };
@@ -99,13 +136,13 @@ export function statusAt(now = new Date()): Status {
   const laterToday = today.find((w) => toMin(w.start) > mins);
   if (laterToday) return { state: "soon", opensAt: laterToday.start, note };
 
-  return { state: "out", next: nextOpen(now), note };
+  return { state: "out", next: nextOpen(now, s), note };
 }
 
 // Bookable slots for a given date (respects windows, minus already-taken).
-export function slotsFor(date: Date, taken: string[] = []): string[] {
+export function slotsFor(date: Date, taken: string[] = [], s: SchedState = liveState()): string[] {
   const out: string[] = [];
-  for (const w of windowsFor(date)) {
+  for (const w of windowsFor(date, s)) {
     for (let m = toMin(w.start); m < toMin(w.end); m += clinic.slotMinutes) {
       const t = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(
         m % 60

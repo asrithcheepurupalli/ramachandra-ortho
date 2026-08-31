@@ -16,8 +16,12 @@ import { reviews } from "@/lib/reviews";
 import { WhatsAppDemo } from "@/components/WhatsAppDemo";
 import { DoctorPhoto } from "@/components/DoctorPhoto";
 import { RamuChat } from "@/components/RamuChat";
-import { weeklyHours, statusAt, fmt, weekdayName, type Status } from "@/lib/schedule";
+import {
+  weeklyHours, statusAt, fmt, weekdayName, applySchedule, setOverride,
+  type Status, type WeeklyHours, type Exception, type Override,
+} from "@/lib/schedule";
 import { hydrateSchedule } from "@/lib/store";
+import { hasSupabase, supabaseBrowser } from "@/lib/supabase";
 
 const iconMap: Record<string, LucideIcon> = {
   Bone, PersonStanding, Activity, Spline, Volleyball, Ambulance, Dumbbell,
@@ -36,12 +40,28 @@ export default function Home() {
   const t: T = (k, v) => tr(lang, k, v);
 
   useEffect(() => {
-    const recompute = () => { hydrateSchedule(); setStatus(statusAt()); };
+    let cancelled = false;
+    const recompute = async () => {
+      if (hasSupabase()) {
+        const { data, error } = await supabaseBrowser()
+          .from("settings")
+          .select("weekly, exceptions, override")
+          .eq("id", 1)
+          .single();
+        if (!error && data) {
+          applySchedule(data.weekly as WeeklyHours, (data.exceptions as Record<string, Exception>) ?? {});
+          setOverride((data.override as Override | null) ?? null);
+        }
+      } else {
+        hydrateSchedule();
+      }
+      if (!cancelled) setStatus(statusAt());
+    };
     recompute();
     const id = setInterval(recompute, 60_000);
-    const onStorage = (e: StorageEvent) => { if (!e.key || e.key === "roc.schedule.v1") recompute(); };
+    const onStorage = (e: StorageEvent) => { if (!hasSupabase() && (!e.key || e.key === "roc.schedule.v1")) recompute(); };
     window.addEventListener("storage", onStorage);
-    return () => { clearInterval(id); window.removeEventListener("storage", onStorage); };
+    return () => { cancelled = true; clearInterval(id); window.removeEventListener("storage", onStorage); };
   }, []);
 
   return (
@@ -152,10 +172,22 @@ function Hero({ status, t }: { status: Status | null; t: T }) {
           </Reveal>
         </div>
 
-        {/* Today card — the live utility */}
+        {/* Clinic photo + the live Today card floating over it */}
         <div className="lg:col-span-5">
           <Reveal delay={140}>
-            <TodayCard status={status} t={t} />
+            <div className="relative">
+              <div className="overflow-hidden rounded-3xl border border-line shadow-soft">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/clinic-reception.jpg"
+                  alt={`Reception at ${clinic.name}`}
+                  className="h-56 w-full object-cover sm:h-64 md:h-[21rem]"
+                />
+              </div>
+              <div className="relative z-10 mt-4 md:-mt-16 md:px-4">
+                <TodayCard status={status} t={t} />
+              </div>
+            </div>
           </Reveal>
         </div>
       </div>
