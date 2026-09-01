@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Ramachandra Ortho Care — Handbook & Progress Report</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f8f6;
+    --surface: #ffffff;
+    --ink: #0e1a17;
+    --muted: #5c6b66;
+    --line: #e3ebe7;
+    --brand: #0c7a68;
+    --brand-dark: #0a5d50;
+    --brand-tint: #e2f1ec;
+    --accent: #ef6f53;
+    --accent-tint: #fdeae4;
+    --in: #13a06d;
+    --out: #d0594a;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.011em;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 16mm 16mm 14mm;
+    position: relative;
+    page-break-after: always;
+    background: var(--bg);
+  }
+  .page:last-child { page-break-after: auto; }
+  .page.dark { background: var(--brand-dark); color: #fff; }
+
+  h1, h2, h3 { letter-spacing: -0.02em; font-weight: 700; }
+  .eyebrow {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brand);
+  }
+  .dark .eyebrow { color: #9fe0cf; }
+  p { color: var(--muted); }
+
+  /* ── Cover ────────────────────────────────────────────────────────────── */
+  .cover { display: flex; flex-direction: column; height: 265mm; }
+  .cover-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 10mm; border-bottom: 1px solid rgba(255,255,255,0.16);
+  }
+  .brandmark { display: flex; align-items: center; gap: 10px; }
+  .brandmark .dot {
+    width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,0.14);
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+  }
+  .brandmark .name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .brandmark .tag { font-size: 10px; color: #b9e4d8; letter-spacing: 0.03em; }
+  .cover-doctype { font-size: 10.5px; color: #b9e4d8; text-align: right; letter-spacing: 0.03em; }
+
+  .cover-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 14mm 0; }
+  .cover-hero h1 { font-size: 40px; line-height: 1.08; color: #fff; max-width: 150mm; }
+  .cover-hero .sub { font-size: 14px; color: #cdece2; max-width: 130mm; margin-top: 14px; }
+
+  .cover-photo {
+    margin-top: 12mm; border-radius: 16px; overflow: hidden; height: 78mm;
+    border: 1px solid rgba(255,255,255,0.18);
+  }
+  .cover-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .cover-foot {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    padding-top: 10mm; border-top: 1px solid rgba(255,255,255,0.16);
+    font-size: 10.5px; color: #b9e4d8;
+  }
+  .cover-foot .stat b { display: block; color: #fff; font-size: 20px; font-weight: 700; }
+  .cover-stats { display: flex; gap: 28px; }
+
+  /* ── Standard page chrome ─────────────────────────────────────────────── */
+  .masthead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 10px; margin-bottom: 14px; border-bottom: 1px solid var(--line);
+  }
+  .masthead .mtitle { font-size: 12px; font-weight: 700; color: var(--brand-dark); }
+  .masthead .mpage { font-size: 10px; color: var(--muted); letter-spacing: 0.04em; }
+
+  .section-head { margin-bottom: 10px; }
+  .section-head h2 { font-size: 21px; color: var(--brand-dark); margin-top: 3px; }
+  .section-head p { font-size: 11.5px; margin-top: 5px; max-width: 150mm; }
+
+  .foot {
+    position: absolute; bottom: 10mm; left: 16mm; right: 16mm;
+    display: flex; justify-content: space-between; font-size: 9px; color: var(--muted);
+    padding-top: 8px; border-top: 1px solid var(--line);
+  }
+
+  /* ── Progress checklist ──────────────────────────────────────────────── */
+  .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 12px;
+  }
+  .stat-card .n { font-size: 19px; font-weight: 700; color: var(--brand-dark); }
+  .stat-card .l { font-size: 9px; color: var(--muted); margin-top: 1px; }
+
+  .phase { margin-bottom: 9px; }
+  .phase-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .phase-head .pname { font-size: 13.5px; font-weight: 700; }
+  .bar-track { width: 100px; height: 6px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--brand); border-radius: 4px; }
+  .phase-pct { font-size: 10px; color: var(--muted); font-weight: 600; margin-left: 8px; }
+  .phase-right { display: flex; align-items: center; }
+
+  table.checklist { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.checklist td { padding: 4.5px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.checklist tr:last-child td { border-bottom: none; }
+  table.checklist td.item { width: 62%; }
+  table.checklist td.item .t { font-weight: 600; color: var(--ink); }
+  table.checklist td.item .d { color: var(--muted); font-size: 10.5px; margin-top: 1px; }
+  td.badge-cell { text-align: right; white-space: nowrap; }
+
+  .badge {
+    display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em;
+    padding: 3px 9px; border-radius: 20px;
+  }
+  .badge.done { background: var(--brand-tint); color: var(--brand-dark); }
+  .badge.progress { background: #fef3e2; color: #9a6a12; }
+  .badge.manual { background: var(--accent-tint); color: #b4432a; }
+  .badge.planned { background: var(--line); color: var(--muted); }
+
+  /* ── Feature pages ────────────────────────────────────────────────────── */
+  .shot { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 10px 24px -16px rgba(14,26,23,0.25); background: #fff; }
+  .shot img { width: 100%; display: block; }
+  .caption { font-size: 10px; color: var(--muted); margin-top: 6px; text-align: center; }
+
+  .feature-row { display: flex; gap: 14px; margin-bottom: 16px; }
+  .feature-copy { flex: 1; }
+  .feature-copy h3 { font-size: 15px; margin-bottom: 5px; }
+  .feature-copy p { font-size: 11.5px; }
+  .feature-copy ul { margin-top: 6px; padding-left: 16px; }
+  .feature-copy li { font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
+  .feature-shot { flex: 1.15; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+  .quote-box {
+    background: var(--brand-tint); border-radius: 10px; padding: 8px 12px; font-size: 10.5px;
+    color: var(--brand-dark); margin-top: 6px; border-left: 3px solid var(--brand);
+  }
+  .quote-box b { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+
+  .pill-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .pill { font-size: 10px; background: var(--surface); border: 1px solid var(--line); padding: 3px 9px; border-radius: 20px; color: var(--muted); }
+
+  /* ── Revision / closing ──────────────────────────────────────────────── */
+  table.rev { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+  table.rev th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  table.rev td { padding: 8px; border-bottom: 1px solid var(--line); }
+  table.rev tr:last-child td { border-bottom: none; }
+
+  .next-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+  .next-card .t { font-weight: 700; font-size: 12px; }
+  .next-card .d { font-size: 11px; color: var(--muted); margin-top: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════ PAGE 1 — COVER ══════════════════════════════ -->
+<div class="page dark cover">
+  <div class="cover-top">
+    <div class="brandmark">
+      <span class="dot">🦴</span>
+      <div>
+        <div class="name">Ramachandra Ortho Care</div>
+        <div class="tag">Visakhapatnam</div>
+      </div>
+    </div>
+    <div class="cover-doctype">Website · Ramu Assistant · Admin Dashboard<br/>Prepared for Dr. M. Ramachandra</div>
+  </div>
+
+  <div class="cover-hero">
+    <div class="eyebrow">Handbook &amp; Progress Report</div>
+    <h1>Everything we've built, working, live at ramachandracare.vercel.app.</h1>
+    <p class="sub">A walkthrough of the patient website, the Ramu AI assistant, online booking, and the admin dashboard — with real screenshots — plus an honest status of what's done and what's still ahead.</p>
+    <div class="cover-photo"><img src="shots/00-cover-reception.jpg" alt="Clinic reception" /></div>
+  </div>
+
+  <div class="cover-foot">
+    <div class="cover-stats">
+      <div class="stat"><b>4</b>modules covered</div>
+      <div class="stat"><b>Live</b>in production</div>
+      <div class="stat"><b>Sep 2026</b>prepared</div>
+    </div>
+    <div>made. — <span style="color:#fff">a design &amp; product studio</span></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════ PAGE 2 — PROGRESS OVERVIEW ══════════════════════════════ -->
+<div class="page">
+  <div class="masthead">
+    <div class="mtitle">RAMACHANDRA ORTHO CARE — HANDBOOK &amp; PROGRESS REPORT</div>
+    <div class="mpage">02 / 10</div>
+  </div>
+
+  <div class="section-head">
+    <div class="eyebrow">Where things stand</div>
+    <h2>Progress overview</h2>
+    <p>Four modules make up the project. The site, booking, and admin dashboard are live and in daily use. WhatsApp is running as a manual flow for now — the reason why is explained on this page, plainly.</p>
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat-card"><div class="n">4</div><div class="l">Modules built</div></div>
+    <div class="stat-card"><div class="n">3</div><div class="l">Fully live</div></div>
+    <div class="stat-card"><div class="n">2</div><div class="l">Languages (EN / తెలుగు)</div></div>
+    <div class="stat-card"><div class="n">1</div><div class="l">Manual workaround, in progress</div></div>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">
+      <div class="pname">A. Patient website</div>
+      <div class="phase-right"><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="phase-pct">100%</span></div>
+    </div>
+    <table class="checklist">
+      <tr><td class="item"><div class="t">Homepage — hero, live "doctor in today" card, services, reviews, hours</div><div class="d">Pulls real Google reviews and today's consulting status automatically</div></td><td class="badge-cell"><span class="badge done">Live</span></td></tr>
+      <tr><td class="item"><div class="t">Mobile &amp; tablet layout</div><div class="d">Fully responsive — tested on phone, tablet, and desktop</div></td><td class="badge-cell"><span class="badge done">Live</span></td></tr>
+      <tr><td class="item"><div class="t">PWA — installable, works from home screen</div><div class="d">Patients can "Add to Home Screen" for app-like access</div></td><td class="badge-cell"><span class="badge done">Live</span></td></tr>
+    </table>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">
+      <div class="pname">B. Ramu — the on-site AI assistant</div>
+      <div class="phase-right"><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="phase-pct">100%</span></div>
+    </div>
+    <table class="checklist">
+      <tr><td class="item"><div class="t">Answers timings, fees, location, doctor-in-today status</div><div class="d">Same logic that powers the WhatsApp-style flow, embedded directly on the site</div></td><td class="badge-cell"><span class="badge done">Live</span></td></tr>
+      <tr><td class="item"><div class="t">Bilingual — English &amp; Telugu, switchable mid-chat</div><div class="d">One tap toggles the whole conversation's language</div></td><td class="badge-cell"><span class="badge done">Live</span></td></tr>
+    </table>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">
+      <div class="pname">C. Online booking &amp; admin dashboard</div>
+      <div class="phase-right"><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="phase-pct">100%</span></div>
+    </div>
+    <table class="checklist">
+      <tr><td class="item"><div class="t">Patient self-booking — pick a day, a 10-minute slot, confirm</div><div class="d">Slots update live against the real database, no double-booking possible</div></td><td class="badge-cell"><span class="badge done">Live</span></td></tr>
+      <tr><td class="item"><div class="t">Admin — Today's queue, walk-ins, live token/serving number</div><div class="d">Front desk runs the whole day from this one screen</div></td><td class="badge-cell"><span class="badge done">Live</span></td></tr>
+      <tr><td class="item"><div class="t">Admin — Schedule, Patients, Revenue tabs</div><div class="d">Consulting hours, patient history, and collections all in one dashboard</div></td><td class="badge-cell"><span class="badge done">Live</span></td></tr>
+    </table>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">
+      <div class="pname">D. Automated WhatsApp confirmations</div>
+      <div class="phase-right"><div class="bar-track"><div class="bar-fill" style="width:38%"></div></div><span class="phase-pct">In progress</span></div>
+    </div>
+    <table class="checklist">
+      <tr><td class="item"><div class="t">Booking confirmation / cancellation texts, sent by staff</div><div class="d">Front desk sends these manually today — takes a minute per booking, works fine at current volume</div></td><td class="badge-cell"><span class="badge manual">Manual for now</span></td></tr>
+      <tr><td class="item"><div class="t">Automatic WhatsApp send, no staff step</div><div class="d">The clinic's WhatsApp number is already verified with Meta — we're wiring the automated send directly through Meta's own platform, since the WhatsApp reseller we first tried turned out to charge for this even on their free tier</div></td><td class="badge-cell"><span class="badge progress">Building</span></td></tr>
+    </table>
+    <div class="quote-box"><b>Plainly put</b>Nothing is broken — bookings, confirmations, and cancellations all reach the patient today, just with one manual step for staff. We're closing that last step so it sends itself.</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════ PAGE 3 — WEBSITE ══════════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">A. PATIENT WEBSITE</div><div class="mpage">03 / 10</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Module A</div>
+    <h2>The patient website</h2>
+    <p>The front door — what a patient sees first, on their phone or a desktop, whether they're checking if the doctor is in or looking up the address before a visit.</p>
+  </div>
+
+  <div class="shot"><img src="shots/01-home-hero-desktop.jpg" alt="Homepage hero" /></div>
+  <div class="caption">Homepage — live "Today at the clinic" card shows whether the doctor is in, the fee, and one-tap Book / Call buttons.</div>
+
+  <div class="two-col" style="margin-top:14px;">
+    <div>
+      <div class="shot"><img src="shots/03-home-services.jpg" alt="Services" /></div>
+      <div class="caption">What we treat — every listed service, grouped clearly.</div>
+    </div>
+    <div>
+      <div class="shot"><img src="shots/05-home-location-hours.jpg" alt="Location and hours" /></div>
+      <div class="caption">Address, phone numbers, and consulting hours — always accurate, pulled from the same schedule the front desk edits.</div>
+    </div>
+  </div>
+
+  <div class="foot"><span>Ramachandra Ortho Care · Handbook &amp; Progress Report</span><span>ramachandracare.vercel.app</span></div>
+</div>
+
+<!-- ══════════════════════════════ PAGE 4 — WEBSITE cont'd (reviews) ══════════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">A. PATIENT WEBSITE</div><div class="mpage">04 / 10</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Module A, continued</div>
+    <h2>Trust signals</h2>
+    <p>Real Google reviews build confidence before a first visit — pulled straight from the clinic's own listing.</p>
+  </div>
+
+  <div class="shot"><img src="shots/04-home-reviews.jpg" alt="Reviews section" /></div>
+  <div class="caption">4.8★ across 123 Google reviews, shown right on the homepage.</div>
+
+  <div class="foot"><span>Ramachandra Ortho Care · Handbook &amp; Progress Report</span><span>ramachandracare.vercel.app</span></div>
+</div>
+
+<!-- ══════════════════════════════ PAGE 5 — MOBILE RESPONSIVE ══════════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">A. PATIENT WEBSITE</div><div class="mpage">05 / 10</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Module A, continued</div>
+    <h2>Built mobile-first</h2>
+    <p>Most patients will open this on a phone before anything else — so mobile isn't a shrunk-down afterthought, it's the primary layout the site was designed around.</p>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="shot"><img src="shots/10-home-mobile.jpg" alt="Mobile homepage" /></div>
+      <div class="caption">Mobile hero — same live availability card, built for a thumb, not a mouse.</div>
+    </div>
+    <div>
+      <div class="shot"><img src="shots/11-home-mobile-services.jpg" alt="Mobile services" /></div>
+      <div class="caption">Services on mobile — nothing cramped, nothing hidden behind extra taps.</div>
+    </div>
+  </div>
+
+  <div class="foot"><span>Ramachandra Ortho Care · Handbook &amp; Progress Report</span><span>ramachandracare.vercel.app</span></div>
+</div>
+
+<!-- ══════════════════════════════ PAGE 6 — RAMU ══════════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">B. RAMU — THE AI ASSISTANT</div><div class="mpage">06 / 10</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Module B</div>
+    <h2>Ramu, the on-site assistant</h2>
+    <p>Named after the clinic itself — Ramu answers the questions patients usually call the front desk for, right on the website, in English or Telugu, any time of day.</p>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-copy">
+      <h3>Always-visible, one tap to open</h3>
+      <p>A floating "Ask Ramu" button sits on every page. No app to download, no account to create.</p>
+      <ul>
+        <li>Doctor-in-today status &amp; today's fee</li>
+        <li>Consulting hours &amp; location</li>
+        <li>What the clinic treats</li>
+        <li>Quick-reply chips — no typing required for common questions</li>
+      </ul>
+      <div class="pill-row"><span class="pill">English</span><span class="pill">తెలుగు Telugu</span><span class="pill">Switches mid-chat</span></div>
+    </div>
+    <div class="feature-shot">
+      <div class="shot"><img src="shots/07-ramu-chat-open.jpg" alt="Ramu chat open" /></div>
+      <div class="caption">Ramu opens with a greeting and four quick-reply chips.</div>
+    </div>
+  </div>
+
+  <div class="feature-row" style="margin-top:6px;">
+    <div class="feature-shot">
+      <div class="shot"><img src="shots/08-ramu-chat-conversation.jpg" alt="Ramu conversation" /></div>
+      <div class="caption">A real exchange — "Is the doctor in today?" answered instantly, with follow-up chips.</div>
+    </div>
+    <div class="feature-copy">
+      <h3>Same brain as WhatsApp</h3>
+      <p>Ramu runs on the same logic built for the clinic's WhatsApp booking flow — so the answers a patient gets on the site match what they'd get messaging the clinic directly. Nothing to keep in sync by hand.</p>
+    </div>
+  </div>
+
+  <div class="foot"><span>Ramachandra Ortho Care · Handbook &amp; Progress Report</span><span>ramachandracare.vercel.app</span></div>
+</div>
+
+<!-- ══════════════════════════════ PAGE 6 — WHATSAPP-STYLE DEMO ══════════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">B. RAMU — THE AI ASSISTANT</div><div class="mpage">07 / 10</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Module B, continued</div>
+    <h2>Built for WhatsApp, shown on the site today</h2>
+    <p>The homepage includes a live demo of what the WhatsApp experience looks like — the same conversational flow, styled exactly like a WhatsApp chat, so patients (and you) can see it before it's fully automated end to end.</p>
+  </div>
+
+  <div class="shot"><img src="shots/02-home-whatsapp-demo.jpg" alt="WhatsApp-style demo" /></div>
+  <div class="caption">"Book on WhatsApp, in your language" — an interactive phone mockup, live on the homepage.</div>
+
+  <div class="quote-box" style="margin-top:16px;"><b>Status</b>The conversation logic, database, and message templates are all built and tested. What's left is wiring the automatic send through Meta's WhatsApp platform directly — see the progress overview on page 2 for the honest detail. Until then, staff send confirmations manually, which takes about a minute per booking.</div>
+
+  <div class="foot"><span>Ramachandra Ortho Care · Handbook &amp; Progress Report</span><span>ramachandracare.vercel.app</span></div>
+</div>
+
+<!-- ══════════════════════════════ PAGE 7 — BOOKING ══════════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">C. ONLINE BOOKING</div><div class="mpage">08 / 10</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Module C</div>
+    <h2>Online appointment booking</h2>
+    <p>A patient can book without calling the clinic at all — pick a day, see real open slots, confirm with their name and phone number.</p>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-shot">
+      <div class="shot"><img src="shots/09-book-page.jpg" alt="Booking page" /></div>
+      <div class="caption">The /book page — day picker, live 10-minute slots, and the confirmation form.</div>
+    </div>
+    <div class="feature-copy">
+      <h3>What makes it reliable</h3>
+      <ul>
+        <li>Slots are checked against the real database — two patients can never grab the same slot</li>
+        <li>10-minute appointment windows, matching how the clinic actually runs</li>
+        <li>Closed days and past times are simply not offered — no dead-end bookings</li>
+        <li>A confirmed booking shows up immediately in the admin dashboard's live queue</li>
+      </ul>
+      <div class="quote-box"><b>Why it matters</b>Every booking made here is instantly visible to the front desk — no separate system to check, no risk of it getting missed.</div>
+    </div>
+  </div>
+
+  <div class="foot"><span>Ramachandra Ortho Care · Handbook &amp; Progress Report</span><span>ramachandracare.vercel.app</span></div>
+</div>
+
+<!-- ══════════════════════════════ PAGE 8 — ADMIN DASHBOARD ══════════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">D. ADMIN DASHBOARD</div><div class="mpage">09 / 10</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Module D</div>
+    <h2>The admin dashboard</h2>
+    <p>What the front desk (and you) actually work from all day — today's queue, the weekly schedule, patient history, and revenue, in one private screen.</p>
+  </div>
+
+  <div class="shot"><img src="shots/20-admin-today.jpg" alt="Admin today" /></div>
+  <div class="caption">Today tab — doctor availability toggle, live queue with the current serving number, and a walk-in / reserve form.</div>
+
+  <div class="two-col" style="margin-top:14px;">
+    <div>
+      <div class="shot"><img src="shots/22-admin-patients.jpg" alt="Admin patients" /></div>
+      <div class="caption">Patients tab — searchable history by name or phone, with last-visit reason.</div>
+    </div>
+    <div>
+      <div class="shot"><img src="shots/23-admin-revenue.jpg" alt="Admin revenue" /></div>
+      <div class="caption">Revenue tab — collections total and a breakdown by payment method.</div>
+    </div>
+  </div>
+
+  <div class="foot"><span>Ramachandra Ortho Care · Handbook &amp; Progress Report</span><span>ramachandracare.vercel.app</span></div>
+</div>
+
+<!-- ══════════════════════════════ PAGE 9 — CLOSING ══════════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">CLOSING &amp; NEXT STEPS</div><div class="mpage">10 / 10</div></div>
+  <div class="section-head">
+    <div class="eyebrow">What's ahead</div>
+    <h2>Next steps</h2>
+    <p>The one thing left on the list, and why it's worth finishing.</p>
+  </div>
+
+  <div class="next-card">
+    <div class="t">Fully automatic WhatsApp confirmations</div>
+    <div class="d">Currently manual — front desk sends the confirmation/cancellation text after each booking. Moving this to automatic removes that one manual step entirely, with no change to anything patients or staff already do.</div>
+  </div>
+
+  <div class="section-head" style="margin-top:22px;">
+    <div class="eyebrow">Document history</div>
+    <h2 style="font-size:16px;">Revision log</h2>
+  </div>
+  <table class="rev">
+    <tr><th>Date</th><th>Change</th></tr>
+    <tr><td>September 2026</td><td>First handbook &amp; progress report, covering the website, Ramu, booking, and admin dashboard.</td></tr>
+  </table>
+
+  <div class="quote-box" style="margin-top:24px;"><b>Any questions</b>Reach out any time — happy to walk through anything in here live, or make changes based on how it feels once you're using it day to day.</div>
+
+  <div class="foot"><span>Ramachandra Ortho Care · Handbook &amp; Progress Report</span><span>Prepared by made.</span></div>
+</div>
+
+</body>
+</html>
