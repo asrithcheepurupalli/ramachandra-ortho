@@ -9,39 +9,60 @@
 import { clinic, type Lang } from "@/clinic.config";
 import { statusAt, fmt, weekdayName, slotsFor, ymd, type SchedState } from "@/lib/schedule";
 import { addBooking, takenSlots, setStatus, type Source, type Appt, type ApptStatus } from "@/lib/store";
+import { hasSupabase } from "@/lib/supabase";
+import { SlotTakenError } from "@/lib/errors";
 
 export type Sender = "bot" | "user";
 export type ChatMsg = { id: string; from: Sender; text: string };
-export type BotState = { stage: "idle" | "await_name"; slot?: Slot };
+export type BotState = { stage: "idle" | "await_name" | "await_phone"; slot?: Slot; name?: string };
 export type BotOut = { reply: string[]; chips: string[]; state: BotState };
 type Slot = { date: string; time: string; label: string };
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 export const mkMsg = (from: Sender, text: string): ChatMsg => ({ id: uid(), from, text });
 
+export { SlotTakenError } from "@/lib/errors";
+
 let lastBookingId: string | null = null; // so "cancel" can undo the demo booking
 
 const cur = clinic.currency, fee = clinic.consultationFee, dr = clinic.doctor.name;
 
 // ── next open slots (for the in-chat booking) ───────────────────────────────
-function nextSlots(n = 4): Slot[] {
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const out: Slot[] = [];
-  for (let i = 0; i < 14 && out.length < n; i++) {
-    const d = new Date(now); d.setDate(now.getDate() + i);
-    const key = ymd(d);
-    let slots = slotsFor(d, takenSlots(key));
-    if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + 10; });
-    for (const s of slots) {
-      const day = i === 0 ? "Today" : i === 1 ? "Tomorrow" : weekdayName(d).slice(0, 3);
-      out.push({ date: key, time: s, label: `${day} ${fmt(s)}` });
-      if (out.length >= n) break;
+// Real availability, not a fixed count: every open slot on the nearest day
+// that has one (site chat has no WhatsApp-style 3/10-button cap, so there's no
+// reason to truncate). In DB mode this reads the same live-availability route
+// the booking page uses, so Ramu never offers a slot someone else just took.
+async function availableSlotsFor(date: string): Promise<string[]> {
+  if (hasSupabase()) {
+    try {
+      const res = await fetch(`/api/slots?date=${date}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data.slots) ? data.slots : [];
+    } catch {
+      return [];
     }
   }
-  return out;
+  return slotsFor(new Date(date + "T00:00:00"), takenSlots(date));
 }
-const slotByLabel = (label: string) => nextSlots(8).find((s) => s.label === label);
+async function nextSlots(): Promise<Slot[]> {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now); d.setDate(now.getDate() + i);
+    const key = ymd(d);
+    let slots = await availableSlotsFor(key);
+    if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + 10; });
+    if (slots.length) {
+      const day = i === 0 ? "Today" : i === 1 ? "Tomorrow" : weekdayName(d).slice(0, 3);
+      return slots.map((s) => ({ date: key, time: s, label: `${day} ${fmt(s)}` }));
+    }
+  }
+  return [];
+}
+async function slotByLabel(label: string): Promise<Slot | undefined> {
+  return (await nextSlots()).find((s) => s.label === label);
+}
 
 // ── phrase packs ────────────────────────────────────────────────────────────
 type PhrasePack = {
@@ -53,6 +74,10 @@ type PhrasePack = {
   bookIntro: string;
   noSlots: string;
   askName: string;
+  askPhone: string;
+  badPhone: string;
+  slotTaken: string;
+  bookFail: string;
   confirm: (tok: number, s: string) => string;
   cancelDone: string;
   cancelNone: string;
@@ -69,9 +94,13 @@ const P: Record<Lang, PhrasePack> = {
     availSoon: (t: string) => `${dr} consults today from ${t}. Tap *Book appointment* to reserve a slot.`,
     availOut: (d: string, t: string) => `${dr} is *not in today*. The next available is *${d} at ${t}*. Tap *Book appointment* to reserve.`,
     availNone: `${dr} has no slots in the coming days. Please call the clinic on ${clinic.contact.phone}.`,
-    bookIntro: "Sure! Here are the next available slots. Tap the one you want:",
+    bookIntro: "Sure! Here are the open slots. Tap the one you want:",
     noSlots: "There are no open slots right now. Please try later, or call the clinic.",
     askName: "Great choice. What name should I book it under?",
+    askPhone: "And your phone number? We'll send the booking confirmation on WhatsApp.",
+    badPhone: "That doesn't look like a valid phone number. Please enter a 10 digit number.",
+    slotTaken: "Sorry, someone just booked that slot. Here are the times still open:",
+    bookFail: "Something went wrong while booking. Please try again, or call the clinic.",
     confirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${fee}. Please arrive a few minutes early.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\nReply *Cancel* if your plans change.`,
     cancelDone: "Done, your appointment is cancelled. Tap *Book appointment* to rebook anytime. 🙏",
     cancelNone: "You don't have an active appointment to cancel right now.",
@@ -87,9 +116,13 @@ const P: Record<Lang, PhrasePack> = {
     availSoon: (t: string) => `${dr} ఈరోజు ${t} నుండి చూస్తారు. స్లాట్ కోసం *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి.`,
     availOut: (d: string, t: string) => `${dr} ఈరోజు *అందుబాటులో లేరు*. తర్వాత అందుబాటు: *${d}, ${t}*. బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి.`,
     availNone: `రాబోయే రోజుల్లో స్లాట్‌లు లేవు. దయచేసి క్లినిక్‌కు కాల్ చేయండి: ${clinic.contact.phone}.`,
-    bookIntro: "తప్పకుండా! తదుపరి అందుబాటు స్లాట్‌లు ఇవి. మీకు కావలసినది నొక్కండి:",
+    bookIntro: "తప్పకుండా! ఖాళీగా ఉన్న స్లాట్‌లు ఇవి. మీకు కావలసినది నొక్కండి:",
     noSlots: "ప్రస్తుతం స్లాట్‌లు లేవు. దయచేసి తర్వాత ప్రయత్నించండి లేదా క్లినిక్‌కు కాల్ చేయండి.",
     askName: "మంచిది. ఏ పేరుతో బుక్ చేయాలి?",
+    askPhone: "మీ ఫోన్ నంబర్ చెప్పండి. బుకింగ్ నిర్ధారణ వాట్సాప్‌కు పంపుతాము.",
+    badPhone: "ఇది సరైన ఫోన్ నంబర్ లా లేదు. దయచేసి 10 అంకెల నంబర్ ఇవ్వండి.",
+    slotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. ఇంకా ఖాళీగా ఉన్న సమయాలు ఇవి:",
+    bookFail: "బుక్ చేయడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
     confirm: (tok: number, s: string) => `✅ *బుక్ అయ్యింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${fee}. దయచేసి కొన్ని నిమిషాల ముందు రండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\nప్లాన్ మారితే *Cancel* అని రిప్లై చేయండి.`,
     cancelDone: "అయ్యింది, మీ అపాయింట్‌మెంట్ రద్దు చేయబడింది. మళ్లీ బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
     cancelNone: "ప్రస్తుతం రద్దు చేయడానికి యాక్టివ్ అపాయింట్‌మెంట్ లేదు.",
@@ -105,9 +138,13 @@ const P: Record<Lang, PhrasePack> = {
     availSoon: (t: string) => `${dr} आज ${t} से देखेंगे। स्लॉट के लिए *अपॉइंटमेंट बुक करें* दबाएँ।`,
     availOut: (d: string, t: string) => `${dr} आज *उपलब्ध नहीं* हैं। अगली उपलब्धता: *${d}, ${t}*। बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ।`,
     availNone: `आने वाले दिनों में कोई स्लॉट नहीं है। कृपया क्लिनिक को कॉल करें: ${clinic.contact.phone}।`,
-    bookIntro: "ज़रूर! ये अगले उपलब्ध स्लॉट हैं। जो चाहिए उसे दबाएँ:",
+    bookIntro: "ज़रूर! ये खाली स्लॉट हैं। जो चाहिए उसे दबाएँ:",
     noSlots: "अभी कोई स्लॉट खाली नहीं है। कृपया बाद में कोशिश करें या क्लिनिक को कॉल करें।",
     askName: "बढ़िया। किस नाम से बुक करूँ?",
+    askPhone: "आपका फ़ोन नंबर बताएं। बुकिंग की पुष्टि हम व्हाट्सएप पर भेजेंगे।",
+    badPhone: "यह सही फ़ोन नंबर नहीं लग रहा। कृपया 10 अंकों का नंबर दर्ज करें।",
+    slotTaken: "माफ़ करें, वह स्लॉट अभी किसी और ने बुक कर लिया। ये समय अभी भी खाली हैं:",
+    bookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
     confirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${fee}। कृपया कुछ मिनट पहले पहुँचें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\nयोजना बदले तो *Cancel* लिखें।`,
     cancelDone: "हो गया, आपका अपॉइंटमेंट रद्द कर दिया गया है। दोबारा बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
     cancelNone: "अभी रद्द करने के लिए कोई सक्रिय अपॉइंटमेंट नहीं है।",
@@ -147,26 +184,64 @@ export function botStart(lang: Lang): BotOut {
   return { reply: [t.greet], chips: [t.chips.avail, t.chips.book, t.chips.timings, t.chips.location], state: { stage: "idle" } };
 }
 
-export function botReply(input: string, lang: Lang, state: BotState, source: Source = "whatsapp"): BotOut {
+export async function botReply(input: string, lang: Lang, state: BotState, source: Source = "whatsapp"): Promise<BotOut> {
   const t = P[lang];
   const c = t.chips;
 
   // completing a booking: this input is the patient's name
   if (state.stage === "await_name" && state.slot) {
-    const appt = addBooking({ name: input.trim() || "Patient", phone: "", reason: source === "website" ? "Booked via Ramu (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
+    const name = input.trim() || "Patient";
+    // DB mode needs a phone (confirmation goes out on WhatsApp, and it's how
+    // the admin dashboard reaches the patient) — the mock demo doesn't.
+    if (hasSupabase()) {
+      return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name } };
+    }
+    const appt = addBooking({ name, phone: "", reason: source === "website" ? "Booked via Ramu (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
     lastBookingId = appt.id;
     return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle" } };
   }
 
+  // completing a booking (DB mode): this input is the patient's phone number
+  if (state.stage === "await_phone" && state.slot) {
+    const digits = input.replace(/\D/g, "");
+    if (digits.length < 10) return { reply: [t.badPhone], chips: [], state };
+
+    try {
+      const res = await fetch("/api/book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: state.name || "Patient",
+          phone: input.trim(),
+          reason: source === "website" ? "Booked via Ramu (site chat)" : "WhatsApp booking",
+          date: state.slot.date,
+          time: state.slot.time,
+          source,
+        }),
+      });
+      if (res.status === 409) {
+        const fresh = await nextSlots();
+        if (!fresh.length) return { reply: [t.slotTaken, t.noSlots], chips: [c.avail], state: { stage: "idle" } };
+        return { reply: [t.slotTaken], chips: fresh.map((s) => s.label), state: { stage: "idle" } };
+      }
+      if (!res.ok) throw new Error("booking failed");
+      const { appointment: appt } = (await res.json()) as { appointment: Appt };
+      lastBookingId = appt.id;
+      return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle" } };
+    } catch {
+      return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
+    }
+  }
+
   // tapped a slot chip
-  const picked = slotByLabel(input);
+  const picked = await slotByLabel(input);
   if (picked) return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: picked } };
 
   switch (detect(input)) {
     case "avail":
       return { reply: [availReply(t)], chips: [c.book, c.timings], state: { stage: "idle" } };
     case "book": {
-      const slots = nextSlots(4);
+      const slots = await nextSlots();
       if (!slots.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
       return { reply: [t.bookIntro], chips: slots.map((s) => s.label), state: { stage: "idle" } };
     }
@@ -205,22 +280,20 @@ export type Backend = {
 };
 export type ServerBotState = BotState & { lastBookingId?: string | null };
 
-async function nextSlotsServer(n: number, backend: Backend, sched: SchedState): Promise<Slot[]> {
+async function nextSlotsServer(backend: Backend, sched: SchedState): Promise<Slot[]> {
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  const out: Slot[] = [];
-  for (let i = 0; i < 14 && out.length < n; i++) {
+  for (let i = 0; i < 14; i++) {
     const d = new Date(now); d.setDate(now.getDate() + i);
     const key = ymd(d);
     let slots = slotsFor(d, await backend.takenSlots(key), sched);
     if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + 10; });
-    for (const s of slots) {
+    if (slots.length) {
       const day = i === 0 ? "Today" : i === 1 ? "Tomorrow" : weekdayName(d).slice(0, 3);
-      out.push({ date: key, time: s, label: `${day} ${fmt(s)}` });
-      if (out.length >= n) break;
+      return slots.map((s) => ({ date: key, time: s, label: `${day} ${fmt(s)}` }));
     }
   }
-  return out;
+  return [];
 }
 
 function availReplyServer(t: PhrasePack, sched: SchedState): string {
@@ -250,12 +323,21 @@ export async function botReplyServer(
 
   // completing a booking: this input is the patient's name
   if (state.stage === "await_name" && state.slot) {
-    const appt = await backend.addBooking({ name: input.trim() || "Patient", phone, reason: "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
-    return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle", lastBookingId: appt.id } };
+    try {
+      const appt = await backend.addBooking({ name: input.trim() || "Patient", phone, reason: "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
+      return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle", lastBookingId: appt.id } };
+    } catch (err) {
+      if (err instanceof SlotTakenError) {
+        const fresh = await nextSlotsServer(backend, sched);
+        if (!fresh.length) return { reply: [t.slotTaken, t.noSlots], chips: [c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+        return { reply: [t.slotTaken], chips: fresh.map((s) => s.label), state: { stage: "idle", lastBookingId: state.lastBookingId } };
+      }
+      return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+    }
   }
 
   // tapped a slot chip (matched against the same window this reply is computing)
-  const candidateSlots = await nextSlotsServer(8, backend, sched);
+  const candidateSlots = await nextSlotsServer(backend, sched);
   const picked = candidateSlots.find((s) => s.label === input);
   if (picked) return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: picked, lastBookingId: state.lastBookingId } };
 
@@ -263,7 +345,7 @@ export async function botReplyServer(
     case "avail":
       return { reply: [availReplyServer(t, sched)], chips: [c.book, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
     case "book": {
-      const slots = await nextSlotsServer(4, backend, sched);
+      const slots = await nextSlotsServer(backend, sched);
       if (!slots.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
       return { reply: [t.bookIntro], chips: slots.map((s) => s.label), state: { stage: "idle", lastBookingId: state.lastBookingId } };
     }

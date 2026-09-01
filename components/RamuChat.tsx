@@ -44,8 +44,8 @@ export function RamuChat() {
     if (!v || typing) return;
     setMsgs((m) => [...m, mkMsg("user", v)]);
     setChips([]); setInput(""); setTyping(true);
-    window.setTimeout(() => {
-      const o = botReply(v, lang, state, "website");
+    window.setTimeout(async () => {
+      const o = await botReply(v, lang, state, "website");
       setTyping(false);
       o.reply.forEach((r, i) => window.setTimeout(() => setMsgs((m) => [...m, mkMsg("bot", r)]), i * 500));
       window.setTimeout(() => { setChips(o.chips); setState(o.state); }, (o.reply.length - 1) * 500 + 50);

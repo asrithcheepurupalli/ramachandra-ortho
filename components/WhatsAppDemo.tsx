@@ -45,8 +45,8 @@ export function WhatsAppDemo() {
     if (!v || typing) return;
     setMsgs((m) => [...m, mkMsg("user", v)]);
     setChips([]); setInput(""); setTyping(true);
-    window.setTimeout(() => {
-      const o = botReply(v, lang, state);
+    window.setTimeout(async () => {
+      const o = await botReply(v, lang, state);
       setTyping(false);
       o.reply.forEach((r, i) => window.setTimeout(() => setMsgs((m) => [...m, mkMsg("bot", r)]), i * 550));
       window.setTimeout(() => { setChips(o.chips); setState(o.state); }, (o.reply.length - 1) * 550 + 60);

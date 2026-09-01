@@ -3,6 +3,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking } from "@/lib/db";
 import { sendBookingConfirmation } from "@/lib/meta-whatsapp";
+import { SlotTakenError } from "@/lib/errors";
 
 type Source = "website" | "whatsapp" | "walkin";
 const isSource = (v: unknown): v is Source => v === "website" || v === "whatsapp" || v === "walkin";
@@ -33,6 +34,9 @@ export async function POST(req: NextRequest) {
     await sendBookingConfirmation(appt);
     return NextResponse.json({ appointment: appt }, { status: 201 });
   } catch (err) {
+    if (err instanceof SlotTakenError) {
+      return NextResponse.json({ error: "That slot was just taken. Please pick another." }, { status: 409 });
+    }
     console.error("/api/book", err);
     return NextResponse.json({ error: "Could not create booking" }, { status: 500 });
   }

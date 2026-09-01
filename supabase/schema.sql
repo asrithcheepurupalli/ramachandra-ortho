@@ -38,6 +38,12 @@ create table if not exists public.appointments (
   unique (appt_date, token)
 );
 create index if not exists appointments_date_idx on public.appointments (appt_date);
+-- Real double-booking guard: two active (non-cancelled) appointments can never
+-- share a date+time, even under concurrent inserts. A cancelled slot frees up
+-- (partial index only covers status <> 'cancelled'), and dbAddBooking retries
+-- with a fresh token on a plain token collision, but surfaces this violation
+-- to the caller as SlotTakenError.
+create unique index if not exists appointments_slot_idx on public.appointments (appt_date, appt_time) where status <> 'cancelled';
 
 -- Clinic settings: schedule + override live in one row ─────────────────────────
 create table if not exists public.settings (

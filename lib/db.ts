@@ -12,6 +12,7 @@ import {
 } from "@/lib/schedule";
 import type { Appt, ApptStatus, Source } from "@/lib/store";
 import type { ServerBotState } from "@/lib/bot";
+import { SlotTakenError } from "@/lib/errors";
 
 // Times already taken on a date (so the slot picker can hide them).
 export async function dbTakenSlots(date: string): Promise<string[]> {
@@ -70,32 +71,43 @@ export async function dbAddBooking(input: {
     patientId = patient?.id ?? null;
   }
 
-  const { data: dayAppts, error: dayErr } = await db
-    .from("appointments")
-    .select("token")
-    .eq("appt_date", input.date);
-  if (dayErr) throw dayErr;
-  const token = (dayAppts ?? []).reduce((m, a) => Math.max(m, a.token as number), 0) + 1;
+  // A partial unique index on (appt_date, appt_time) where status <> 'cancelled'
+  // is the real guard against two patients landing the same slot in a race;
+  // the per-day token sequence can also collide under concurrent inserts, so
+  // both are retried a few times (with a freshly recomputed token) before
+  // giving up.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data: dayAppts, error: dayErr } = await db
+      .from("appointments")
+      .select("token")
+      .eq("appt_date", input.date);
+    if (dayErr) throw dayErr;
+    const token = (dayAppts ?? []).reduce((m, a) => Math.max(m, a.token as number), 0) + 1;
 
-  const { data: row, error } = await db
-    .from("appointments")
-    .insert({
-      token,
-      patient_id: patientId,
-      name,
-      phone,
-      reason: input.reason.trim() || "Consultation",
-      appt_date: input.date,
-      appt_time: input.time,
-      status: "reserved",
-      source: input.source ?? "website",
-      fee: clinic.consultationFee,
-      paid: false,
-    })
-    .select("*")
-    .single();
-  if (error) throw error;
-  return rowToAppt(row);
+    const { data: row, error } = await db
+      .from("appointments")
+      .insert({
+        token,
+        patient_id: patientId,
+        name,
+        phone,
+        reason: input.reason.trim() || "Consultation",
+        appt_date: input.date,
+        appt_time: input.time,
+        status: "reserved",
+        source: input.source ?? "website",
+        fee: clinic.consultationFee,
+        paid: false,
+      })
+      .select("*")
+      .single();
+
+    if (!error) return rowToAppt(row);
+    if (error.code !== "23505") throw error;
+    if (error.message.includes("appointments_slot_idx")) throw new SlotTakenError();
+    // otherwise a token collision under concurrent inserts: retry with a fresh token
+  }
+  throw new SlotTakenError();
 }
 
 export async function dbSetStatus(id: string, status: ApptStatus): Promise<void> {
