@@ -1,0 +1,404 @@
+{
+    "version": "7.3",
+    "data_api_version": "3.0",
+    "routing_model": {
+        "APPOINTMENT": [
+            "DETAILS"
+        ],
+        "DETAILS": [
+            "SUMMARY"
+        ],
+        "SUMMARY": [
+            "TERMS"
+        ],
+        "TERMS": []
+    },
+    "screens": [
+        {
+            "id": "APPOINTMENT",
+            "title": "Book appointment",
+            "data": {
+                "reason": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "general",
+                            "title": "General consultation"
+                        },
+                        {
+                            "id": "fracture",
+                            "title": "Fracture management"
+                        },
+                        {
+                            "id": "knee",
+                            "title": "Knee replacement"
+                        },
+                        {
+                            "id": "hip",
+                            "title": "Hip replacement"
+                        },
+                        {
+                            "id": "spine",
+                            "title": "Spinal injuries"
+                        },
+                        {
+                            "id": "sports",
+                            "title": "Sports injury"
+                        },
+                        {
+                            "id": "trauma",
+                            "title": "Trauma care"
+                        },
+                        {
+                            "id": "rheum",
+                            "title": "Rheumatology"
+                        },
+                        {
+                            "id": "physio",
+                            "title": "Physiotherapy"
+                        },
+                        {
+                            "id": "xray",
+                            "title": "Digital X-ray"
+                        },
+                        {
+                            "id": "other",
+                            "title": "Something else"
+                        }
+                    ]
+                },
+                "date": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "2026-09-02",
+                            "title": "Wed Sep 02"
+                        },
+                        {
+                            "id": "2026-09-03",
+                            "title": "Thu Sep 03"
+                        },
+                        {
+                            "id": "2026-09-04",
+                            "title": "Fri Sep 04"
+                        },
+                        {
+                            "id": "2026-09-05",
+                            "title": "Sat Sep 05"
+                        },
+                        {
+                            "id": "2026-09-07",
+                            "title": "Mon Sep 07"
+                        },
+                        {
+                            "id": "2026-09-08",
+                            "title": "Tue Sep 08"
+                        },
+                        {
+                            "id": "2026-09-09",
+                            "title": "Wed Sep 09"
+                        },
+                        {
+                            "id": "2026-09-10",
+                            "title": "Thu Sep 10"
+                        },
+                        {
+                            "id": "2026-09-11",
+                            "title": "Fri Sep 11"
+                        },
+                        {
+                            "id": "2026-09-12",
+                            "title": "Sat Sep 12"
+                        }
+                    ]
+                },
+                "time": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "10:00",
+                            "title": "10:00 AM"
+                        },
+                        {
+                            "id": "18:00",
+                            "title": "6:00 PM"
+                        }
+                    ]
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextHeading",
+                        "text": "Ramachandra Ortho & Trauma Care"
+                    },
+                    {
+                        "type": "TextBody",
+                        "text": "Clinic is open Mon–Sat, closed Sunday. Pick a date to see real open times."
+                    },
+                    {
+                        "type": "Form",
+                        "name": "appointment_form",
+                        "children": [
+                            {
+                                "type": "Dropdown",
+                                "label": "Reason for visit",
+                                "name": "reason",
+                                "data-source": "${data.reason}",
+                                "required": true
+                            },
+                            {
+                                "type": "Dropdown",
+                                "label": "Preferred date",
+                                "name": "date",
+                                "data-source": "${data.date}",
+                                "required": true,
+                                "on-select-action": {
+                                    "name": "data_exchange",
+                                    "payload": {
+                                        "reason": "${form.reason}",
+                                        "date": "${form.date}"
+                                    }
+                                }
+                            },
+                            {
+                                "type": "Dropdown",
+                                "label": "Preferred time",
+                                "name": "time",
+                                "data-source": "${data.time}",
+                                "enabled": "${data.date != null}",
+                                "required": true
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Continue",
+                                "on-click-action": {
+                                    "name": "navigate",
+                                    "next": {
+                                        "type": "screen",
+                                        "name": "DETAILS"
+                                    },
+                                    "payload": {
+                                        "reason": "${form.reason}",
+                                        "date": "${form.date}",
+                                        "time": "${form.time}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "DETAILS",
+            "title": "Your details",
+            "data": {
+                "reason": {
+                    "type": "string",
+                    "__example__": "knee"
+                },
+                "date": {
+                    "type": "string",
+                    "__example__": "2026-09-02"
+                },
+                "time": {
+                    "type": "string",
+                    "__example__": "10:00"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "Form",
+                        "name": "details_form",
+                        "children": [
+                            {
+                                "type": "TextInput",
+                                "label": "Patient name",
+                                "name": "name",
+                                "required": true
+                            },
+                            {
+                                "type": "TextInput",
+                                "label": "Phone number",
+                                "name": "phone",
+                                "input-type": "phone",
+                                "required": true
+                            },
+                            {
+                                "type": "TextArea",
+                                "label": "Anything the doctor should know?",
+                                "name": "notes",
+                                "helper-text": "Optional — e.g. old reports, ongoing medication",
+                                "required": false
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Continue",
+                                "on-click-action": {
+                                    "name": "navigate",
+                                    "next": {
+                                        "type": "screen",
+                                        "name": "SUMMARY"
+                                    },
+                                    "payload": {
+                                        "reason": "${data.reason}",
+                                        "date": "${data.date}",
+                                        "time": "${data.time}",
+                                        "name": "${form.name}",
+                                        "phone": "${form.phone}",
+                                        "notes": "${form.notes}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "SUMMARY",
+            "title": "Confirm",
+            "terminal": true,
+            "data": {
+                "reason": {
+                    "type": "string",
+                    "__example__": "Knee replacement"
+                },
+                "date": {
+                    "type": "string",
+                    "__example__": "Wed Sep 02"
+                },
+                "time": {
+                    "type": "string",
+                    "__example__": "10:00 AM"
+                },
+                "name": {
+                    "type": "string",
+                    "__example__": "John Doe"
+                },
+                "phone": {
+                    "type": "string",
+                    "__example__": "9876543210"
+                },
+                "notes": {
+                    "type": "string",
+                    "__example__": ""
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "Form",
+                        "name": "confirmation_form",
+                        "children": [
+                            {
+                                "type": "TextHeading",
+                                "text": "Appointment request"
+                            },
+                            {
+                                "type": "TextBody",
+                                "text": "${data.reason}\nPreferred: ${data.date}, ${data.time}"
+                            },
+                            {
+                                "type": "TextHeading",
+                                "text": "Your details"
+                            },
+                            {
+                                "type": "TextBody",
+                                "text": "${data.name}\n${data.phone}"
+                            },
+                            {
+                                "type": "TextBody",
+                                "text": "${data.notes}"
+                            },
+                            {
+                                "type": "OptIn",
+                                "name": "terms",
+                                "label": "I agree to the appointment policy",
+                                "required": true,
+                                "on-click-action": {
+                                    "name": "navigate",
+                                    "next": {
+                                        "type": "screen",
+                                        "name": "TERMS"
+                                    },
+                                    "payload": {}
+                                }
+                            },
+                            {
+                                "type": "Footer",
+                                "label": "Confirm Appointment",
+                                "on-click-action": {
+                                    "name": "complete",
+                                    "payload": {
+                                        "reason": "${data.reason}",
+                                        "date": "${data.date}",
+                                        "time": "${data.time}",
+                                        "name": "${data.name}",
+                                        "phone": "${data.phone}",
+                                        "notes": "${data.notes}"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "id": "TERMS",
+            "title": "Appointment policy",
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextHeading",
+                        "text": "Before you confirm"
+                    },
+                    {
+                        "type": "TextBody",
+                        "text": "This is a request for a token, not a fixed time slot — we'll message you back on WhatsApp with the exact time once the desk confirms it against the day's schedule.\n\nPlease arrive a few minutes before your preferred window. If you miss your turn, it's automatically moved to the next working day, no need to rebook.\n\nPlans changed? Reply Cancel in this chat and we'll release your token.\n\nConsultation fee is payable at the clinic."
+                    }
+                ]
+            }
+        }
+    ]
+}

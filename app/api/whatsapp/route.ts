@@ -3,10 +3,10 @@
 // Always acks POST with 200 quickly; Meta retries (and can disable) a webhook
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession } from "@/lib/db";
 import { botReplyServer, type Backend, type ServerBotState } from "@/lib/bot";
-import { sendText } from "@/lib/meta-whatsapp";
+import { sendText, sendBookingConfirmation, verifySignature } from "@/lib/meta-whatsapp";
+import { SlotTakenError } from "@/lib/errors";
 
 const backend: Backend = { addBooking: dbAddBooking, takenSlots: dbTakenSlots, setStatus: dbSetStatus };
 
@@ -27,18 +27,6 @@ export async function GET(req: NextRequest) {
   return new NextResponse("Forbidden", { status: 403 });
 }
 
-function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
-  const secret = process.env.META_APP_SECRET;
-  if (!secret || !signatureHeader) return false;
-
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  const provided = signatureHeader.replace(/^sha256=/, "");
-  const expectedBuf = Buffer.from(expected, "hex");
-  const providedBuf = Buffer.from(provided, "hex");
-  if (expectedBuf.length !== providedBuf.length) return false;
-  return timingSafeEqual(expectedBuf, providedBuf);
-}
-
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
 
@@ -53,6 +41,34 @@ export async function POST(req: NextRequest) {
     if (!message) return new NextResponse("OK", { status: 200 }); // status/read receipts, no-op
 
     const from: string = message.from;
+
+    // Submission of the "Appointment" WhatsApp Flow (manually sent from
+    // WhatsApp Manager — see app/api/whatsapp/flow/route.ts for the live
+    // screen data behind it). Arrives as a structured reply, not plain text,
+    // so it's handled before the text/button/list extraction below.
+    if (message.interactive?.type === "nfm_reply") {
+      const parsed = JSON.parse(message.interactive.nfm_reply.response_json);
+      try {
+        const appt = await dbAddBooking({
+          name: parsed.name,
+          phone: parsed.phone || from,
+          reason: parsed.reason,
+          date: parsed.date,
+          time: parsed.time,
+          source: "whatsapp",
+        });
+        await sendBookingConfirmation(appt);
+      } catch (err) {
+        await sendText(
+          from,
+          err instanceof SlotTakenError
+            ? "Sorry, that slot was just taken. Please message us again to pick another time."
+            : "Something went wrong booking that. Please message us and we'll sort it out."
+        );
+      }
+      return new NextResponse("OK", { status: 200 });
+    }
+
     const text: string | undefined =
       message.text?.body ?? message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title;
     if (!from || !text) return new NextResponse("OK", { status: 200 });
