@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
-  Activity, Ambulance, Bone, CircleDot, Droplet, Dumbbell, HandHeart,
-  PersonStanding, ShieldPlus, Siren, Spline, Stethoscope, Volleyball, Scan,
+  Activity, Ambulance, Bone, Dumbbell, HandHeart,
+  PersonStanding, Spline, Volleyball, Scan,
   Star, MapPin, MessageCircle, CalendarPlus, Phone, ChevronRight,
   ArrowRight, Navigation, Quote, ShieldCheck, Zap, Ticket, Check, TriangleAlert,
   type LucideIcon,
@@ -25,7 +25,7 @@ import { hasSupabase, supabaseBrowser } from "@/lib/supabase";
 
 const iconMap: Record<string, LucideIcon> = {
   Bone, PersonStanding, Activity, Spline, Volleyball, Ambulance, Dumbbell,
-  HandHeart, Siren, Stethoscope, ShieldPlus, Droplet, CircleDot, Scan,
+  HandHeart, Scan,
 };
 const waLink = (msg: string) =>
   `https://wa.me/${clinic.contact.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
@@ -379,7 +379,7 @@ function DoctorStrip({ t }: { t: T }) {
             <p className="mt-1 text-brand font-medium">{clinic.doctor.title}</p>
             <p className="mt-4 max-w-xl leading-relaxed text-muted">{clinic.doctor.experienceNote}. Patients across Visakhapatnam trust Dr. Ramachandra for clear explanations, unhurried consultations and honest advice, from a hairline fracture to a full joint replacement.</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              {["10 years experience", "Fractures", "Joint replacement", "Sports injuries", "Trauma care", "Physiotherapy"].map((s) => (
+              {["10 years experience", "Fractures", "Knee replacement", "Sports injuries", "Trauma care", "Physiotherapy"].map((s) => (
                 <span key={s} className="rounded-full bg-brand-tint px-3 py-1 text-xs font-medium text-brand">{s}</span>
               ))}
             </div>

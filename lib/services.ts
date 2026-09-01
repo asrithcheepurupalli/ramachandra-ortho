@@ -13,22 +13,12 @@ export const serviceGroups: { group: string; items: Service[] }[] = [
     group: "Orthopedics & Trauma",
     items: [
       { name: "Fracture management", icon: "Bone" },
-      { name: "Joint replacement", icon: "PersonStanding" },
+      { name: "Knee replacement", icon: "PersonStanding" },
       { name: "Hip replacement", icon: "Activity" },
       { name: "Spinal injuries", icon: "Spline" },
       { name: "Sports injuries", icon: "Volleyball" },
       { name: "Trauma care", icon: "Ambulance" },
       { name: "Rheumatology", icon: "HandHeart" },
-    ],
-  },
-  {
-    group: "General care",
-    items: [
-      { name: "Emergency care", icon: "Siren" },
-      { name: "Consultation", icon: "Stethoscope" },
-      { name: "Hernia", icon: "ShieldPlus" },
-      { name: "Hydrocele", icon: "Droplet" },
-      { name: "Piles", icon: "CircleDot" },
     ],
   },
 ];
