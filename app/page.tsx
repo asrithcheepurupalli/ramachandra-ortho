@@ -466,7 +466,10 @@ function Footer({ t }: { t: T }) {
         </div>
       </div>
       <div className="border-t border-white/10">
-        <div className="mx-auto max-w-6xl px-5 md:px-8 py-4 pb-24 text-xs text-white/35 md:pb-4">© {new Date().getFullYear()} {clinic.name}. {clinic.location.city}, {clinic.location.state}.</div>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-5 md:px-8 py-4 pb-24 text-xs text-white/35 md:pb-4">
+          <span>© {new Date().getFullYear()} {clinic.name}. {clinic.location.city}, {clinic.location.state}.</span>
+          <Link href="/privacy" className="ulink text-white/45 hover:text-white/70">Privacy &amp; appointment policy</Link>
+        </div>
       </div>
     </footer>
   );
