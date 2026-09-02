@@ -11,7 +11,9 @@
         "SUMMARY": [
             "TERMS"
         ],
-        "TERMS": []
+        "TERMS": [
+            "SUMMARY"
+        ]
     },
     "screens": [
         {
@@ -350,18 +352,29 @@
                                 "text": "${data.notes}"
                             },
                             {
-                                "type": "OptIn",
-                                "name": "terms",
-                                "label": "I agree to the appointment policy",
-                                "required": true,
+                                "type": "EmbeddedLink",
+                                "text": "Read the appointment policy",
                                 "on-click-action": {
                                     "name": "navigate",
                                     "next": {
                                         "type": "screen",
                                         "name": "TERMS"
                                     },
-                                    "payload": {}
+                                    "payload": {
+                                        "reason": "${data.reason}",
+                                        "date": "${data.date}",
+                                        "time": "${data.time}",
+                                        "name": "${data.name}",
+                                        "phone": "${data.phone}",
+                                        "notes": "${data.notes}"
+                                    }
                                 }
+                            },
+                            {
+                                "type": "OptIn",
+                                "name": "terms",
+                                "label": "I agree to the appointment policy",
+                                "required": true
                             },
                             {
                                 "type": "Footer",
@@ -386,6 +399,32 @@
         {
             "id": "TERMS",
             "title": "Appointment policy",
+            "data": {
+                "reason": {
+                    "type": "string",
+                    "__example__": "Knee replacement"
+                },
+                "date": {
+                    "type": "string",
+                    "__example__": "Wed Sep 02"
+                },
+                "time": {
+                    "type": "string",
+                    "__example__": "10:00 AM"
+                },
+                "name": {
+                    "type": "string",
+                    "__example__": "John Doe"
+                },
+                "phone": {
+                    "type": "string",
+                    "__example__": "9876543210"
+                },
+                "notes": {
+                    "type": "string",
+                    "__example__": ""
+                }
+            },
             "layout": {
                 "type": "SingleColumnLayout",
                 "children": [
@@ -396,6 +435,25 @@
                     {
                         "type": "TextBody",
                         "text": "This is a request for a token, not a fixed time slot — we'll message you back on WhatsApp with the exact time once the desk confirms it against the day's schedule.\n\nPlease arrive a few minutes before your preferred window. If you miss your turn, it's automatically moved to the next working day, no need to rebook.\n\nPlans changed? Reply Cancel in this chat and we'll release your token.\n\nConsultation fee is payable at the clinic."
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Back to appointment",
+                        "on-click-action": {
+                            "name": "navigate",
+                            "next": {
+                                "type": "screen",
+                                "name": "SUMMARY"
+                            },
+                            "payload": {
+                                "reason": "${data.reason}",
+                                "date": "${data.date}",
+                                "time": "${data.time}",
+                                "name": "${data.name}",
+                                "phone": "${data.phone}",
+                                "notes": "${data.notes}"
+                            }
+                        }
                     }
                 ]
             }
