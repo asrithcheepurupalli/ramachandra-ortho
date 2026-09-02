@@ -32,6 +32,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title, description, images: ["/og.png"] },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
   formatDetection: { telephone: true },
+  verification: { other: { "facebook-domain-verification": "ges6fj8n9tf73wtfqv5ql30d0fmo1x" } },
 };
 
 export const viewport: Viewport = { themeColor: "#0c7a68" };
