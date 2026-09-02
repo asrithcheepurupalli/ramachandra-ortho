@@ -31,7 +31,7 @@ const cur = clinic.currency, fee = clinic.consultationFee, dr = clinic.doctor.na
 // Real availability, not a fixed count: every open slot on the nearest day
 // that has one (site chat has no WhatsApp-style 3/10-button cap, so there's no
 // reason to truncate). In DB mode this reads the same live-availability route
-// the booking page uses, so Ramu never offers a slot someone else just took.
+// the booking page uses, so RC never offers a slot someone else just took.
 async function availableSlotsFor(date: string): Promise<string[]> {
   if (hasSupabase()) {
     try {
@@ -196,7 +196,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     if (hasSupabase()) {
       return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name } };
     }
-    const appt = addBooking({ name, phone: "", reason: source === "website" ? "Booked via Ramu (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
+    const appt = addBooking({ name, phone: "", reason: source === "website" ? "Booked via RC (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
     lastBookingId = appt.id;
     return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle" } };
   }
@@ -213,7 +213,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         body: JSON.stringify({
           name: state.name || "Patient",
           phone: input.trim(),
-          reason: source === "website" ? "Booked via Ramu (site chat)" : "WhatsApp booking",
+          reason: source === "website" ? "Booked via RC (site chat)" : "WhatsApp booking",
           date: state.slot.date,
           time: state.slot.time,
           source,
@@ -270,7 +270,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 // the last booking (for "cancel") in the per-conversation state instead of a
 // module-level variable, since a webhook serves many concurrent phone numbers.
 // Kept as a parallel path rather than folded into botReply so the two live
-// chat surfaces (RamuChat, WhatsAppDemo) that call botReply/botStart synchronously
+// chat surfaces (RCChat, WhatsAppDemo) that call botReply/botStart synchronously
 // are untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 export type Backend = {

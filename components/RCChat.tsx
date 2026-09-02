@@ -17,8 +17,8 @@ function fmt(s: string) {
   ));
 }
 
-// "Ramu" — the on-site assistant. Same engine as the WhatsApp bot, own UI.
-export function RamuChat() {
+// "RC" — the on-site assistant. Same engine as the WhatsApp bot, own UI.
+export function RCChat() {
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useState<Lang>("en");
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
@@ -28,10 +28,10 @@ export function RamuChat() {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // (re)seed the conversation with Ramu's greeting when opened / language changes
+  // (re)seed the conversation with RC's greeting when opened / language changes
   useEffect(() => {
     const o = botStart(lang);
-    setMsgs([mkMsg("bot", tr(lang, "ramu.greet"))]);
+    setMsgs([mkMsg("bot", tr(lang, "rc.greet"))]);
     setChips(o.chips); setState(o.state); setTyping(false);
   }, [lang]);
 
@@ -58,14 +58,14 @@ export function RamuChat() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          aria-label={tr(lang, "ramu.open")}
+          aria-label={tr(lang, "rc.open")}
           className="press fixed right-4 bottom-24 z-[60] flex items-center gap-2 rounded-full bg-brand py-3 pl-3 pr-4 text-sm font-semibold text-white shadow-lift transition hover:bg-brand-dark md:right-6 md:bottom-6"
         >
           <span className="relative grid h-8 w-8 place-items-center rounded-full bg-white/15">
             <Bot className="h-[18px] w-[18px]" />
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-brand bg-in" />
           </span>
-          {tr(lang, "ramu.open")}
+          {tr(lang, "rc.open")}
         </button>
       )}
 
@@ -76,8 +76,8 @@ export function RamuChat() {
           <div className="flex items-center gap-3 bg-brand px-4 py-3 text-white">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15"><Bot className="h-5 w-5" /></span>
             <div className="min-w-0 flex-1 leading-tight">
-              <div className="flex items-center gap-1.5 font-semibold">Ramu <Sparkles className="h-3.5 w-3.5 text-white/80" /></div>
-              <div className="flex items-center gap-1 text-[11px] text-white/75"><span className="h-1.5 w-1.5 rounded-full bg-in" /> {tr(lang, "ramu.sub")}</div>
+              <div className="flex items-center gap-1.5 font-semibold">RC <Sparkles className="h-3.5 w-3.5 text-white/80" /></div>
+              <div className="flex items-center gap-1 text-[11px] text-white/75"><span className="h-1.5 w-1.5 rounded-full bg-in" /> {tr(lang, "rc.sub")}</div>
             </div>
             <div className="flex items-center rounded-full bg-white/15 p-0.5">
               {(Object.keys(langLabels) as Lang[]).map((l) => (

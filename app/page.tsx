@@ -15,7 +15,7 @@ import { serviceGroups } from "@/lib/services";
 import { reviews } from "@/lib/reviews";
 import { WhatsAppDemo } from "@/components/WhatsAppDemo";
 import { DoctorPhoto } from "@/components/DoctorPhoto";
-import { RamuChat } from "@/components/RamuChat";
+import { RCChat } from "@/components/RCChat";
 import {
   weeklyHours, statusAt, fmt, weekdayName, applySchedule, setOverride,
   type Status, type WeeklyHours, type Exception, type Override,
@@ -76,7 +76,7 @@ export default function Home() {
       <LocationHours t={t} />
       <Footer t={t} />
       <MobileBar t={t} />
-      <RamuChat />
+      <RCChat />
     </>
   );
 }
