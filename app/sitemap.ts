@@ -6,5 +6,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: clinic.url, lastModified: now, changeFrequency: "weekly", priority: 1 },
     { url: `${clinic.url}/book`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${clinic.url}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ];
 }
