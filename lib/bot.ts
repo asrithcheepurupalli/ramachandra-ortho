@@ -7,14 +7,18 @@
 // (Anthropic API) for free-text understanding — the shapes below map 1:1.
 // ─────────────────────────────────────────────────────────────────────────────
 import { clinic, type Lang } from "@/clinic.config";
-import { statusAt, fmt, weekdayName, slotsFor, ymd, type SchedState } from "@/lib/schedule";
+import { statusAt, fmt, weekdayName, slotsFor, ymd, nowIST, BOOKING_LEAD_MIN, type SchedState } from "@/lib/schedule";
 import { addBooking, takenSlots, setStatus, type Source, type Appt, type ApptStatus } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 import { SlotTakenError } from "@/lib/errors";
 
 export type Sender = "bot" | "user";
 export type ChatMsg = { id: string; from: Sender; text: string };
-export type BotState = { stage: "idle" | "await_name" | "await_phone"; slot?: Slot; name?: string };
+// pendingDate: set once a day chip has been tapped, so the *next* chip tap is
+// resolved as a time within that day rather than re-matching the day list —
+// this is what lets the bot walk a patient into tomorrow or any future date
+// instead of only ever surfacing the single nearest day with openings.
+export type BotState = { stage: "idle" | "await_name" | "await_phone"; slot?: Slot; name?: string; pendingDate?: string };
 export type BotOut = { reply: string[]; chips: string[]; state: BotState };
 type Slot = { date: string; time: string; label: string };
 
@@ -45,23 +49,46 @@ async function availableSlotsFor(date: string): Promise<string[]> {
   }
   return slotsFor(new Date(date + "T00:00:00"), takenSlots(date));
 }
-async function nextSlots(): Promise<Slot[]> {
+type DayChip = { date: string; label: string };
+const MAX_DAY_CHIPS = 7; // a week's worth — plenty of future dates without a giant chip list
+
+function dayLabelForOffset(i: number, d: Date): string {
+  return i === 0 ? "Today" : i === 1 ? "Tomorrow" : weekdayName(d).slice(0, 3);
+}
+// Recovers the same "Today"/"Tomorrow"/weekday label from a bare date key,
+// for when a date is already known (state.pendingDate) instead of being
+// discovered by walking the 14-day window from i=0.
+function dayLabelForDate(date: string, now: Date): string {
+  const target = new Date(date + "T00:00:00");
+  const base = new Date(now); base.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((target.getTime() - base.getTime()) / 86_400_000);
+  return dayLabelForOffset(diffDays, target);
+}
+
+// Days (not slots) that have at least one open slot, nearest first — the
+// "which day?" step of the book flow, so a patient can reach any upcoming
+// date instead of only ever being shown the single nearest open day.
+async function openDays(): Promise<DayChip[]> {
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  for (let i = 0; i < 14; i++) {
+  const out: DayChip[] = [];
+  for (let i = 0; i < 14 && out.length < MAX_DAY_CHIPS; i++) {
     const d = new Date(now); d.setDate(now.getDate() + i);
     const key = ymd(d);
     let slots = await availableSlotsFor(key);
-    if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + 10; });
-    if (slots.length) {
-      const day = i === 0 ? "Today" : i === 1 ? "Tomorrow" : weekdayName(d).slice(0, 3);
-      return slots.map((s) => ({ date: key, time: s, label: `${day} ${fmt(s)}` }));
-    }
+    if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + BOOKING_LEAD_MIN; });
+    if (slots.length) out.push({ date: key, label: dayLabelForOffset(i, d) });
   }
-  return [];
+  return out;
 }
-async function slotByLabel(label: string): Promise<Slot | undefined> {
-  return (await nextSlots()).find((s) => s.label === label);
+async function timesForDate(date: string): Promise<string[]> {
+  const now = new Date();
+  let slots = await availableSlotsFor(date);
+  if (date === ymd(now)) {
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + BOOKING_LEAD_MIN; });
+  }
+  return slots;
 }
 
 // ── phrase packs ────────────────────────────────────────────────────────────
@@ -72,6 +99,9 @@ type PhrasePack = {
   availOut: (d: string, t: string) => string;
   availNone: string;
   bookIntro: string;
+  pickDay: string;
+  timesFor: (day: string) => string;
+  dayFull: (day: string) => string;
   noSlots: string;
   askName: string;
   askPhone: string;
@@ -81,6 +111,7 @@ type PhrasePack = {
   confirm: (tok: number, s: string) => string;
   cancelDone: string;
   cancelNone: string;
+  flowCancelled: string;
   hours: string;
   location: string;
   fallback: string;
@@ -95,6 +126,9 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} is *not in today*. The next available is *${d} at ${t}*. Tap *Book appointment* to reserve.`,
     availNone: `${dr} has no slots in the coming days. Please call the clinic on ${clinic.contact.phone}.`,
     bookIntro: "Sure! Here are the open slots. Tap the one you want:",
+    pickDay: "Sure! Here are the days with open slots — tap one:",
+    timesFor: (day: string) => `Great, here are the open times for ${day}:`,
+    dayFull: (day: string) => `Sorry, ${day} just got fully booked. Please pick another day:`,
     noSlots: "There are no open slots right now. Please try later, or call the clinic.",
     askName: "Great choice. What name should I book it under?",
     askPhone: "And your phone number? We'll send the booking confirmation on WhatsApp.",
@@ -104,6 +138,7 @@ const P: Record<Lang, PhrasePack> = {
     confirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${fee}. Please arrive a few minutes early.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\nReply *Cancel* if your plans change.`,
     cancelDone: "Done, your appointment is cancelled. Tap *Book appointment* to rebook anytime. 🙏",
     cancelNone: "You don't have an active appointment to cancel right now.",
+    flowCancelled: "No problem, stopped that. Tap *Book appointment* whenever you're ready. 🙏",
     hours: `🕒 Consulting hours:\nMon–Sat 10 AM–12:30 PM & 6–8 PM. Sunday closed.\nConsultation is ${cur}${fee}.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.`,
     fallback: "I can tell you if the doctor is in, book you an appointment, or share timings and location. What would you like?",
@@ -117,6 +152,9 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} ఈరోజు *అందుబాటులో లేరు*. తర్వాత అందుబాటు: *${d}, ${t}*. బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి.`,
     availNone: `రాబోయే రోజుల్లో స్లాట్‌లు లేవు. దయచేసి క్లినిక్‌కు కాల్ చేయండి: ${clinic.contact.phone}.`,
     bookIntro: "తప్పకుండా! ఖాళీగా ఉన్న స్లాట్‌లు ఇవి. మీకు కావలసినది నొక్కండి:",
+    pickDay: "తప్పకుండా! ఖాళీ స్లాట్‌లు ఉన్న రోజులు ఇవి — ఒకటి నొక్కండి:",
+    timesFor: (day: string) => `సరే, ${day} కోసం ఖాళీగా ఉన్న సమయాలు ఇవి:`,
+    dayFull: (day: string) => `క్షమించండి, ${day} ఇప్పుడే పూర్తిగా బుక్ అయ్యింది. దయచేసి వేరే రోజు ఎంచుకోండి:`,
     noSlots: "ప్రస్తుతం స్లాట్‌లు లేవు. దయచేసి తర్వాత ప్రయత్నించండి లేదా క్లినిక్‌కు కాల్ చేయండి.",
     askName: "మంచిది. ఏ పేరుతో బుక్ చేయాలి?",
     askPhone: "మీ ఫోన్ నంబర్ చెప్పండి. బుకింగ్ నిర్ధారణ వాట్సాప్‌కు పంపుతాము.",
@@ -126,6 +164,7 @@ const P: Record<Lang, PhrasePack> = {
     confirm: (tok: number, s: string) => `✅ *బుక్ అయ్యింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${fee}. దయచేసి కొన్ని నిమిషాల ముందు రండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\nప్లాన్ మారితే *Cancel* అని రిప్లై చేయండి.`,
     cancelDone: "అయ్యింది, మీ అపాయింట్‌మెంట్ రద్దు చేయబడింది. మళ్లీ బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
     cancelNone: "ప్రస్తుతం రద్దు చేయడానికి యాక్టివ్ అపాయింట్‌మెంట్ లేదు.",
+    flowCancelled: "పర్వాలేదు, ఆపేశాను. మీరు సిద్ధమైనప్పుడు *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
     hours: `🕒 కన్సల్టింగ్ సమయాలు:\nసోమ–శని ఉదయం 10–12:30 & సాయంత్రం 6–8 PM. ఆదివారం సెలవు.\nకన్సల్టేషన్ ${cur}${fee}.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.`,
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
@@ -139,6 +178,9 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} आज *उपलब्ध नहीं* हैं। अगली उपलब्धता: *${d}, ${t}*। बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ।`,
     availNone: `आने वाले दिनों में कोई स्लॉट नहीं है। कृपया क्लिनिक को कॉल करें: ${clinic.contact.phone}।`,
     bookIntro: "ज़रूर! ये खाली स्लॉट हैं। जो चाहिए उसे दबाएँ:",
+    pickDay: "ज़रूर! ये वे दिन हैं जिनमें स्लॉट खाली हैं — एक चुनें:",
+    timesFor: (day: string) => `बढ़िया, ${day} के लिए खाली समय ये हैं:`,
+    dayFull: (day: string) => `माफ़ करें, ${day} अभी पूरी तरह बुक हो गया। कृपया दूसरा दिन चुनें:`,
     noSlots: "अभी कोई स्लॉट खाली नहीं है। कृपया बाद में कोशिश करें या क्लिनिक को कॉल करें।",
     askName: "बढ़िया। किस नाम से बुक करूँ?",
     askPhone: "आपका फ़ोन नंबर बताएं। बुकिंग की पुष्टि हम व्हाट्सएप पर भेजेंगे।",
@@ -148,6 +190,7 @@ const P: Record<Lang, PhrasePack> = {
     confirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${fee}। कृपया कुछ मिनट पहले पहुँचें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\nयोजना बदले तो *Cancel* लिखें।`,
     cancelDone: "हो गया, आपका अपॉइंटमेंट रद्द कर दिया गया है। दोबारा बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
     cancelNone: "अभी रद्द करने के लिए कोई सक्रिय अपॉइंटमेंट नहीं है।",
+    flowCancelled: "कोई बात नहीं, रोक दिया। जब तैयार हों तब *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
     hours: `🕒 परामर्श समय:\nसोम–शनि सुबह 10–12:30 और शाम 6–8 बजे। रविवार बंद।\nपरामर्श ${cur}${fee}।`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}।`,
     fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
@@ -188,6 +231,13 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
   const t = P[lang];
   const c = t.chips;
 
+  // Escape hatch: without this, "cancel" typed while answering name/phone was
+  // swallowed as literal input for that stage (e.g. booked as a patient named
+  // "cancel") instead of backing the patient out of a flow they no longer want.
+  if ((state.stage === "await_name" || state.stage === "await_phone") && detect(input) === "cancel") {
+    return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
+  }
+
   // completing a booking: this input is the patient's name
   if (state.stage === "await_name" && state.slot) {
     const name = input.trim() || "Patient";
@@ -220,9 +270,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         }),
       });
       if (res.status === 409) {
-        const fresh = await nextSlots();
+        const fresh = await timesForDate(state.slot.date);
         if (!fresh.length) return { reply: [t.slotTaken, t.noSlots], chips: [c.avail], state: { stage: "idle" } };
-        return { reply: [t.slotTaken], chips: fresh.map((s) => s.label), state: { stage: "idle" } };
+        return { reply: [t.slotTaken], chips: fresh.map(fmt), state: { stage: "idle", pendingDate: state.slot.date } };
       }
       if (!res.ok) throw new Error("booking failed");
       const { appointment: appt } = (await res.json()) as { appointment: Appt };
@@ -233,17 +283,36 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     }
   }
 
-  // tapped a slot chip
-  const picked = await slotByLabel(input);
-  if (picked) return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: picked } };
+  // tapped a time chip (only meaningful once a day has been picked)
+  if (state.pendingDate) {
+    const times = await timesForDate(state.pendingDate);
+    const match = times.find((s) => fmt(s) === input);
+    if (match) {
+      const label = `${dayLabelForDate(state.pendingDate, new Date())} ${fmt(match)}`;
+      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label } } };
+    }
+  }
+
+  // tapped a day chip
+  const days = await openDays();
+  const pickedDay = days.find((d) => d.label === input);
+  if (pickedDay) {
+    const times = await timesForDate(pickedDay.date);
+    if (!times.length) {
+      const fresh = days.filter((d) => d.date !== pickedDay.date);
+      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle" } };
+      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle" } };
+    }
+    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", pendingDate: pickedDay.date } };
+  }
 
   switch (detect(input)) {
     case "avail":
       return { reply: [availReply(t)], chips: [c.book, c.timings], state: { stage: "idle" } };
     case "book": {
-      const slots = await nextSlots();
-      if (!slots.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
-      return { reply: [t.bookIntro], chips: slots.map((s) => s.label), state: { stage: "idle" } };
+      const dayList = await openDays();
+      if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
+      return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
     }
     case "cancel": {
       if (lastBookingId) { setStatus(lastBookingId, "cancelled"); lastBookingId = null; return { reply: [t.cancelDone], chips: [c.book], state: { stage: "idle" } }; }
@@ -280,24 +349,32 @@ export type Backend = {
 };
 export type ServerBotState = BotState & { lastBookingId?: string | null };
 
-async function nextSlotsServer(backend: Backend, sched: SchedState): Promise<Slot[]> {
-  const now = new Date();
+async function openDaysServer(backend: Backend, sched: SchedState): Promise<DayChip[]> {
+  const now = nowIST();
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  for (let i = 0; i < 14; i++) {
+  const out: DayChip[] = [];
+  for (let i = 0; i < 14 && out.length < MAX_DAY_CHIPS; i++) {
     const d = new Date(now); d.setDate(now.getDate() + i);
     const key = ymd(d);
     let slots = slotsFor(d, await backend.takenSlots(key), sched);
-    if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + 10; });
-    if (slots.length) {
-      const day = i === 0 ? "Today" : i === 1 ? "Tomorrow" : weekdayName(d).slice(0, 3);
-      return slots.map((s) => ({ date: key, time: s, label: `${day} ${fmt(s)}` }));
-    }
+    if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + BOOKING_LEAD_MIN; });
+    if (slots.length) out.push({ date: key, label: dayLabelForOffset(i, d) });
   }
-  return [];
+  return out;
+}
+async function timesForDateServer(date: string, backend: Backend, sched: SchedState): Promise<string[]> {
+  const now = nowIST();
+  const d = new Date(date + "T00:00:00");
+  let slots = slotsFor(d, await backend.takenSlots(date), sched);
+  if (date === ymd(now)) {
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + BOOKING_LEAD_MIN; });
+  }
+  return slots;
 }
 
 function availReplyServer(t: PhrasePack, sched: SchedState): string {
-  const st = statusAt(new Date(), sched);
+  const st = statusAt(nowIST(), sched);
   if (st.state === "in") return t.availIn(fmt(st.until));
   if (st.state === "soon") return t.availSoon(fmt(st.opensAt));
   if (st.next) return t.availOut(weekdayName(st.next.date), fmt(st.next.opensAt));
@@ -321,6 +398,13 @@ export async function botReplyServer(
   const t = P[lang];
   const c = t.chips;
 
+  // Escape hatch: without this, "cancel" typed while answering name/phone was
+  // swallowed as literal input for that stage (e.g. booked as a patient named
+  // "cancel") instead of backing the patient out of a flow they no longer want.
+  if ((state.stage === "await_name" || state.stage === "await_phone") && detect(input) === "cancel") {
+    return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+  }
+
   // completing a booking: this input is the patient's name
   if (state.stage === "await_name" && state.slot) {
     try {
@@ -328,26 +412,44 @@ export async function botReplyServer(
       return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle", lastBookingId: appt.id } };
     } catch (err) {
       if (err instanceof SlotTakenError) {
-        const fresh = await nextSlotsServer(backend, sched);
+        const fresh = await timesForDateServer(state.slot.date, backend, sched);
         if (!fresh.length) return { reply: [t.slotTaken, t.noSlots], chips: [c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
-        return { reply: [t.slotTaken], chips: fresh.map((s) => s.label), state: { stage: "idle", lastBookingId: state.lastBookingId } };
+        return { reply: [t.slotTaken], chips: fresh.map(fmt), state: { stage: "idle", pendingDate: state.slot.date, lastBookingId: state.lastBookingId } };
       }
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
     }
   }
 
-  // tapped a slot chip (matched against the same window this reply is computing)
-  const candidateSlots = await nextSlotsServer(backend, sched);
-  const picked = candidateSlots.find((s) => s.label === input);
-  if (picked) return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: picked, lastBookingId: state.lastBookingId } };
+  // tapped a time chip (only meaningful once a day has been picked)
+  if (state.pendingDate) {
+    const times = await timesForDateServer(state.pendingDate, backend, sched);
+    const match = times.find((s) => fmt(s) === input);
+    if (match) {
+      const label = `${dayLabelForDate(state.pendingDate, nowIST())} ${fmt(match)}`;
+      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label }, lastBookingId: state.lastBookingId } };
+    }
+  }
+
+  // tapped a day chip
+  const days = await openDaysServer(backend, sched);
+  const pickedDay = days.find((d) => d.label === input);
+  if (pickedDay) {
+    const times = await timesForDateServer(pickedDay.date, backend, sched);
+    if (!times.length) {
+      const fresh = days.filter((d) => d.date !== pickedDay.date);
+      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", lastBookingId: state.lastBookingId } };
+    }
+    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", pendingDate: pickedDay.date, lastBookingId: state.lastBookingId } };
+  }
 
   switch (detect(input)) {
     case "avail":
       return { reply: [availReplyServer(t, sched)], chips: [c.book, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
     case "book": {
-      const slots = await nextSlotsServer(backend, sched);
-      if (!slots.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
-      return { reply: [t.bookIntro], chips: slots.map((s) => s.label), state: { stage: "idle", lastBookingId: state.lastBookingId } };
+      const dayList = await openDaysServer(backend, sched);
+      if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+      return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle", lastBookingId: state.lastBookingId } };
     }
     case "cancel": {
       if (state.lastBookingId) {

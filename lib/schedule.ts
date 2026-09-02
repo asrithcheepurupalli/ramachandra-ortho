@@ -47,6 +47,25 @@ export type Exception = { closed?: boolean; windows?: Window[]; note?: string };
 export const exceptions: Record<string, Exception> = {};
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+// The clinic's own wall-clock. Every "what is today" / "what time is it right
+// now" decision below (ymd/statusAt/windowsFor/slotsFor's callers) reads a
+// Date through LOCAL getters (getHours/getDate/getDay/...) — correct as-is
+// when the caller is a patient's or staff's own browser (already IST for
+// anyone in India), but wrong when the caller is a server route: Vercel's
+// Node runtime is UTC, so a bare `new Date()` there is up to 5.5h off
+// Asia/Kolkata (UTC+5:30, no DST) — enough to shift the calendar date itself
+// near midnight IST. Every server-side "now" must go through this, not
+// `new Date()` directly. Computed from the actual runtime offset (not assumed
+// to be UTC) so it's correct in any process TZ, including a dev machine that
+// already happens to run in IST.
+export function nowIST(): Date {
+  const now = new Date();
+  const istOffsetMin = -330; // Asia/Kolkata is fixed UTC+5:30
+  const driftMin = now.getTimezoneOffset() - istOffsetMin;
+  return new Date(now.getTime() + driftMin * 60_000);
+}
+
 export const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
@@ -56,6 +75,15 @@ const toMin = (t: string) => {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 };
+// Minimum lead time before a slot can be booked today (patients need time to
+// travel). Was 10 min, same as clinic.slotMinutes — since a slot only clears
+// this once it's >10 min out, and slots sit on a 10-min grid, the last slot
+// of every window was unbookable for a full 20 min before the window closed
+// (its own 10-min lead time plus the next slot's already having dropped off),
+// which read as "no slots" well before the window was actually done. 5 min
+// halves that blackout without dropping the lead-time protection entirely.
+export const BOOKING_LEAD_MIN = 5;
+
 export const fmt = (t: string) => {
   const [h, m] = t.split(":").map(Number);
   const am = h < 12;

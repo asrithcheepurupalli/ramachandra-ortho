@@ -117,7 +117,7 @@ export function RCChat() {
           {/* input */}
           <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex items-center gap-2 bg-bg px-3 py-3">
             <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message…" className="flex-1 rounded-full border border-line bg-surface px-4 py-2.5 text-[14px] outline-none focus:border-brand" />
-            <button type="submit" className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand text-white transition hover:bg-brand-dark"><Send className="h-[18px] w-[18px]" /></button>
+            <button type="submit" aria-label="Send message" className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand text-white transition hover:bg-brand-dark"><Send className="h-[18px] w-[18px]" /></button>
           </form>
         </div>
       )}

@@ -113,7 +113,7 @@ export function WhatsAppDemo() {
         {/* input */}
         <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex items-center gap-2 bg-[#F0F0F0] px-2.5 py-2">
           <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type a message" className="flex-1 rounded-full border-0 bg-white px-4 py-2 text-[14px] outline-none" />
-          <button type="submit" className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#075E54] text-white"><Send className="h-[18px] w-[18px]" /></button>
+          <button type="submit" aria-label="Send message" className="press grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#075E54] text-white"><Send className="h-[18px] w-[18px]" /></button>
         </form>
       </div>
 
