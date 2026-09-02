@@ -27,99 +27,158 @@
     font-size: 13px;
     line-height: 1.5;
   }
-  .page { width: 210mm; min-height: 297mm; padding: 18mm 18mm 16mm; position: relative; background: var(--bg); }
+  .page { width: 210mm; min-height: 297mm; position: relative; background: var(--bg); }
 
-  h1, h2, h3 { letter-spacing: -0.02em; font-weight: 700; }
+  h1, h2, h3 { letter-spacing: -0.025em; font-weight: 800; }
   p { color: var(--muted); }
 
-  .top {
+  /* ── Hero band ─────────────────────────────────────────────────────────── */
+  .hero { background: var(--brand-dark); color: #fff; padding: 11mm 18mm 10mm; }
+  .hero-top {
     display: flex; align-items: center; justify-content: space-between;
-    padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--line);
+    padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.18);
   }
   .brandmark { display: flex; align-items: center; gap: 10px; }
   .brandmark .dot {
-    width: 32px; height: 32px; border-radius: 9px; background: var(--brand-tint);
-    display: flex; align-items: center; justify-content: center; font-size: 16px;
+    width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,0.14);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
   }
-  .brandmark .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
-  .brandmark .tag { font-size: 10px; color: var(--muted); letter-spacing: 0.03em; }
-  .top-right { font-size: 10.5px; color: var(--muted); text-align: right; letter-spacing: 0.02em; }
+  .brandmark .name { font-size: 13.5px; font-weight: 800; letter-spacing: -0.01em; }
+  .brandmark .tag { font-size: 9.5px; color: #b9e4d8; letter-spacing: 0.03em; }
+  .hero-doctype { font-size: 10px; color: #b9e4d8; text-align: right; letter-spacing: 0.02em; line-height: 1.5; }
 
   .eyebrow {
-    font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.09em;
     text-transform: uppercase; color: var(--brand);
   }
-  .lead h1 { font-size: 26px; color: var(--ink); margin-top: 5px; max-width: 150mm; }
-  .lead .sub { font-size: 12.5px; color: var(--muted); margin-top: 8px; max-width: 145mm; }
+  .hero .eyebrow { color: #9fe0cf; }
+  .hero h1 { font-size: 27px; line-height: 1.08; color: #fff; margin-top: 4px; max-width: 155mm; }
+  .hero .sub { font-size: 11.5px; color: #cdece2; margin-top: 6px; max-width: 145mm; }
 
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 14px; }
-  .card .t { font-weight: 700; font-size: 13.5px; color: var(--ink); }
-  .card .t .n { color: var(--brand); margin-right: 6px; }
-  .card .d { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.55; }
-  .card .status {
-    display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em;
-    padding: 3px 9px; border-radius: 20px; margin-top: 8px;
+  /* ── Body ──────────────────────────────────────────────────────────────── */
+  .body { padding: 9mm 18mm 11mm; }
+
+  .stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 11px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  .stat-card .n { font-size: 20px; font-weight: 800; color: var(--brand-dark); letter-spacing: -0.02em; }
+  .stat-card .l { font-size: 9px; color: var(--muted); margin-top: 1px; font-weight: 600; }
+
+  .section-label {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); margin: 3px 0 6px;
   }
-  .status.live { background: var(--brand-tint); color: var(--brand-dark); }
-  .status.review { background: #fef3e2; color: #9a6a12; }
+
+  .mod-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 11px; }
+  .mod-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .mod-card .h { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .mod-card .t { font-weight: 800; font-size: 13.5px; color: var(--ink); letter-spacing: -0.015em; }
+  .mod-card .d { font-size: 10.5px; color: var(--muted); margin-top: 4px; line-height: 1.42; }
+
+  .badge {
+    display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: 0.02em;
+    padding: 3px 9px; border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+  }
+  .badge.live { background: var(--brand-tint); color: var(--brand-dark); }
+  .badge.review { background: #fef3e2; color: #9a6a12; }
+
+  .domain-card {
+    background: var(--ink); border-radius: 14px; padding: 12px 20px; margin-bottom: 11px;
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  }
+  .domain-card .label { font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #8fb5ac; }
+  .domain-card .url { font-size: 19px; font-weight: 800; color: #fff; letter-spacing: -0.02em; margin-top: 2px; }
+  .domain-card .note { font-size: 10px; color: #b9c9c4; text-align: right; max-width: 62mm; line-height: 1.42; }
+
+  .status-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; margin-bottom: 0; }
+  .status-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .status-head .t { font-weight: 800; font-size: 14px; color: var(--ink); }
+  .bar-track { width: 100%; height: 6px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 7px; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand-dark)); border-radius: 4px; }
+  .status-card .d { font-size: 11px; color: var(--muted); margin-top: 7px; line-height: 1.48; }
 
   .quote-box {
-    background: var(--brand-tint); border-radius: 10px; padding: 12px 14px; font-size: 12px;
-    color: var(--brand-dark); margin-top: 18px; border-left: 3px solid var(--brand); line-height: 1.55;
+    background: var(--brand-tint); border-radius: 10px; padding: 9px 14px; font-size: 11px;
+    color: var(--brand-dark); margin-top: 8px; border-left: 3px solid var(--brand); line-height: 1.48;
   }
+  .quote-box b { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
 
   .foot {
-    margin-top: 22px; padding-top: 10px; border-top: 1px solid var(--line);
-    display: flex; justify-content: space-between; font-size: 9.5px; color: var(--muted);
+    margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; font-size: 9.5px; color: var(--muted); font-weight: 600;
   }
 </style>
 </head>
 <body>
 
 <div class="page">
-  <div class="top">
-    <div class="brandmark">
-      <span class="dot">🦴</span>
-      <div>
-        <div class="name">Ramachandra Ortho Care</div>
-        <div class="tag">Visakhapatnam</div>
+
+  <div class="hero">
+    <div class="hero-top">
+      <div class="brandmark">
+        <span class="dot">🦴</span>
+        <div>
+          <div class="name">Ramachandra Ortho Care</div>
+          <div class="tag">Visakhapatnam</div>
+        </div>
+      </div>
+      <div class="hero-doctype">Prepared for Dr. M. Ramachandra<br/>September 2026</div>
+    </div>
+    <div class="eyebrow">Progress update, condensed</div>
+    <h1>Everything we've built, at a glance.</h1>
+    <p class="sub">The full handbook is attached alongside this for the complete walkthrough with screenshots. This page is the one-minute version: what's live, the new address, and the one piece still switching on.</p>
+  </div>
+
+  <div class="body">
+    <div class="stat-strip">
+      <div class="stat-card"><div class="n">4</div><div class="l">Modules built</div></div>
+      <div class="stat-card"><div class="n">3</div><div class="l">Fully live</div></div>
+      <div class="stat-card"><div class="n">2</div><div class="l">Languages (EN / తెలుగు)</div></div>
+      <div class="stat-card"><div class="n">1</div><div class="l">Step left to go live</div></div>
+    </div>
+
+    <div class="section-label">What's live</div>
+    <div class="mod-grid">
+      <div class="mod-card">
+        <div class="h"><div class="t">A. Patient website</div><span class="badge live">Live</span></div>
+        <div class="d">Homepage shows today's fee and whether you're in, real Google reviews, and every service, mobile-first and installable like an app.</div>
+      </div>
+      <div class="mod-card">
+        <div class="h"><div class="t">B. Ramu, the AI assistant</div><span class="badge live">Live</span></div>
+        <div class="d">Answers timings, fees, and location instantly, in English or Telugu, so patients stop needing to call for the basics.</div>
+      </div>
+      <div class="mod-card">
+        <div class="h"><div class="t">C. Online booking</div><span class="badge live">Live</span></div>
+        <div class="d">Patients pick a day and a real open slot and confirm it themselves, no double-booking possible against the live schedule.</div>
+      </div>
+      <div class="mod-card">
+        <div class="h"><div class="t">D. Admin dashboard</div><span class="badge live">Live</span></div>
+        <div class="d">What the front desk runs the day from: today's queue, the weekly schedule, patient history, and revenue, in one screen.</div>
       </div>
     </div>
-    <div class="top-right">Prepared for Dr. M. Ramachandra<br/>September 2026</div>
+
+    <div class="section-label">The new address</div>
+    <div class="domain-card">
+      <div>
+        <div class="label">Live at</div>
+        <div class="url">rcorthocare.made-by-ac.com</div>
+      </div>
+      <div class="note">Moved off the temporary testing link onto its own domain. Same site, same everything, just the clinic's own name in the address bar now.</div>
+    </div>
+
+    <div class="section-label">Still switching on</div>
+    <div class="status-card">
+      <div class="status-head"><div class="t">Automatic WhatsApp confirmations</div><span class="badge review">Wording pending approval</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:75%"></div></div>
+      <div class="d">Confirmation and cancellation texts still go out by hand today. The front desk sends them right after each booking, takes about a minute, nothing gets missed. The clinic's WhatsApp number is now verified and live with Meta, the big hurdle. The one thing left is Meta approving the exact wording of the two texts themselves, a standard, separate review.</div>
+      <div class="quote-box"><b>Plainly put</b>Once the wording clears, sending switches on by itself. Nothing changes for you, the front desk, or patients.</div>
+    </div>
   </div>
 
-  <div class="lead">
-    <div class="eyebrow">Progress update</div>
-    <h1>Where things stand, in short.</h1>
-    <p class="sub">A quick note on what's live, the new address, and the one piece still being switched on.</p>
-  </div>
-
-  <div class="card">
-    <div class="t"><span class="n">1.</span>The website, booking, and admin dashboard are all live</div>
-    <div class="d">Patients can see today's fee and whether you're in, ask Ramu a quick question in English or Telugu, and book their own slot without calling the clinic. Every booking shows up instantly in the admin dashboard, which is what the front desk now runs the day from: today's queue, the weekly schedule, patient history, and revenue.</div>
-    <span class="status live">Live</span>
-  </div>
-
-  <div class="card">
-    <div class="t"><span class="n">2.</span>New address: rcorthocare.made-by-ac.com</div>
-    <div class="d">The site has moved off the temporary testing link and onto its own domain. Same site, same everything, just the clinic's own name in the address bar now.</div>
-    <span class="status live">Live</span>
-  </div>
-
-  <div class="card">
-    <div class="t"><span class="n">3.</span>Automatic WhatsApp confirmations</div>
-    <div class="d">Confirmation and cancellation texts still go out by hand today, the front desk sends them right after each booking, which takes about a minute and nothing gets missed. To make that automatic, the clinic's WhatsApp number needs Meta's business verification. That's been submitted and is under review on Meta's side now. Once it clears, sending switches on by itself, with nothing changing for staff or for patients.</div>
-    <span class="status review">Under review with Meta</span>
-  </div>
-
-  <div class="quote-box">
-    <b style="display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Nothing needed from you</b>
-    This is just an update, not a request. Call anytime if you'd like to go through any of it together.
-  </div>
-
-  <div class="foot">
-    <span>Ramachandra Ortho Care · Progress Update</span>
-    <span>rcorthocare.made-by-ac.com · Prepared by Asrith Cheepurupalli · made.</span>
+  <div style="padding: 0 18mm 10mm;">
+    <div class="foot">
+      <span>Ramachandra Ortho Care · Progress Update</span>
+      <span>rcorthocare.made-by-ac.com · Prepared by Asrith Cheepurupalli · made.</span>
+    </div>
   </div>
 </div>
 
