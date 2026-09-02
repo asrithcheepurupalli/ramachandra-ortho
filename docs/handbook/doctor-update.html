@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Ramachandra Ortho Care — Progress Update</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f8f6;
+    --surface: #ffffff;
+    --ink: #0e1a17;
+    --muted: #5c6b66;
+    --line: #e3ebe7;
+    --brand: #0c7a68;
+    --brand-dark: #0a5d50;
+    --brand-tint: #e2f1ec;
+    --accent: #ef6f53;
+    --accent-tint: #fdeae4;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.011em;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .page { width: 210mm; min-height: 297mm; padding: 18mm 18mm 16mm; position: relative; background: var(--bg); }
+
+  h1, h2, h3 { letter-spacing: -0.02em; font-weight: 700; }
+  p { color: var(--muted); }
+
+  .top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--line);
+  }
+  .brandmark { display: flex; align-items: center; gap: 10px; }
+  .brandmark .dot {
+    width: 32px; height: 32px; border-radius: 9px; background: var(--brand-tint);
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .brandmark .name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+  .brandmark .tag { font-size: 10px; color: var(--muted); letter-spacing: 0.03em; }
+  .top-right { font-size: 10.5px; color: var(--muted); text-align: right; letter-spacing: 0.02em; }
+
+  .eyebrow {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--brand);
+  }
+  .lead h1 { font-size: 26px; color: var(--ink); margin-top: 5px; max-width: 150mm; }
+  .lead .sub { font-size: 12.5px; color: var(--muted); margin-top: 8px; max-width: 145mm; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-top: 14px; }
+  .card .t { font-weight: 700; font-size: 13.5px; color: var(--ink); }
+  .card .t .n { color: var(--brand); margin-right: 6px; }
+  .card .d { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.55; }
+  .card .status {
+    display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em;
+    padding: 3px 9px; border-radius: 20px; margin-top: 8px;
+  }
+  .status.live { background: var(--brand-tint); color: var(--brand-dark); }
+  .status.review { background: #fef3e2; color: #9a6a12; }
+
+  .quote-box {
+    background: var(--brand-tint); border-radius: 10px; padding: 12px 14px; font-size: 12px;
+    color: var(--brand-dark); margin-top: 18px; border-left: 3px solid var(--brand); line-height: 1.55;
+  }
+
+  .foot {
+    margin-top: 22px; padding-top: 10px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; font-size: 9.5px; color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="top">
+    <div class="brandmark">
+      <span class="dot">🦴</span>
+      <div>
+        <div class="name">Ramachandra Ortho Care</div>
+        <div class="tag">Visakhapatnam</div>
+      </div>
+    </div>
+    <div class="top-right">Prepared for Dr. M. Ramachandra<br/>September 2026</div>
+  </div>
+
+  <div class="lead">
+    <div class="eyebrow">Progress update</div>
+    <h1>Where things stand, in short.</h1>
+    <p class="sub">A quick note on what's live, the new address, and the one piece still being switched on.</p>
+  </div>
+
+  <div class="card">
+    <div class="t"><span class="n">1.</span>The website, booking, and admin dashboard are all live</div>
+    <div class="d">Patients can see today's fee and whether you're in, ask Ramu a quick question in English or Telugu, and book their own slot without calling the clinic. Every booking shows up instantly in the admin dashboard, which is what the front desk now runs the day from: today's queue, the weekly schedule, patient history, and revenue.</div>
+    <span class="status live">Live</span>
+  </div>
+
+  <div class="card">
+    <div class="t"><span class="n">2.</span>New address: rcorthocare.made-by-ac.com</div>
+    <div class="d">The site has moved off the temporary testing link and onto its own domain. Same site, same everything, just the clinic's own name in the address bar now.</div>
+    <span class="status live">Live</span>
+  </div>
+
+  <div class="card">
+    <div class="t"><span class="n">3.</span>Automatic WhatsApp confirmations</div>
+    <div class="d">Confirmation and cancellation texts still go out by hand today, the front desk sends them right after each booking, which takes about a minute and nothing gets missed. To make that automatic, the clinic's WhatsApp number needs Meta's business verification. That's been submitted and is under review on Meta's side now. Once it clears, sending switches on by itself, with nothing changing for staff or for patients.</div>
+    <span class="status review">Under review with Meta</span>
+  </div>
+
+  <div class="quote-box">
+    <b style="display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px;">Nothing needed from you</b>
+    This is just an update, not a request. Call anytime if you'd like to go through any of it together.
+  </div>
+
+  <div class="foot">
+    <span>Ramachandra Ortho Care · Progress Update</span>
+    <span>rcorthocare.made-by-ac.com · Prepared by made.</span>
+  </div>
+</div>
+
+</body>
+</html>
