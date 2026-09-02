@@ -13,3 +13,15 @@ export class SlotTakenError extends Error {
     this.name = "SlotTakenError";
   }
 }
+
+// A booking request for a date+time that was never bookable — outside clinic
+// hours, on a closed/exception day, or off the slot grid. Different cause
+// than SlotTakenError (no race; the slot just isn't open) but extends it so
+// every existing `instanceof SlotTakenError` catch (which all just mean "tell
+// the patient to pick another time") handles this the same way for free.
+export class InvalidSlotError extends SlotTakenError {
+  constructor() {
+    super();
+    this.name = "InvalidSlotError";
+  }
+}

@@ -5,7 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession } from "@/lib/db";
 import { botReplyServer, type Backend, type ServerBotState } from "@/lib/bot";
-import { sendText, sendBookingConfirmation, verifySignature } from "@/lib/meta-whatsapp";
+import { sendText, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
 
 const backend: Backend = { addBooking: dbAddBooking, takenSlots: dbTakenSlots, setStatus: dbSetStatus };
@@ -21,7 +21,8 @@ export async function GET(req: NextRequest) {
   const token = params.get("hub.verify_token");
   const challenge = params.get("hub.challenge");
 
-  if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN && challenge) {
+  const verifyToken = process.env.META_VERIFY_TOKEN;
+  if (mode === "subscribe" && challenge && verifyToken && safeEqual(token ?? "", verifyToken)) {
     return new NextResponse(challenge, { status: 200 });
   }
   return new NextResponse("Forbidden", { status: 403 });
@@ -41,6 +42,15 @@ export async function POST(req: NextRequest) {
     if (!message) return new NextResponse("OK", { status: 200 }); // status/read receipts, no-op
 
     const from: string = message.from;
+    const wamid: string | undefined = message.id;
+    if (!from) return new NextResponse("OK", { status: 200 });
+
+    // Meta retries a webhook delivery that times out or errors — same message
+    // id redelivered. Without this a slow response (or the 500 branch below)
+    // can double-process the same inbound message, e.g. a duplicate booking
+    // from a single Flow submission.
+    const { lang, state, lastWamid } = await dbLoadWaSession(from);
+    if (wamid && wamid === lastWamid) return new NextResponse("OK", { status: 200 });
 
     // Submission of the "Appointment" WhatsApp Flow (manually sent from
     // WhatsApp Manager — see app/api/whatsapp/flow/route.ts for the live
@@ -66,14 +76,14 @@ export async function POST(req: NextRequest) {
             : "Something went wrong booking that. Please message us and we'll sort it out."
         );
       }
+      await dbSaveWaSession(from, lang, state, wamid);
       return new NextResponse("OK", { status: 200 });
     }
 
     const text: string | undefined =
       message.text?.body ?? message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title;
-    if (!from || !text) return new NextResponse("OK", { status: 200 });
+    if (!text) return new NextResponse("OK", { status: 200 });
 
-    const { lang, state } = await dbLoadWaSession(from);
     const waState = state as WaState;
 
     const asChipNumber = /^\s*(\d+)\s*$/.exec(text);
@@ -86,7 +96,7 @@ export async function POST(req: NextRequest) {
     const result = await botReplyServer(effectiveInput, lang, waState, from, backend, sched, "whatsapp");
 
     const newState: WaState = { ...result.state, lastChips: result.chips };
-    await dbSaveWaSession(from, lang, newState);
+    await dbSaveWaSession(from, lang, newState, wamid);
 
     const chipList = result.chips.length
       ? "\n\n" + result.chips.map((c, i) => `${i + 1}. ${c}`).join("\n")

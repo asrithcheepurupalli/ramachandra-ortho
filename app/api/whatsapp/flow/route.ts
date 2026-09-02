@@ -13,7 +13,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifySignature } from "@/lib/meta-whatsapp";
 import { decryptFlowRequest, encryptFlowResponse } from "@/lib/whatsapp-flow-crypto";
 import { dbTakenSlots, dbLoadSchedule } from "@/lib/db";
-import { slotsFor, ymd, fmt, type SchedState } from "@/lib/schedule";
+import { slotsFor, ymd, fmt, nowIST, type SchedState } from "@/lib/schedule";
 import { serviceGroups } from "@/lib/services";
 
 const DAYS_AHEAD = 14;
@@ -22,7 +22,7 @@ const reasonOptions = serviceGroups.flatMap((g) => g.items.map((s) => ({ id: s.n
 
 async function liveOpenDates(sched: SchedState): Promise<{ id: string; title: string }[]> {
   const out: { id: string; title: string }[] = [];
-  const now = new Date();
+  const now = nowIST();
   for (let i = 0; i < DAYS_AHEAD; i++) {
     const d = new Date(now);
     d.setDate(now.getDate() + i);

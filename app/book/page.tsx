@@ -8,14 +8,14 @@ import {
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
-import { slotsFor, ymd, fmt, weekdayName } from "@/lib/schedule";
+import { slotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
 import { addBooking, takenSlots, hydrateSchedule, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const waLink = (msg: string) => `https://wa.me/${clinic.contact.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
 
-type DayOpt = { date: string; d: Date; slots: string[] };
+type DayOpt = { date: string; d: Date; slots: string[]; closingSoon?: boolean };
 
 export default function BookPage() {
   const [lang, setLang] = useState<Lang>("en");
@@ -49,16 +49,26 @@ export default function BookPage() {
               const data = await res.json();
               slots = res.ok ? (data.slots as string[]) : [];
             } catch { slots = []; }
-            if (i === 0) slots = slots.filter((s) => toMin(s) > nowMin + 10);
-            return { date: key, d, slots };
+            let closingSoon = false;
+            if (i === 0) {
+              const rawLen = slots.length;
+              slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
+              closingSoon = rawLen > 0 && slots.length === 0;
+            }
+            return { date: key, d, slots, closingSoon };
           })
         );
       } else {
         hydrateSchedule();
         list = keys.map(({ i, d, key }) => {
           let slots = slotsFor(d, takenSlots(key));
-          if (i === 0) slots = slots.filter((s) => toMin(s) > nowMin + 10);
-          return { date: key, d, slots };
+          let closingSoon = false;
+          if (i === 0) {
+            const rawLen = slots.length;
+            slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
+            closingSoon = rawLen > 0 && slots.length === 0;
+          }
+          return { date: key, d, slots, closingSoon };
         });
       }
       if (cancelled) return;
@@ -69,7 +79,8 @@ export default function BookPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const slots = useMemo(() => days.find((x) => x.date === selDate)?.slots ?? [], [days, selDate]);
+  const selDay = useMemo(() => days.find((x) => x.date === selDate), [days, selDate]);
+  const slots = selDay?.slots ?? [];
   const canBook = !!(selDate && selTime && form.name.trim()) && !submitting;
 
   const dayLabel = (o: DayOpt, i: number) =>
@@ -174,7 +185,7 @@ export default function BookPage() {
         <div>
           <Label icon={Clock} n="2">{t("book.time")}</Label>
           {slots.length === 0 ? (
-            <p className="mt-3 rounded-xl bg-bg p-4 text-sm text-muted">{t("book.noslots")}</p>
+            <p className="mt-3 rounded-xl bg-bg p-4 text-sm text-muted">{selDay?.closingSoon ? t("book.closingsoon") : t("book.noslots")}</p>
           ) : (
             <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
               {slots.map((s) => (

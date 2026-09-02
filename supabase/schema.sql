@@ -70,17 +70,30 @@ on conflict (id) do nothing;
 -- Patient data is never exposed to anonymous visitors. Public booking + slot
 -- availability go through server API routes using the service_role key, which
 -- bypasses RLS. Staff use an authenticated session with full access.
+--
+-- IMPORTANT: public signup is ON for this Supabase project, so `to authenticated`
+-- alone is NOT proof of staff — any stranger can self-register via Supabase's
+-- own Auth API and get a valid `authenticated` session, then hit PostgREST
+-- directly (bypassing this app's ADMIN_EMAILS-gated routes entirely). Policies
+-- below check the caller's email against the same staff allowlist as the
+-- ADMIN_EMAILS env var (lib/auth-server.ts) — keep the two in sync by hand.
 alter table public.patients      enable row level security;
 alter table public.appointments  enable row level security;
 alter table public.settings      enable row level security;
 
--- staff (logged in) can do everything with patients + appointments
-create policy "staff full patients"     on public.patients     for all to authenticated using (true) with check (true);
-create policy "staff full appointments" on public.appointments for all to authenticated using (true) with check (true);
+-- staff (logged in AND on the allowlist) can do everything with patients + appointments
+create policy "staff full patients" on public.patients for all to authenticated
+  using (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']))
+  with check (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']));
+create policy "staff full appointments" on public.appointments for all to authenticated
+  using (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']))
+  with check (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']));
 
 -- schedule/hours are safe to read publicly (drives the site banner); only staff edit
-create policy "public read settings"    on public.settings     for select to anon, authenticated using (true);
-create policy "staff update settings"   on public.settings     for update to authenticated using (true) with check (true);
+create policy "public read settings" on public.settings for select to anon, authenticated using (true);
+create policy "staff update settings" on public.settings for update to authenticated
+  using (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']))
+  with check (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']));
 
 -- Realtime: the admin dashboard subscribes to appointment changes for the live queue
 alter publication supabase_realtime add table public.appointments;
@@ -94,6 +107,10 @@ create table if not exists public.wa_sessions (
   phone       text primary key,
   lang        text not null default 'en',
   state       jsonb not null default '{"stage":"idle"}'::jsonb,
+  last_wamid  text,                                  -- last processed WhatsApp message id (retry dedupe)
   updated_at  timestamptz not null default now()
 );
 alter table public.wa_sessions enable row level security;
+-- Idempotent for a table created before last_wamid existed (create table
+-- if not exists above won't add columns to an already-existing table).
+alter table public.wa_sessions add column if not exists last_wamid text;

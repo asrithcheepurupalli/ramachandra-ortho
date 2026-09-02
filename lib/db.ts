@@ -7,12 +7,12 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { clinic, type Lang } from "@/clinic.config";
 import {
-  defaultWeeklyHours,
+  defaultWeeklyHours, slotsFor, ymd, nowIST,
   type WeeklyHours, type Exception, type Override, type SchedState,
 } from "@/lib/schedule";
 import type { Appt, ApptStatus, Source } from "@/lib/store";
 import type { ServerBotState } from "@/lib/bot";
-import { SlotTakenError } from "@/lib/errors";
+import { SlotTakenError, InvalidSlotError } from "@/lib/errors";
 
 // Times already taken on a date (so the slot picker can hide them).
 export async function dbTakenSlots(date: string): Promise<string[]> {
@@ -59,6 +59,17 @@ export async function dbAddBooking(input: {
   const db = supabaseAdmin();
   const name = input.name.trim();
   const phone = input.phone.trim();
+
+  // /api/book pre-checks both of these too, but that's a check-then-act race
+  // (schedule can change, or the clock can tick past midnight, between the
+  // check and this write), and other callers — the WhatsApp Flow's nfm_reply
+  // submission in particular — don't pre-check at all. This is the one place
+  // every booking source funnels through, so it's the right place to make
+  // "can't book a past date, or outside clinic hours" hold for real.
+  if (input.date < ymd(nowIST())) throw new InvalidSlotError();
+  const sched = await dbLoadSchedule();
+  const openSlots = slotsFor(new Date(`${input.date}T00:00:00`), [], sched);
+  if (!openSlots.includes(input.time)) throw new InvalidSlotError();
 
   let patientId: string | null = null;
   if (phone) {
@@ -153,22 +164,46 @@ export async function dbSaveSchedule(
   if (error) throw error;
 }
 
+// A session mid-flow (awaiting a name/phone) that's gone quiet this long is
+// treated as abandoned rather than resumed — otherwise a stray message days
+// later ("ok") gets interpreted as the answer to a prompt the patient has
+// long forgotten, e.g. booked as a patient literally named "ok".
+const SESSION_STALE_MS = 30 * 60 * 1000;
+
 // Per-phone WhatsApp conversation state, since a webhook route is stateless
 // between HTTP requests — this is the only memory the bot has across turns.
-export async function dbLoadWaSession(phone: string): Promise<{ lang: Lang; state: ServerBotState }> {
+// lastWamid lets the webhook recognize (and skip) Meta's retry of a message
+// it already processed; a stale in-progress stage is reset to idle here so
+// every caller automatically gets a fresh start without repeating the check.
+export async function dbLoadWaSession(
+  phone: string
+): Promise<{ lang: Lang; state: ServerBotState; lastWamid: string | null }> {
   const { data, error } = await supabaseAdmin()
     .from("wa_sessions")
-    .select("lang, state")
+    .select("lang, state, last_wamid, updated_at")
     .eq("phone", phone)
     .maybeSingle();
   if (error) throw error;
-  if (!data) return { lang: "en", state: { stage: "idle" } };
-  return { lang: (data.lang as Lang) ?? "en", state: (data.state as ServerBotState) ?? { stage: "idle" } };
+  if (!data) return { lang: "en", state: { stage: "idle" }, lastWamid: null };
+
+  let state = (data.state as ServerBotState) ?? { stage: "idle" };
+  const age = Date.now() - new Date(data.updated_at).getTime();
+  if (state.stage !== "idle" && age > SESSION_STALE_MS) state = { stage: "idle" };
+
+  return { lang: (data.lang as Lang) ?? "en", state, lastWamid: data.last_wamid ?? null };
 }
 
-export async function dbSaveWaSession(phone: string, lang: Lang, state: ServerBotState): Promise<void> {
+export async function dbSaveWaSession(
+  phone: string,
+  lang: Lang,
+  state: ServerBotState,
+  wamid?: string
+): Promise<void> {
   const { error } = await supabaseAdmin()
     .from("wa_sessions")
-    .upsert({ phone, lang, state, updated_at: new Date().toISOString() }, { onConflict: "phone" });
+    .upsert(
+      { phone, lang, state, ...(wamid ? { last_wamid: wamid } : {}), updated_at: new Date().toISOString() },
+      { onConflict: "phone" }
+    );
   if (error) throw error;
 }

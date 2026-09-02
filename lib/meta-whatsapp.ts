@@ -30,6 +30,15 @@ export function verifySignature(rawBody: string, signatureHeader: string | null)
   return timingSafeEqual(expectedBuf, providedBuf);
 }
 
+// Constant-time string compare — used for the webhook verify-token handshake
+// so it doesn't leak match-length via early-exit timing, same as verifySignature.
+export function safeEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
+
 function normalizeIndianPhone(raw: string): string | null {
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 10) return `91${digits}`;

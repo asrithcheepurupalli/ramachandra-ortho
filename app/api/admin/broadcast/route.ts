@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireStaff } from "@/lib/auth-server";
 import { dbApptsForDate } from "@/lib/db";
 import { sendText } from "@/lib/meta-whatsapp";
-import { ymd } from "@/lib/schedule";
+import { ymd, nowIST } from "@/lib/schedule";
 import { activeStatuses } from "@/lib/store";
 
 export async function POST(req: NextRequest) {
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   if (!message) return NextResponse.json({ error: "message is required" }, { status: 400 });
 
   try {
-    const today = await dbApptsForDate(ymd(new Date()));
+    const today = await dbApptsForDate(ymd(nowIST()));
     const waiting = today.filter((a) => activeStatuses.includes(a.status) && a.status !== "consulting" && a.phone);
 
     const results = await Promise.allSettled(waiting.map((a) => sendText(a.phone, message)));
