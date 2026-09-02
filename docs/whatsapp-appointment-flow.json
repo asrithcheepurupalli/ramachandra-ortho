@@ -6,14 +6,12 @@
             "DETAILS"
         ],
         "DETAILS": [
-            "SUMMARY"
-        ],
-        "SUMMARY": [
             "TERMS"
         ],
         "TERMS": [
             "SUMMARY"
-        ]
+        ],
+        "SUMMARY": []
     },
     "screens": [
         {
@@ -159,6 +157,10 @@
                             "title": "6:00 PM"
                         }
                     ]
+                },
+                "time_enabled": {
+                    "type": "boolean",
+                    "__example__": false
                 }
             },
             "layout": {
@@ -202,8 +204,8 @@
                                 "label": "Preferred time",
                                 "name": "time",
                                 "data-source": "${data.time}",
-                                "enabled": "${data.date != null}",
-                                "required": true
+                                "enabled": "${data.time_enabled}",
+                                "required": "${data.time_enabled}"
                             },
                             {
                                 "type": "Footer",
@@ -277,7 +279,7 @@
                                     "name": "navigate",
                                     "next": {
                                         "type": "screen",
-                                        "name": "SUMMARY"
+                                        "name": "TERMS"
                                     },
                                     "payload": {
                                         "reason": "${data.reason}",
@@ -352,31 +354,6 @@
                                 "text": "${data.notes}"
                             },
                             {
-                                "type": "EmbeddedLink",
-                                "text": "Read the appointment policy",
-                                "on-click-action": {
-                                    "name": "navigate",
-                                    "next": {
-                                        "type": "screen",
-                                        "name": "TERMS"
-                                    },
-                                    "payload": {
-                                        "reason": "${data.reason}",
-                                        "date": "${data.date}",
-                                        "time": "${data.time}",
-                                        "name": "${data.name}",
-                                        "phone": "${data.phone}",
-                                        "notes": "${data.notes}"
-                                    }
-                                }
-                            },
-                            {
-                                "type": "OptIn",
-                                "name": "terms",
-                                "label": "I agree to the appointment policy",
-                                "required": true
-                            },
-                            {
                                 "type": "Footer",
                                 "label": "Confirm Appointment",
                                 "on-click-action": {
@@ -437,8 +414,14 @@
                         "text": "This is a request for a token, not a fixed time slot — we'll message you back on WhatsApp with the exact time once the desk confirms it against the day's schedule.\n\nPlease arrive a few minutes before your preferred window. If you miss your turn, it's automatically moved to the next working day, no need to rebook.\n\nPlans changed? Reply Cancel in this chat and we'll release your token.\n\nConsultation fee is payable at the clinic."
                     },
                     {
+                        "type": "OptIn",
+                        "name": "terms",
+                        "label": "I agree to the appointment policy",
+                        "required": true
+                    },
+                    {
                         "type": "Footer",
-                        "label": "Back to appointment",
+                        "label": "Continue",
                         "on-click-action": {
                             "name": "navigate",
                             "next": {

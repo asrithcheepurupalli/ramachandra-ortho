@@ -9,6 +9,7 @@
 // branches on them: 432 tells it the signature didn't match, 421 tells it
 // the public key is stale and to re-fetch it, 200 is a normal (encrypted)
 // reply.
+import { createHmac } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySignature } from "@/lib/meta-whatsapp";
 import { decryptFlowRequest, encryptFlowResponse } from "@/lib/whatsapp-flow-crypto";
@@ -50,7 +51,18 @@ export async function POST(req: NextRequest) {
   const rawBody = await req.text();
 
   if (!verifySignature(rawBody, req.headers.get("x-hub-signature-256"))) {
-    console.error("WhatsApp Flow endpoint: bad signature");
+    const header = req.headers.get("x-hub-signature-256");
+    const secret = process.env.META_APP_SECRET;
+    console.error("WhatsApp Flow endpoint: bad signature", {
+      hasSecret: !!secret,
+      hasHeader: !!header,
+      headerLen: header?.length ?? 0,
+      bodyLen: rawBody.length,
+      contentType: req.headers.get("content-type"),
+      // Non-reversible HMAC digests only — safe to log, cannot be used to recover the secret.
+      provided: header?.replace(/^sha256=/, ""),
+      expected: secret ? createHmac("sha256", secret).update(rawBody).digest("hex") : null,
+    });
     return new NextResponse("Signature verification failed", { status: 432 });
   }
 
@@ -78,7 +90,10 @@ export async function POST(req: NextRequest) {
     if (action === "INIT") {
       const sched = await dbLoadSchedule();
       return encryptedReply(
-        { screen: "APPOINTMENT", data: { reason: reasonOptions, date: await liveOpenDates(sched), time: [] } },
+        {
+          screen: "APPOINTMENT",
+          data: { reason: reasonOptions, date: await liveOpenDates(sched), time: [], time_enabled: false },
+        },
         aesKey,
         iv
       );
@@ -94,14 +109,18 @@ export async function POST(req: NextRequest) {
         return encryptedReply(
           {
             screen: "APPOINTMENT",
-            data: { reason: reasonOptions, date: dateOptions, time: [] },
+            data: { reason: reasonOptions, date: dateOptions, time: [], time_enabled: false },
             error_message: "No slots left that day — please pick another date.",
           },
           aesKey,
           iv
         );
       }
-      return encryptedReply({ screen: "APPOINTMENT", data: { reason: reasonOptions, date: dateOptions, time } }, aesKey, iv);
+      return encryptedReply(
+        { screen: "APPOINTMENT", data: { reason: reasonOptions, date: dateOptions, time, time_enabled: time.length > 0 } },
+        aesKey,
+        iv
+      );
     }
 
     console.error("WhatsApp Flow endpoint: unhandled action", action, screen);
