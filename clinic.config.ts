@@ -34,7 +34,7 @@ export const clinic = {
     line2: "Main Road, Chinnamushidiwada",
     city: "Visakhapatnam",
     state: "Andhra Pradesh",
-    pin: "530051",
+    pin: "531173",
     mapsUrl:
       "https://www.google.com/maps/search/?api=1&query=Ramachandra+Ortho+Care+Chinnamushidiwada",
   },
