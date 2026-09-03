@@ -13,7 +13,6 @@ import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { serviceGroups } from "@/lib/services";
 import { reviews } from "@/lib/reviews";
-import { WhatsAppDemo } from "@/components/WhatsAppDemo";
 import { DoctorPhoto } from "@/components/DoctorPhoto";
 import { RCChat } from "@/components/RCChat";
 import {
@@ -258,7 +257,7 @@ function HelpBand({ t }: { t: T }) {
   );
 }
 
-/* ── WhatsApp booking + live demo ──────────────────────────────────────────── */
+/* ── WhatsApp booking ───────────────────────────────────────────────────── */
 function WhatsAppSection() {
   const features = [
     "Instant booking confirmation",
@@ -269,7 +268,7 @@ function WhatsAppSection() {
   ];
   return (
     <section id="whatsapp" className="scroll-mt-16 border-y border-line bg-brand-tint/25">
-      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-5 md:gap-12 md:px-8 py-12 md:py-24 lg:grid-cols-2">
+      <div className="mx-auto max-w-xl px-5 md:px-8 py-12 md:py-24">
         <Reveal>
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-[#075E54] md:px-3 md:py-1.5 md:text-[13px]">
@@ -290,11 +289,7 @@ function WhatsAppSection() {
             <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="press mt-6 inline-flex items-center gap-2 rounded-full bg-[#075E54] px-5 py-3 text-[14px] font-semibold text-white transition hover:brightness-110 md:mt-7 md:px-6 md:py-3.5 md:text-[15px]">
               <MessageCircle className="h-[18px] w-[18px]" /> Open WhatsApp
             </a>
-            <p className="mt-3 text-xs text-muted">Try the live demo yourself. It really books into the clinic dashboard.</p>
           </div>
-        </Reveal>
-        <Reveal delay={120}>
-          <WhatsAppDemo />
         </Reveal>
       </div>
     </section>

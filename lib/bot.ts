@@ -163,9 +163,10 @@ type PhrasePack = {
   flowCancelled: string;
   hours: string;
   location: string;
+  about: string;
   fallback: string;
   thanks: string;
-  chips: { avail: string; book: string; timings: string; location: string; done: string };
+  chips: { avail: string; book: string; timings: string; location: string; about: string; done: string };
 };
 const P: Record<Lang, PhrasePack> = {
   en: {
@@ -191,11 +192,12 @@ const P: Record<Lang, PhrasePack> = {
     cancelDone: "Done, your appointment is cancelled. Tap *Book appointment* to rebook anytime. 🙏",
     cancelNone: "You don't have an active appointment to cancel right now.",
     flowCancelled: "No problem, stopped that. Tap *Book appointment* whenever you're ready. 🙏",
-    hours: `🕒 Consulting hours:\nMon–Sat 10 AM–12:30 PM & 6–8 PM. Sunday closed.\nConsultation is ${cur}${fee}.`,
-    location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.`,
-    fallback: "I can tell you if the doctor is in, book you an appointment, or share timings and location. What would you like?",
+    hours: `🕒 Consulting hours:\nMon–Sat 10 AM–12:30 PM & 6–8 PM. Sunday closed.\nConsultation is ${cur}${fee}.\n🚑 Medical emergency? Call ${clinic.contact.emergency}.`,
+    location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ Directions: ${clinic.location.mapsUrl}`,
+    about: `👨‍⚕️ *${dr}*\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nRated ${clinic.rating.score}★ from ${clinic.rating.count}+ ${clinic.rating.source} reviews.`,
+    fallback: "I can tell you if the doctor is in, tell you about the doctor, book you an appointment, or share timings and location. What would you like?",
     thanks: "You're welcome 🙏 Get well soon!",
-    chips: { avail: "Is the doctor in today?", book: "Book appointment", timings: "Timings & fees", location: "Location", done: "Thanks!" },
+    chips: { avail: "Is the doctor in today?", book: "Book appointment", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!" },
   },
   te: {
     greet: `నమస్కారం 🙏 నేను ${clinic.shortName} అసిస్టెంట్‌ని. మీకు ఎలా సహాయపడగలను?`,
@@ -220,11 +222,12 @@ const P: Record<Lang, PhrasePack> = {
     cancelDone: "అయ్యింది, మీ అపాయింట్‌మెంట్ రద్దు చేయబడింది. మళ్లీ బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
     cancelNone: "ప్రస్తుతం రద్దు చేయడానికి యాక్టివ్ అపాయింట్‌మెంట్ లేదు.",
     flowCancelled: "పర్వాలేదు, ఆపేశాను. మీరు సిద్ధమైనప్పుడు *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
-    hours: `🕒 కన్సల్టింగ్ సమయాలు:\nసోమ–శని ఉదయం 10–12:30 & సాయంత్రం 6–8 PM. ఆదివారం సెలవు.\nకన్సల్టేషన్ ${cur}${fee}.`,
-    location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.`,
-    fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
+    hours: `🕒 కన్సల్టింగ్ సమయాలు:\nసోమ–శని ఉదయం 10–12:30 & సాయంత్రం 6–8 PM. ఆదివారం సెలవు.\nకన్సల్టేషన్ ${cur}${fee}.\n🚑 అత్యవసర పరిస్థితా? ${clinic.contact.emergency}కు కాల్ చేయండి.`,
+    location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ దిశలు: ${clinic.location.mapsUrl}`,
+    about: `👨‍⚕️ *${dr}* గురించి:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} రేటింగ్: ${clinic.rating.score}★ (${clinic.rating.count}+ రివ్యూలు).`,
+    fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
     thanks: "సంతోషం 🙏 త్వరగా కోలుకోండి!",
-    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", done: "ధన్యవాదాలు!" },
+    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!" },
   },
   hi: {
     greet: `नमस्ते 🙏 मैं ${clinic.shortName} का असिस्टेंट हूँ। मैं आपकी कैसे मदद करूँ?`,
@@ -249,20 +252,22 @@ const P: Record<Lang, PhrasePack> = {
     cancelDone: "हो गया, आपका अपॉइंटमेंट रद्द कर दिया गया है। दोबारा बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
     cancelNone: "अभी रद्द करने के लिए कोई सक्रिय अपॉइंटमेंट नहीं है।",
     flowCancelled: "कोई बात नहीं, रोक दिया। जब तैयार हों तब *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
-    hours: `🕒 परामर्श समय:\nसोम–शनि सुबह 10–12:30 और शाम 6–8 बजे। रविवार बंद।\nपरामर्श ${cur}${fee}।`,
-    location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}।`,
-    fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
+    hours: `🕒 परामर्श समय:\nसोम–शनि सुबह 10–12:30 और शाम 6–8 बजे। रविवार बंद।\nपरामर्श ${cur}${fee}।\n🚑 आपातकाल में कॉल करें: ${clinic.contact.emergency}।`,
+    location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}।\n🗺️ दिशा-निर्देश: ${clinic.location.mapsUrl}`,
+    about: `👨‍⚕️ *${dr}* के बारे में:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} रेटिंग: ${clinic.rating.score}★ (${clinic.rating.count}+ समीक्षाएं).`,
+    fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, डॉक्टर के बारे में बता सकता हूँ, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
     thanks: "आपका स्वागत है 🙏 जल्दी स्वस्थ हों!",
-    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", timings: "समय व फीस", location: "पता", done: "धन्यवाद!" },
+    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!" },
   },
 };
 
 // ── intent detection (heuristic for the beta; Claude in production) ──────────
-type Intent = "avail" | "book" | "cancel" | "hours" | "location" | "fee" | "greet" | "thanks" | "fallback";
+type Intent = "avail" | "book" | "cancel" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback";
 function detect(s: string): Intent {
   const has = (re: RegExp) => re.test(s);
   if (has(/cancel|రద్దు|कैंसिल|रद्द/i)) return "cancel";
   if (has(/book|appoint|slot|token|బుక్|అపాయింట్|अपॉइंटमेंट|बुक|टोकन/i)) return "book";
+  if (has(/about (the )?(doctor|dr)\b|doctor.?s? (bio|profile|qualification)|qualification|credentials|డాక్టర్.{0,3}గురించి|గురించి.{0,3}డాక్టర్|योग्यता|डॉक्टर.{0,3}(बारे|प्रोफाइल)/i)) return "about";
   if (has(/avail|open|in today|is (the )?doctor|doctor (in|there|available)|ఉన్నార|అందుబాటు|उपलब्ध|आज|डॉक्टर/i)) return "avail";
   if (has(/time|timing|hours|when|open|సమయ|టైమ|समय|कब/i)) return "hours";
   if (has(/where|location|address|reach|direction|చిరునామా|ఎక్కడ|पता|कहाँ|कहां/i)) return "location";
@@ -282,7 +287,7 @@ function availReply(t: PhrasePack): string {
 
 export function botStart(lang: Lang): BotOut {
   const t = P[lang];
-  return { reply: [t.greet], chips: [t.chips.avail, t.chips.book, t.chips.timings, t.chips.location], state: { stage: "idle" } };
+  return { reply: [t.greet], chips: [t.chips.avail, t.chips.book, t.chips.about, t.chips.timings, t.chips.location], state: { stage: "idle" } };
 }
 
 export async function botReply(input: string, lang: Lang, state: BotState, source: Source = "whatsapp"): Promise<BotOut> {
@@ -306,7 +311,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     }
     const appt = addBooking({ name, phone: "", reason: source === "website" ? "Booked via RC (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
     lastBookingId = appt.id;
-    return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle" } };
+    return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.about, c.location, c.done], state: { stage: "idle" } };
   }
 
   // completing a booking (DB mode): this input is the patient's phone number
@@ -342,7 +347,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       if (!res.ok) throw new Error("booking failed");
       const { appointment: appt } = (await res.json()) as { appointment: Appt };
       lastBookingId = appt.id;
-      return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle" } };
+      return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.about, c.location, c.done], state: { stage: "idle" } };
     } catch {
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
     }
@@ -409,7 +414,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 
   switch (detect(input)) {
     case "avail":
-      return { reply: [availReply(t)], chips: [c.book, c.timings], state: { stage: "idle" } };
+      return { reply: [availReply(t)], chips: [c.book, c.about, c.timings], state: { stage: "idle" } };
     case "book": {
       const dayList = await openDays();
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
@@ -423,12 +428,14 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       return { reply: [t.hours], chips: [c.book, c.location], state: { stage: "idle" } };
     case "location":
       return { reply: [t.location], chips: [c.book, c.timings], state: { stage: "idle" } };
+    case "about":
+      return { reply: [t.about], chips: [c.book, c.avail], state: { stage: "idle" } };
     case "thanks":
       return { reply: [t.thanks], chips: [c.avail, c.book], state: { stage: "idle" } };
     case "greet":
       return botStart(lang);
     default:
-      return { reply: [t.fallback], chips: [c.avail, c.book, c.timings], state: { stage: "idle" } };
+      return { reply: [t.fallback], chips: [c.avail, c.book, c.about, c.timings], state: { stage: "idle" } };
   }
 }
 
@@ -439,9 +446,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 // as explicit arguments instead of reaching for module singletons, and stores
 // the last booking (for "cancel") in the per-conversation state instead of a
 // module-level variable, since a webhook serves many concurrent phone numbers.
-// Kept as a parallel path rather than folded into botReply so the two live
-// chat surfaces (RCChat, WhatsAppDemo) that call botReply/botStart synchronously
-// are untouched.
+// Kept as a parallel path rather than folded into botReply so RCChat, the
+// live site chat surface that calls botReply/botStart synchronously, is
+// untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 export type Backend = {
   addBooking: (input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }) => Promise<Appt>;
@@ -488,7 +495,7 @@ function availReplyServer(t: PhrasePack, sched: SchedState): string {
 
 export function botStartServer(lang: Lang): { reply: string[]; chips: string[]; state: ServerBotState } {
   const t = P[lang];
-  return { reply: [t.greet], chips: [t.chips.avail, t.chips.book, t.chips.timings, t.chips.location], state: { stage: "idle" } };
+  return { reply: [t.greet], chips: [t.chips.avail, t.chips.book, t.chips.about, t.chips.timings, t.chips.location], state: { stage: "idle" } };
 }
 
 export async function botReplyServer(
@@ -514,7 +521,7 @@ export async function botReplyServer(
   if (state.stage === "await_name" && state.slot) {
     try {
       const appt = await backend.addBooking({ name: input.trim() || "Patient", phone, reason: "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
-      return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.done], state: { stage: "idle", lastBookingId: appt.id } };
+      return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.about, c.location, c.done], state: { stage: "idle", lastBookingId: appt.id } };
     } catch (err) {
       if (err instanceof SlotTakenError) {
         const fresh = await timesForDateServer(state.slot.date, backend, sched);
@@ -593,7 +600,7 @@ export async function botReplyServer(
 
   switch (detect(input)) {
     case "avail":
-      return { reply: [availReplyServer(t, sched)], chips: [c.book, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+      return { reply: [availReplyServer(t, sched)], chips: [c.book, c.about, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
     case "book": {
       const dayList = await openDaysServer(backend, sched);
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
@@ -610,11 +617,13 @@ export async function botReplyServer(
       return { reply: [t.hours], chips: [c.book, c.location], state: { stage: "idle", lastBookingId: state.lastBookingId } };
     case "location":
       return { reply: [t.location], chips: [c.book, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+    case "about":
+      return { reply: [t.about], chips: [c.book, c.avail], state: { stage: "idle", lastBookingId: state.lastBookingId } };
     case "thanks":
       return { reply: [t.thanks], chips: [c.avail, c.book], state: { stage: "idle", lastBookingId: state.lastBookingId } };
     case "greet":
       return botStartServer(lang);
     default:
-      return { reply: [t.fallback], chips: [c.avail, c.book, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
+      return { reply: [t.fallback], chips: [c.avail, c.book, c.about, c.timings], state: { stage: "idle", lastBookingId: state.lastBookingId } };
   }
 }
