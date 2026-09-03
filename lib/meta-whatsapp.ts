@@ -16,18 +16,24 @@ import type { Appt } from "@/lib/store";
 
 const GRAPH_VERSION = "v21.0";
 
-// Shared by the webhook route and the Flow endpoint, both receiving requests
-// signed by Meta with the same app secret (HMAC-SHA256 over the raw body).
+// Shared by the webhook route and the Flow endpoint. The WABA is subscribed
+// to two Meta apps: chat messages arrive signed by one, the Flow endpoint's
+// health-check pings by the other. Both secrets are checked so either app
+// can sign a given request (HMAC-SHA256 over the raw body).
 export function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
-  const secret = process.env.META_APP_SECRET;
-  if (!secret || !signatureHeader) return false;
+  const secrets = [process.env.META_APP_SECRET, process.env.META_APP_SECRET_ALT].filter(
+    (s): s is string => !!s
+  );
+  if (!secrets.length || !signatureHeader) return false;
 
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
   const provided = signatureHeader.replace(/^sha256=/, "");
-  const expectedBuf = Buffer.from(expected, "hex");
   const providedBuf = Buffer.from(provided, "hex");
-  if (expectedBuf.length !== providedBuf.length) return false;
-  return timingSafeEqual(expectedBuf, providedBuf);
+  return secrets.some((secret) => {
+    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+    const expectedBuf = Buffer.from(expected, "hex");
+    if (expectedBuf.length !== providedBuf.length) return false;
+    return timingSafeEqual(expectedBuf, providedBuf);
+  });
 }
 
 // Constant-time string compare — used for the webhook verify-token handshake
