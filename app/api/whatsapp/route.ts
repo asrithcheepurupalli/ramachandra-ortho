@@ -3,12 +3,17 @@
 // Always acks POST with 200 quickly; Meta retries (and can disable) a webhook
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
-import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession } from "@/lib/db";
+import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone } from "@/lib/db";
 import { botReplyServer, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
 
-const backend: Backend = { addBooking: dbAddBooking, takenSlots: dbTakenSlots, setStatus: dbSetStatus };
+const backend: Backend = {
+  addBooking: dbAddBooking,
+  takenSlots: dbTakenSlots,
+  setStatus: dbSetStatus,
+  activeAppointmentsByPhone: dbActiveAppointmentsByPhone,
+};
 
 // Remembers the numbered chip list from the last reply, so a patient can type
 // "2" instead of the exact slot label — matched back to the same label text

@@ -35,6 +35,23 @@ export async function dbApptsForDate(date: string): Promise<Appt[]> {
   return (data ?? []).map(rowToAppt);
 }
 
+// A patient's active (not cancelled/done) appointments, nearest first — the
+// lookup a cancel request resolves against instead of trusting a single
+// remembered booking id, since a phone can have more than one appointment
+// on file (e.g. family members sharing a number) and a stale id would
+// cancel the wrong one.
+export async function dbActiveAppointmentsByPhone(phone: string): Promise<Appt[]> {
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .select("*")
+    .eq("phone", phone)
+    .in("status", ["reserved", "confirmed", "waiting", "consulting"])
+    .order("appt_date", { ascending: true })
+    .order("appt_time", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(rowToAppt);
+}
+
 function rowToAppt(r: any): Appt {
   return {
     id: r.id,

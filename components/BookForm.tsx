@@ -94,13 +94,14 @@ export function BookForm() {
     const gone = (selDay?.taken ?? []).map((time) => ({ time, taken: true }));
     return [...open, ...gone].sort((a, b) => toMin(a.time) - toMin(b.time));
   }, [selDay]);
-  const canBook = !!(selDate && selTime && form.name.trim()) && !submitting;
+  const canBook = !!(selDate && selTime && form.name.trim() && form.phone.trim()) && !submitting;
 
   const dayLabel = (o: DayOpt, i: number) =>
     i === 0 ? t("book.today") : i === 1 ? t("book.tomorrow") : weekdayName(o.d).slice(0, 3);
 
   const confirm = async () => {
     if (!form.name.trim()) { setErr(t("book.needname")); return; }
+    if (!form.phone.trim()) { setErr(t("book.needphone")); return; }
     if (!selDate || !selTime || submitting) return;
 
     if (hasSupabase()) {
@@ -230,7 +231,7 @@ export function BookForm() {
             <label htmlFor="book-name" className="sr-only">{t("book.name")}</label>
             <input id="book-name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErr(""); }} placeholder={t("book.name")} aria-describedby={err ? "book-error" : undefined} aria-invalid={!!err} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-phone" className="sr-only">{t("book.phone")}</label>
-            <input id="book-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder={t("book.phone")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+            <input id="book-phone" value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErr(""); }} placeholder={t("book.phone")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-reason" className="sr-only">{t("book.reason")}</label>
             <input id="book-reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder={t("book.reason")} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
           </div>
