@@ -370,6 +370,8 @@ function Broadcast({ count }: { count: number }) {
         if (!res.ok) throw new Error(data?.error || "send failed");
         const note = data.attempted === 0
           ? "No patients with a phone number in today's queue."
+          : data.failed === data.attempted
+          ? "None delivered. This only reaches patients with an open WhatsApp conversation (they've messaged the bot in the last 24h). Ask them to message the bot first, or use a WhatsApp template for this notice."
           : `Attempted ${data.attempted}${data.failed ? `, ${data.failed} did not deliver (only patients in an active WhatsApp conversation receive this)` : ", all queued for delivery"}.`;
         setResult({ msg, note });
       } else {
@@ -377,7 +379,8 @@ function Broadcast({ count }: { count: number }) {
       }
     } catch (err) {
       console.error("admin: broadcast failed", err);
-      setResult({ msg, note: "Could not send. Check the WhatsApp connection." });
+      const reason = err instanceof Error && err.message ? err.message : "unknown error";
+      setResult({ msg, note: `Could not send (${reason}). Check the server logs.` });
     } finally {
       setSending(false);
       setTimeout(() => setResult(null), 6000);

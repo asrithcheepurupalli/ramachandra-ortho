@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const waiting = today.filter((a) => activeStatuses.includes(a.status) && a.status !== "consulting" && a.phone);
 
     const results = await Promise.allSettled(waiting.map((a) => sendText(a.phone, message)));
-    const failed = results.filter((r) => r.status === "rejected").length;
+    const failed = results.filter((r) => r.status === "rejected" || !r.value).length;
 
     return NextResponse.json({ attempted: waiting.length, failed });
   } catch (err) {
