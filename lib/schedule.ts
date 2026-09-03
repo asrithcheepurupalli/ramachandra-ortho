@@ -167,18 +167,22 @@ export function statusAt(now = new Date(), s: SchedState = liveState()): Status 
   return { state: "out", next: nextOpen(now, s), note };
 }
 
-// Bookable slots for a given date (respects windows, minus already-taken).
-export function slotsFor(date: Date, taken: string[] = [], s: SchedState = liveState()): string[] {
+// Every slot time in a date's windows, taken or not — the website booking
+// page needs this to grey out taken slots instead of hiding them; the bot
+// and the Flow endpoint only ever want the open subset, via slotsFor below.
+export function allSlotsFor(date: Date, s: SchedState = liveState()): string[] {
   const out: string[] = [];
   for (const w of windowsFor(date, s)) {
     for (let m = toMin(w.start); m < toMin(w.end); m += clinic.slotMinutes) {
-      const t = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(
-        m % 60
-      ).padStart(2, "0")}`;
-      if (!taken.includes(t)) out.push(t);
+      out.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
     }
   }
   return out;
+}
+
+// Bookable slots for a given date (respects windows, minus already-taken).
+export function slotsFor(date: Date, taken: string[] = [], s: SchedState = liveState()): string[] {
+  return allSlotsFor(date, s).filter((t) => !taken.includes(t));
 }
 
 export const weekdayName = (d: Date) =>

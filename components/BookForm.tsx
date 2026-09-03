@@ -8,14 +8,15 @@ import {
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
-import { slotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
+import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
 import { addBooking, takenSlots, hydrateSchedule, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const waLink = (msg: string) => `https://wa.me/${clinic.contact.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
 
-type DayOpt = { date: string; d: Date; slots: string[]; closingSoon?: boolean };
+// slots = still bookable, taken = already booked (rendered greyed out, not hidden)
+type DayOpt = { date: string; d: Date; slots: string[]; taken: string[]; closingSoon?: boolean };
 
 export function BookForm() {
   const [lang, setLang] = useState<Lang>("en");
@@ -44,31 +45,37 @@ export function BookForm() {
         list = await Promise.all(
           keys.map(async ({ i, d, key }) => {
             let slots: string[] = [];
+            let taken: string[] = [];
             try {
               const res = await fetch(`/api/slots?date=${key}`);
               const data = await res.json();
               slots = res.ok ? (data.slots as string[]) : [];
-            } catch { slots = []; }
+              taken = res.ok ? (data.taken as string[]) : [];
+            } catch { slots = []; taken = []; }
             let closingSoon = false;
             if (i === 0) {
               const rawLen = slots.length;
               slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
+              taken = taken.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
               closingSoon = rawLen > 0 && slots.length === 0;
             }
-            return { date: key, d, slots, closingSoon };
+            return { date: key, d, slots, taken, closingSoon };
           })
         );
       } else {
         hydrateSchedule();
         list = keys.map(({ i, d, key }) => {
-          let slots = slotsFor(d, takenSlots(key));
+          const takenAll = takenSlots(key);
+          let slots = allSlotsFor(d).filter((t) => !takenAll.includes(t));
+          let taken = allSlotsFor(d).filter((t) => takenAll.includes(t));
           let closingSoon = false;
           if (i === 0) {
             const rawLen = slots.length;
             slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
+            taken = taken.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
             closingSoon = rawLen > 0 && slots.length === 0;
           }
-          return { date: key, d, slots, closingSoon };
+          return { date: key, d, slots, taken, closingSoon };
         });
       }
       if (cancelled) return;
@@ -80,7 +87,13 @@ export function BookForm() {
   }, []);
 
   const selDay = useMemo(() => days.find((x) => x.date === selDate), [days, selDate]);
-  const slots = selDay?.slots ?? [];
+  // Open and taken slots merged into one time-ordered grid, so a booked slot
+  // shows greyed out in place rather than just vanishing from the list.
+  const timeSlots = useMemo(() => {
+    const open = (selDay?.slots ?? []).map((time) => ({ time, taken: false }));
+    const gone = (selDay?.taken ?? []).map((time) => ({ time, taken: true }));
+    return [...open, ...gone].sort((a, b) => toMin(a.time) - toMin(b.time));
+  }, [selDay]);
   const canBook = !!(selDate && selTime && form.name.trim()) && !submitting;
 
   const dayLabel = (o: DayOpt, i: number) =>
@@ -184,12 +197,27 @@ export function BookForm() {
         {/* time */}
         <div>
           <Label icon={Clock} n="2">{t("book.time")}</Label>
-          {slots.length === 0 ? (
+          {timeSlots.length === 0 ? (
             <p className="mt-3 rounded-xl bg-bg p-4 text-sm text-muted">{selDay?.closingSoon ? t("book.closingsoon") : t("book.noslots")}</p>
           ) : (
             <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4" role="group" aria-label={t("book.time")}>
-              {slots.map((s) => (
-                <button key={s} aria-pressed={selTime === s} onClick={() => setSelTime(s)} className={`press rounded-xl border py-2.5 text-sm font-medium transition ${selTime === s ? "border-brand bg-brand text-white" : "border-line hover:border-brand/40"}`}>{fmt(s)}</button>
+              {timeSlots.map(({ time, taken }) => (
+                <button
+                  key={time}
+                  disabled={taken}
+                  aria-pressed={selTime === time}
+                  aria-disabled={taken}
+                  onClick={() => !taken && setSelTime(time)}
+                  className={`press rounded-xl border py-2.5 text-sm font-medium transition ${
+                    taken
+                      ? "cursor-not-allowed border-line bg-bg text-muted/50 line-through"
+                      : selTime === time
+                      ? "border-brand bg-brand text-white"
+                      : "border-line hover:border-brand/40"
+                  }`}
+                >
+                  {fmt(time)}
+                </button>
               ))}
             </div>
           )}

@@ -2,7 +2,7 @@
 // to appointments (patient data) — the client can't compute "taken" itself.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbTakenSlots, dbLoadSchedule } from "@/lib/db";
-import { slotsFor } from "@/lib/schedule";
+import { allSlotsFor } from "@/lib/schedule";
 
 export async function GET(req: NextRequest) {
   const date = req.nextUrl.searchParams.get("date");
@@ -12,8 +12,14 @@ export async function GET(req: NextRequest) {
 
   try {
     const [taken, sched] = await Promise.all([dbTakenSlots(date), dbLoadSchedule()]);
-    const slots = slotsFor(new Date(date + "T00:00:00"), taken, sched);
-    return NextResponse.json({ slots });
+    const all = allSlotsFor(new Date(date + "T00:00:00"), sched);
+    // slots stays "open only" for the bot and Flow endpoint, which never show
+    // taken slots. taken is the same grid's booked subset, for the website
+    // booking page to grey out instead of silently hiding.
+    return NextResponse.json({
+      slots: all.filter((t) => !taken.includes(t)),
+      taken: all.filter((t) => taken.includes(t)),
+    });
   } catch (err) {
     console.error("/api/slots", err);
     return NextResponse.json({ error: "Could not load slots" }, { status: 500 });
