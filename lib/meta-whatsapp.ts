@@ -81,6 +81,52 @@ export async function sendText(phone: string, body: string) {
   await callGraphApi({ to, type: "text", text: { body } });
 }
 
+// Reply buttons — up to 3 tappable options, title capped at 20 chars (Meta's
+// hard limit). Used instead of sendText's numbered-list-as-plain-text for
+// short option sets (e.g. picking a morning/evening window) so the patient
+// taps instead of reading and typing a number.
+export async function sendButtons(phone: string, body: string, options: string[]) {
+  const to = normalizeIndianPhone(phone);
+  if (!to || !options.length) return;
+  await callGraphApi({
+    to,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: body },
+      action: {
+        buttons: options.slice(0, 3).map((title) => ({
+          type: "reply",
+          reply: { id: title.slice(0, 200), title: title.slice(0, 20) },
+        })),
+      },
+    },
+  });
+}
+
+// List message — up to 10 rows (single section), title capped at 24 chars.
+// Used for option sets too long for buttons (a week of day chips, a window's
+// worth of time slots) so the patient still taps rather than reading a
+// numbered wall of text and typing a digit back.
+export async function sendList(phone: string, body: string, buttonLabel: string, options: string[]) {
+  const to = normalizeIndianPhone(phone);
+  if (!to || !options.length) return;
+  await callGraphApi({
+    to,
+    type: "interactive",
+    interactive: {
+      type: "list",
+      body: { text: body },
+      action: {
+        button: buttonLabel.slice(0, 20),
+        sections: [
+          { rows: options.slice(0, 10).map((title) => ({ id: title.slice(0, 200), title: title.slice(0, 24) })) },
+        ],
+      },
+    },
+  });
+}
+
 async function sendTemplate(phone: string, templateName: string | undefined, params: string[]) {
   const to = normalizeIndianPhone(phone);
   if (!templateName || !to) return;

@@ -40,7 +40,7 @@ export const clinic = {
   },
 
   // Booking slot length in minutes (tokens are issued per slot).
-  slotMinutes: 10,
+  slotMinutes: 15,
 
   languages: ["en", "te", "hi"] as const,
 } as const;

@@ -5,7 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession } from "@/lib/db";
 import { botReplyServer, type Backend, type ServerBotState } from "@/lib/bot";
-import { sendText, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
+import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
 
 const backend: Backend = { addBooking: dbAddBooking, takenSlots: dbTakenSlots, setStatus: dbSetStatus };
@@ -98,10 +98,21 @@ export async function POST(req: NextRequest) {
     const newState: WaState = { ...result.state, lastChips: result.chips };
     await dbSaveWaSession(from, lang, newState, wamid);
 
-    const chipList = result.chips.length
-      ? "\n\n" + result.chips.map((c, i) => `${i + 1}. ${c}`).join("\n")
-      : "";
-    await sendText(from, result.reply.join("\n\n") + chipList);
+    // Tappable UI instead of a numbered wall of text where Meta's limits allow
+    // it (3 buttons, or a 10-row list); only an overflow set (>10, shouldn't
+    // happen post-window-split but a custom exception window could still do
+    // it) falls back to the old numbered-text list.
+    const { chips } = result;
+    const body = result.reply.join("\n\n");
+    if (!chips.length) {
+      await sendText(from, body);
+    } else if (chips.length <= 3 && chips.every((c) => c.length <= 20)) {
+      await sendButtons(from, body, chips);
+    } else if (chips.length <= 10) {
+      await sendList(from, body, "Choose", chips);
+    } else {
+      await sendText(from, body + "\n\n" + chips.map((c, i) => `${i + 1}. ${c}`).join("\n"));
+    }
 
     return new NextResponse("OK", { status: 200 });
   } catch (err) {
