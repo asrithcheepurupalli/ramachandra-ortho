@@ -52,9 +52,9 @@ export async function POST(req: NextRequest) {
     const { lang, state, lastWamid } = await dbLoadWaSession(from);
     if (wamid && wamid === lastWamid) return new NextResponse("OK", { status: 200 });
 
-    // Submission of the "Appointment" WhatsApp Flow (manually sent from
-    // WhatsApp Manager — see app/api/whatsapp/flow/route.ts for the live
-    // screen data behind it). Arrives as a structured reply, not plain text,
+    // Submission from the live "Appointment" WhatsApp Flow (see
+    // app/api/whatsapp/flow/route.ts for the screen data behind it). It arrives
+    // as a structured reply, not plain text,
     // so it's handled before the text/button/list extraction below.
     if (message.interactive?.type === "nfm_reply") {
       const parsed = JSON.parse(message.interactive.nfm_reply.response_json);

@@ -1,9 +1,9 @@
 // WhatsApp Flow encrypted data-exchange endpoint. Meta calls this directly
 // (not through the webhook route) whenever the "Appointment" Flow needs live
 // screen data — every request/response is RSA+AES encrypted per Meta's Flow
-// endpoint spec (see lib/whatsapp-flow-crypto.ts). The Flow is manually
-// triggered from WhatsApp Manager for now; the plain-text bot in lib/bot.ts
-// is untouched and shares none of this code path.
+// endpoint spec (see lib/whatsapp-flow-crypto.ts). The live automation
+// triggers this Flow as part of the WhatsApp appointment journey; the
+// plain-text bot in lib/bot.ts shares none of this code path.
 //
 // Response codes follow Meta's spec exactly, since the WhatsApp client
 // branches on them: 432 tells it the signature didn't match, 421 tells it

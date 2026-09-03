@@ -9,9 +9,9 @@ orthopedic clinic in Chinnamushidiwada, Visakhapatnam. A **made. by ac** build.
   WhatsApp, services, Google reviews wall, location and hours. Telugu / English / Hindi.
 - **Admin dashboard** (`/admin`) — today's live queue with tokens, walk-in / reserve,
   schedule editor (drives availability everywhere), broadcast, patients, revenue.
-- **Booking flow** (`/book`) — slot picker (in progress).
+- **Booking flow** (`/book`) — live slot picker with real-time availability.
 - **WhatsApp bot** — intent routing + confirm / cancel / reminder / availability
-  automations (in progress).
+  automations, fully operational on WhatsApp.
 
 Everything is **config-driven** from `clinic.config.ts` and runs **zero-config on mock
 data** (localStorage); Supabase and the WhatsApp Cloud API swap in for production.
