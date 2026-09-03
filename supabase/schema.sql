@@ -54,15 +54,15 @@ create table if not exists public.settings (
   updated_at  timestamptz not null default now()
 );
 
--- seed the schedule the app already uses (Mon-Sat 10:00-12:30 & 18:00-20:00, Sun holiday)
+-- seed the schedule the app uses (Mon-Sat 10:00-12:30 & 18:00-19:45, Sun holiday)
 insert into public.settings (id, weekly) values (1, '{
   "0": [],
-  "1": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
-  "2": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
-  "3": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
-  "4": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
-  "5": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}],
-  "6": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"20:00"}]
+  "1": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"19:45"}],
+  "2": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"19:45"}],
+  "3": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"19:45"}],
+  "4": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"19:45"}],
+  "5": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"19:45"}],
+  "6": [{"start":"10:00","end":"12:30"},{"start":"18:00","end":"19:45"}]
 }'::jsonb)
 on conflict (id) do nothing;
 

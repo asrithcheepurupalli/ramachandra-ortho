@@ -12,7 +12,7 @@ export type WeeklyHours = Record<number, Window[]>;
 
 // Seeded from the clinic's listed OPD windows: Mon–Sat, morning and evening.
 // Sunday is a holiday. Fully editable in admin.
-const OPD: Window[] = [{ start: "10:00", end: "12:30" }, { start: "18:00", end: "20:00" }];
+const OPD: Window[] = [{ start: "10:00", end: "12:30" }, { start: "18:00", end: "19:45" }];
 export const weeklyHours: WeeklyHours = {
   0: [], // Sun — holiday
   1: OPD, // Mon
@@ -27,7 +27,7 @@ export const weeklyHours: WeeklyHours = {
 // hydrated from localStorage) — so it's not a safe value to reset to. This
 // returns a fresh copy of the clinic's real default, untouched by any of that.
 export function defaultWeeklyHours(): WeeklyHours {
-  const fresh: Window[] = [{ start: "10:00", end: "12:30" }, { start: "18:00", end: "20:00" }];
+  const fresh: Window[] = [{ start: "10:00", end: "12:30" }, { start: "18:00", end: "19:45" }];
   return {
     0: [],
     1: fresh.map((w) => ({ ...w })),

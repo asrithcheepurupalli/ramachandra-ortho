@@ -11,14 +11,12 @@ export const clinic = {
   url: "https://rcorthocare.made-by-ac.com",
   doctor: {
     name: "Dr. M. Ramachandra",
-    // EDIT: exact qualifications to be confirmed by the clinic.
-    title: "Orthopedic Surgeon & Trauma Care Specialist",
+    title: "M.S. (Ortho) · Orthopedic Surgeon & Trauma Care Specialist",
     experienceNote: "10 years of experience in joint replacements, fractures and sports injuries",
   },
   rating: { score: 4.8, count: 123, source: "Google" },
 
-  // EDIT later: real fee. Kept editable in admin.
-  consultationFee: 499,
+  consultationFee: 400,
   currency: "₹",
 
   contact: {

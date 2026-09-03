@@ -426,7 +426,7 @@ function Schedule() {
 
   const setWin = (d: number, i: number, key: "start" | "end", v: string) =>
     setWeekly((w) => ({ ...w, [d]: w[d].map((win, j) => (j === i ? { ...win, [key]: v } : win)) }));
-  const addWin = (d: number) => setWeekly((w) => ({ ...w, [d]: [...w[d], { start: "18:00", end: "20:00" }] }));
+  const addWin = (d: number) => setWeekly((w) => ({ ...w, [d]: [...w[d], { start: "18:00", end: "19:45" }] }));
   const rmWin = (d: number, i: number) => setWeekly((w) => ({ ...w, [d]: w[d].filter((_, j) => j !== i) }));
 
   const save = async () => {
