@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, MessageCircle, CalendarDays, Clock, User,
-  ChevronRight, PartyPopper, Ticket,
+  ChevronRight, PartyPopper, Ticket, Wallet,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
-import { addBooking, takenSlots, hydrateSchedule, type Appt } from "@/lib/store";
+import { addBooking, takenSlots, hydrateSchedule, togglePaid, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -29,6 +29,8 @@ export function BookForm() {
   const [booked, setBooked] = useState<Appt | null>(null);
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payErr, setPayErr] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +137,30 @@ export function BookForm() {
   /* ── confirmation ─────────────────────────────────────────────────────── */
   if (booked) {
     const d = new Date(booked.date + "T00:00:00");
+
+    const doPay = async () => {
+      setPayBusy(true); setPayErr("");
+      try {
+        if (hasSupabase()) {
+          const res = await fetch("/api/payments/link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: booked.id, phone: booked.phone }),
+          });
+          const data = await res.json();
+          if (!res.ok) { setPayErr(data.error ?? t("myappt.payerror")); setPayBusy(false); return; }
+          window.location.href = data.url as string;
+        } else {
+          togglePaid(booked.id);
+          setBooked({ ...booked, paid: true });
+          setPayBusy(false);
+        }
+      } catch {
+        setPayErr(t("myappt.payerror"));
+        setPayBusy(false);
+      }
+    };
+
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-12">
         <div className="rounded-3xl border border-line bg-surface p-7 text-center shadow-lift">
@@ -152,7 +178,13 @@ export function BookForm() {
           </dl>
           <p className="mt-5 text-sm leading-relaxed text-muted">{t("book.done.msg")}</p>
           <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>
+          {payErr && <p role="alert" className="mt-3 text-sm text-out">{payErr}</p>}
           <div className="mt-6 flex flex-col gap-2">
+            {!booked.paid && (
+              <button onClick={doPay} disabled={payBusy} className="press flex items-center justify-center gap-2 rounded-full border border-brand py-3 text-sm font-semibold text-brand transition disabled:opacity-60">
+                <Wallet className="h-4 w-4" /> {t("book.done.paynow")}
+              </button>
+            )}
             <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark"><MessageCircle className="h-4 w-4" /> {t("cta.whatsapp")}</a>
             <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex items-center justify-center gap-2 rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.view")}</Link>
             <div className="flex gap-2">

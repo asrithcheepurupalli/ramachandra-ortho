@@ -71,6 +71,7 @@ const en: Dict = {
   "book.done.home": "Back to home",
   "book.done.another": "Book another",
   "book.done.view": "View your appointment",
+  "book.done.paynow": "Pay consultation fee online",
   "myappt.title": "Your appointment",
   "myappt.sub": "Enter the phone number you booked with to find your appointment.",
   "myappt.phone": "Phone number",
@@ -89,6 +90,10 @@ const en: Dict = {
   "myappt.rescheduling": "Rescheduling...",
   "myappt.rescheduled": "Appointment updated.",
   "myappt.another": "Look up another number",
+  "myappt.paynow": "Pay now",
+  "myappt.paid": "Paid",
+  "myappt.unpaid": "Not paid yet",
+  "myappt.payerror": "Couldn't start payment right now. Please try again.",
 };
 
 const te: Dict = {
@@ -158,6 +163,7 @@ const te: Dict = {
   "book.done.home": "హోమ్‌కు తిరిగి",
   "book.done.another": "మరొకటి బుక్ చేయండి",
   "book.done.view": "మీ అపాయింట్‌మెంట్ చూడండి",
+  "book.done.paynow": "ఆన్‌లైన్‌లో కన్సల్టేషన్ ఫీజు చెల్లించండి",
   "myappt.title": "మీ అపాయింట్‌మెంట్",
   "myappt.sub": "బుక్ చేసిన ఫోన్ నంబర్ నమోదు చేసి మీ అపాయింట్‌మెంట్‌ను కనుగొనండి.",
   "myappt.phone": "ఫోన్ నంబర్",
@@ -176,6 +182,10 @@ const te: Dict = {
   "myappt.rescheduling": "మారుస్తున్నాము...",
   "myappt.rescheduled": "అపాయింట్‌మెంట్ నవీకరించబడింది.",
   "myappt.another": "మరొక నంబర్ చూడండి",
+  "myappt.paynow": "ఇప్పుడు చెల్లించండి",
+  "myappt.paid": "చెల్లించారు",
+  "myappt.unpaid": "ఇంకా చెల్లించలేదు",
+  "myappt.payerror": "ఇప్పుడు చెల్లింపు ప్రారంభించలేకపోయాము. మళ్ళీ ప్రయత్నించండి.",
 };
 
 const hi: Dict = {
@@ -245,6 +255,7 @@ const hi: Dict = {
   "book.done.home": "होम पर वापस",
   "book.done.another": "एक और बुक करें",
   "book.done.view": "अपनी अपॉइंटमेंट देखें",
+  "book.done.paynow": "कंसल्टेशन फीस ऑनलाइन भरें",
   "myappt.title": "आपकी अपॉइंटमेंट",
   "myappt.sub": "जिस फ़ोन नंबर से बुक किया था वह डालें, आपकी अपॉइंटमेंट मिल जाएगी।",
   "myappt.phone": "फ़ोन नंबर",
@@ -263,6 +274,10 @@ const hi: Dict = {
   "myappt.rescheduling": "बदला जा रहा है...",
   "myappt.rescheduled": "अपॉइंटमेंट अपडेट हो गई।",
   "myappt.another": "दूसरा नंबर देखें",
+  "myappt.paynow": "अभी भुगतान करें",
+  "myappt.paid": "भुगतान हो गया",
+  "myappt.unpaid": "अभी भुगतान बाकी है",
+  "myappt.payerror": "अभी भुगतान शुरू नहीं हो सका। कृपया फिर से कोशिश करें।",
 };
 
 const dicts: Record<Lang, Dict> = { en, te, hi };

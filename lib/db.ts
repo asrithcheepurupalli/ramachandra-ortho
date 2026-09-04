@@ -13,6 +13,7 @@ import {
 import type { Appt, ApptStatus, Source } from "@/lib/store";
 import type { ServerBotState } from "@/lib/bot";
 import { SlotTakenError, InvalidSlotError } from "@/lib/errors";
+import { createPaymentLink } from "@/lib/razorpay";
 
 // Times already taken on a date (so the slot picker can hide them).
 export async function dbTakenSlots(date: string): Promise<string[]> {
@@ -180,6 +181,56 @@ export async function dbSetStatusReturning(id: string, status: ApptStatus): Prom
     .single();
   if (error) throw error;
   return rowToAppt(data);
+}
+
+// Returns a payment link URL for one of a phone's active appointments,
+// creating it on first call and reusing the stored one on every repeat tap
+// (a fresh Razorpay Payment Link on every click would leave a trail of
+// duplicate, never-completed links behind). Throws a plain Error — the
+// caller (/api/payments/link) maps that to a 502, distinct from the 404s it
+// already returns for a bad id/phone pair.
+export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promise<string> {
+  const owned = await dbActiveAppointmentsByPhone(phone);
+  const appt = owned.find((a) => a.id === id);
+  if (!appt) throw new Error("not_found");
+  if (appt.paid) throw new Error("already_paid");
+
+  const db = supabaseAdmin();
+  const { data: row, error } = await db
+    .from("appointments")
+    .select("razorpay_payment_link_id, razorpay_payment_link_url")
+    .eq("id", id)
+    .single();
+  if (error) throw error;
+  if (row.razorpay_payment_link_id && row.razorpay_payment_link_url) {
+    return row.razorpay_payment_link_url as string;
+  }
+
+  const link = await createPaymentLink(appt);
+  if (!link) throw new Error("razorpay_unavailable");
+
+  const { error: updateErr } = await db
+    .from("appointments")
+    .update({ razorpay_payment_link_id: link.id, razorpay_payment_link_url: link.short_url })
+    .eq("id", id);
+  if (updateErr) throw updateErr;
+
+  return link.short_url;
+}
+
+// Called by the Razorpay webhook on payment_link.paid. Guards is("paid", false)
+// so a duplicate webhook delivery (Razorpay retries on anything but a 2xx) is
+// a harmless no-op rather than a second WhatsApp confirmation.
+export async function dbMarkPaidByPaymentLink(paymentLinkId: string): Promise<Appt | null> {
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ paid: true })
+    .eq("razorpay_payment_link_id", paymentLinkId)
+    .eq("paid", false)
+    .select("*")
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToAppt(data) : null;
 }
 
 export async function dbLoadSchedule(): Promise<SchedState> {

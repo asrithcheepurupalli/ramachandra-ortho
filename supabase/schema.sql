@@ -37,6 +37,11 @@ create table if not exists public.appointments (
   created_at  timestamptz not null default now(),
   unique (appt_date, token)
 );
+-- Razorpay Payment Links (optional online fee payment) — nullable, set once a
+-- patient taps "Pay now"; a table created before these existed won't get them
+-- from `create table if not exists` above, hence the idempotent add here.
+alter table public.appointments add column if not exists razorpay_payment_link_id text;
+alter table public.appointments add column if not exists razorpay_payment_link_url text;
 create index if not exists appointments_date_idx on public.appointments (appt_date);
 -- Real double-booking guard: two active (non-cancelled) appointments can never
 -- share a date+time, even under concurrent inserts. A cancelled slot frees up

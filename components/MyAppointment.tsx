@@ -4,13 +4,13 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  ArrowLeft, CalendarDays, Clock, User, Ticket, Search, XCircle, PencilLine,
+  ArrowLeft, CalendarDays, Clock, User, Ticket, Search, XCircle, PencilLine, Wallet,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
 import {
-  activeAppointmentsByPhone, cancelBooking, rescheduleBooking,
+  activeAppointmentsByPhone, cancelBooking, rescheduleBooking, togglePaid,
   hydrateSchedule, takenSlots, type Appt,
 } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
@@ -55,12 +55,21 @@ function MyAppointmentInner() {
 
   useEffect(() => {
     const pre = params?.get("phone");
-    if (pre) { setPhone(pre); search(pre); }
+    const paidId = params?.get("paid");
+    if (pre) {
+      setPhone(pre);
+      search(pre);
+      // Razorpay's callback_url redirect can land a second or two before the
+      // webhook that actually flips `paid` finishes — one extra silent
+      // re-fetch shortly after makes the return trip feel instant instead of
+      // stale, without this page being the source of truth for the flag.
+      if (paidId) setTimeout(() => search(pre), 1500);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onCancelled = (id: string) => setAppts((prev) => (prev ? prev.filter((a) => a.id !== id) : prev));
-  const onRescheduled = (updated: Appt) =>
+  const updateAppt = (updated: Appt) =>
     setAppts((prev) => (prev ? prev.map((a) => (a.id === updated.id ? updated : a)) : prev));
 
   return (
@@ -106,7 +115,7 @@ function MyAppointmentInner() {
       {appts && appts.length > 0 && (
         <div className="mt-6 space-y-4">
           {appts.map((a) => (
-            <ApptCard key={a.id} appt={a} t={t} onCancelled={onCancelled} onRescheduled={onRescheduled} />
+            <ApptCard key={a.id} appt={a} t={t} onCancelled={onCancelled} onUpdated={updateAppt} />
           ))}
         </div>
       )}
@@ -123,12 +132,13 @@ export function MyAppointment() {
 }
 
 function ApptCard({
-  appt, t, onCancelled, onRescheduled,
+  appt, t, onCancelled, onUpdated,
 }: {
-  appt: Appt; t: Tr; onCancelled: (id: string) => void; onRescheduled: (a: Appt) => void;
+  appt: Appt; t: Tr; onCancelled: (id: string) => void; onUpdated: (a: Appt) => void;
 }) {
   const [mode, setMode] = useState<"idle" | "cancelConfirm" | "reschedule">("idle");
   const [busy, setBusy] = useState(false);
+  const [payBusy, setPayBusy] = useState(false);
   const [err, setErr] = useState("");
   const d = new Date(appt.date + "T00:00:00");
 
@@ -153,6 +163,29 @@ function ApptCard({
     }
   };
 
+  const doPay = async () => {
+    setPayBusy(true); setErr("");
+    try {
+      if (hasSupabase()) {
+        const res = await fetch("/api/payments/link", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: appt.id, phone: appt.phone }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setErr(data.error ?? t("myappt.payerror")); setPayBusy(false); return; }
+        window.location.href = data.url as string;
+      } else {
+        togglePaid(appt.id);
+        onUpdated({ ...appt, paid: true });
+        setPayBusy(false);
+      }
+    } catch {
+      setErr(t("myappt.payerror"));
+      setPayBusy(false);
+    }
+  };
+
   return (
     <div className="rounded-2xl border border-line bg-surface p-5">
       <div className="rounded-2xl bg-brand-tint p-4">
@@ -163,13 +196,26 @@ function ApptCard({
         <Row icon={User} v={appt.name} />
         <Row icon={CalendarDays} v={d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })} />
         <Row icon={Clock} v={fmt(appt.time)} />
-        <Row icon={Ticket} v={`${clinic.doctor.name} · ${clinic.currency}${appt.fee}`} />
+        <Row
+          icon={Ticket}
+          v={`${clinic.doctor.name} · ${clinic.currency}${appt.fee}`}
+          badge={
+            <span className={`shrink-0 rounded-lg border border-line px-2 py-1 text-[11px] font-medium ${appt.paid ? "text-in" : "text-out"}`}>
+              {appt.paid ? t("myappt.paid") : t("myappt.unpaid")}
+            </span>
+          }
+        />
       </dl>
 
       {err && <p role="alert" className="mt-3 text-sm text-out">{err}</p>}
 
       {mode === "idle" && (
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
+          {!appt.paid && (
+            <button onClick={doPay} disabled={payBusy} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition disabled:opacity-60">
+              <Wallet className="h-4 w-4" /> {t("myappt.paynow")}
+            </button>
+          )}
           <button onClick={() => setMode("reschedule")} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
             <PencilLine className="h-4 w-4" /> {t("myappt.reschedule")}
           </button>
@@ -197,7 +243,7 @@ function ApptCard({
         <RescheduleFlow
           appt={appt}
           t={t}
-          onDone={(updated) => { onRescheduled(updated); setMode("idle"); }}
+          onDone={(updated) => { onUpdated(updated); setMode("idle"); }}
           onCancel={() => setMode("idle")}
         />
       )}
@@ -373,11 +419,12 @@ function RescheduleFlow({
   );
 }
 
-function Row({ icon: Icon, v }: { icon: typeof User; v: string }) {
+function Row({ icon: Icon, v, badge }: { icon: typeof User; v: string; badge?: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5 rounded-xl bg-bg px-3 py-2.5">
       <Icon className="h-4 w-4 shrink-0 text-brand" />
-      <span className="text-ink">{v}</span>
+      <span className="flex-1 text-ink">{v}</span>
+      {badge}
     </div>
   );
 }

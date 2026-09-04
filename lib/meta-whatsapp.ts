@@ -182,3 +182,15 @@ export function sendBookingCancellation(appt: Pick<Appt, "name" | "phone" | "dat
     `Token #${appt.token}`,
   ]);
 }
+
+// Fired by the Razorpay webhook once a payment link is paid. Optional —
+// sendTemplate already no-ops (with a logged reason) when META_TEMPLATE_PAID
+// isn't set, so a clinic that hasn't gotten this template approved yet just
+// doesn't get this notice, same as any other unapproved template today.
+export function sendPaymentReceived(appt: Pick<Appt, "name" | "phone" | "date" | "time" | "token" | "fee">) {
+  return sendTemplate(appt.phone, process.env.META_TEMPLATE_PAID, [
+    appt.name,
+    dateTimeLabel(appt),
+    `Token #${appt.token}`,
+  ]);
+}

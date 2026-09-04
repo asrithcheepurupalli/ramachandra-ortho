@@ -26,11 +26,14 @@ export type ChatMsg = { id: string; from: Sender; text: string };
 // screen (the default 10-12:30 window alone is 15 slots at a 10-min grid) —
 // once picked, if it's still over MAX_CHIPS, this narrows further to a
 // sub-range of that window before finally listing individual times.
-export type BotState = { stage: "idle" | "await_name" | "await_phone" | "await_cancel_pick"; slot?: Slot; name?: string; pendingDate?: string; pendingWindow?: Window; pendingRange?: Window };
+export type BotState = { stage: "idle" | "await_name" | "await_phone" | "await_cancel_pick" | "await_pay_pick"; slot?: Slot; name?: string; pendingDate?: string; pendingWindow?: Window; pendingRange?: Window };
 // A candidate appointment shown when a cancel request is ambiguous (more
 // than one active appointment on the requesting phone) — label is what's
 // shown as a chip and matched back verbatim if tapped.
 export type CancelCandidate = { id: string; token: number; name: string; label: string };
+// Same shape, for the analogous "which appointment do you want to pay for?"
+// disambiguation when a phone has more than one active, unpaid appointment.
+export type PayCandidate = { id: string; token: number; name: string; label: string };
 export type BotOut = { reply: string[]; chips: string[]; state: BotState };
 type Slot = { date: string; time: string; label: string };
 
@@ -167,6 +170,11 @@ type PhrasePack = {
   cancelNone: string;
   cancelWhich: string;
   cancelNotFound: string;
+  payNone: string;
+  payWhich: string;
+  payNotFound: string;
+  payDone: (url: string) => string;
+  payFail: string;
   flowCancelled: string;
   hours: string;
   location: string;
@@ -201,6 +209,11 @@ const P: Record<Lang, PhrasePack> = {
     cancelNone: "You don't have an active appointment to cancel right now.",
     cancelWhich: "You have a few appointments booked on this number. Tap the one to cancel, or reply with its token number or the name it's booked under:",
     cancelNotFound: "I couldn't match that to one of your appointments. Please tap an option above, or reply with the exact token number or name.",
+    payNone: "You don't have any unpaid appointments right now.",
+    payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
+    payNotFound: "I couldn't match that to one of your appointments. Please tap an option above, or reply with the exact token number or name.",
+    payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for a while, tap it whenever you're ready.`,
+    payFail: "Something went wrong starting the payment. Please try again, or pay at the clinic.",
     flowCancelled: "No problem, stopped that. Tap *Book appointment* whenever you're ready. 🙏",
     hours: `🕒 Consulting hours:\nMon–Sat 10 AM–12:30 PM & 6–7:45 PM. Sunday closed.\nConsultation is ${cur}${fee}.\n🚑 Medical emergency? Call ${clinic.contact.emergency}.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ Directions: ${clinic.location.mapsUrl}`,
@@ -234,6 +247,11 @@ const P: Record<Lang, PhrasePack> = {
     cancelNone: "ప్రస్తుతం రద్దు చేయడానికి యాక్టివ్ అపాయింట్‌మెంట్ లేదు.",
     cancelWhich: "ఈ నంబర్‌పై మీకు కొన్ని అపాయింట్‌మెంట్‌లు బుక్ అయి ఉన్నాయి. రద్దు చేయాల్సినది నొక్కండి, లేదా దాని టోకెన్ నంబర్ లేదా బుక్ చేసిన పేరు రిప్లై చేయండి:",
     cancelNotFound: "అది మీ అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
+    payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
+    payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
+    payNotFound: "అది మీ అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
+    payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది కొంతకాలం చెల్లుతుంది, మీరు సిద్ధమైనప్పుడు నొక్కండి.`,
+    payFail: "చెల్లింపు ప్రారంభించడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌లో చెల్లించండి.",
     flowCancelled: "పర్వాలేదు, ఆపేశాను. మీరు సిద్ధమైనప్పుడు *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
     hours: `🕒 కన్సల్టింగ్ సమయాలు:\nసోమ–శని ఉదయం 10–12:30 & సాయంత్రం 6–7:45 PM. ఆదివారం సెలవు.\nకన్సల్టేషన్ ${cur}${fee}.\n🚑 అత్యవసర పరిస్థితా? ${clinic.contact.emergency}కు కాల్ చేయండి.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ దిశలు: ${clinic.location.mapsUrl}`,
@@ -267,6 +285,11 @@ const P: Record<Lang, PhrasePack> = {
     cancelNone: "अभी रद्द करने के लिए कोई सक्रिय अपॉइंटमेंट नहीं है।",
     cancelWhich: "इस नंबर पर आपके कुछ अपॉइंटमेंट बुक हैं। जिसे रद्द करना है उसे दबाएँ, या उसका टोकन नंबर या बुकिंग वाला नाम रिप्लाई करें:",
     cancelNotFound: "यह आपके किसी अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
+    payNone: "अभी आपके पास कोई अवैतनिक अपॉइंटमेंट नहीं है।",
+    payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
+    payNotFound: "यह आपके किसी अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
+    payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह कुछ समय के लिए मान्य है, जब तैयार हों तब दबाएँ।`,
+    payFail: "भुगतान शुरू करने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक में भुगतान करें।",
     flowCancelled: "कोई बात नहीं, रोक दिया। जब तैयार हों तब *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
     hours: `🕒 परामर्श समय:\nसोम–शनि सुबह 10–12:30 और शाम 6–7:45 बजे। रविवार बंद।\nपरामर्श ${cur}${fee}।\n🚑 आपातकाल में कॉल करें: ${clinic.contact.emergency}।`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}।\n🗺️ दिशा-निर्देश: ${clinic.location.mapsUrl}`,
@@ -278,10 +301,11 @@ const P: Record<Lang, PhrasePack> = {
 };
 
 // ── intent detection (heuristic for the beta; Claude in production) ──────────
-type Intent = "avail" | "book" | "cancel" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback";
+type Intent = "avail" | "book" | "cancel" | "pay" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback";
 function detect(s: string): Intent {
   const has = (re: RegExp) => re.test(s);
   if (has(/cancel|రద్దు|कैंसिल|रद्द/i)) return "cancel";
+  if (has(/\bpay\b|payment|checkout|చెల్లించ|చెల్లింపు|भुगतान|पेमेंट/i)) return "pay";
   if (has(/book|appoint|slot|token|బుక్|అపాయింట్|अपॉइंटमेंट|बुक|टोकन/i)) return "book";
   if (has(/about (the )?(doctor|dr)\b|doctor.?s? (bio|profile|qualification)|qualification|credentials|డాక్టర్.{0,3}గురించి|గురించి.{0,3}డాక్టర్|योग्यता|डॉक्टर.{0,3}(बारे|प्रोफाइल)/i)) return "about";
   if (has(/avail|open|in today|is (the )?doctor|doctor (in|there|available)|ఉన్నార|అందుబాటు|उपलब्ध|आज|डॉक्टर/i)) return "avail";
@@ -490,8 +514,9 @@ export type Backend = {
   takenSlots: (date: string) => Promise<string[]>;
   setStatus: (id: string, status: ApptStatus) => Promise<void>;
   activeAppointmentsByPhone: (phone: string) => Promise<Appt[]>;
+  createPaymentLink: (id: string, phone: string) => Promise<string>;
 };
-export type ServerBotState = BotState & { cancelCandidates?: CancelCandidate[] };
+export type ServerBotState = BotState & { cancelCandidates?: CancelCandidate[]; payCandidates?: PayCandidate[] };
 
 async function openDaysServer(backend: Backend, sched: SchedState): Promise<DayChip[]> {
   const now = nowIST();
@@ -549,7 +574,7 @@ export async function botReplyServer(
   // Escape hatch: without this, "cancel" typed while answering name/phone was
   // swallowed as literal input for that stage (e.g. booked as a patient named
   // "cancel") instead of backing the patient out of a flow they no longer want.
-  if ((state.stage === "await_name" || state.stage === "await_phone" || state.stage === "await_cancel_pick") && detect(input) === "cancel") {
+  if ((state.stage === "await_name" || state.stage === "await_phone" || state.stage === "await_cancel_pick" || state.stage === "await_pay_pick") && detect(input) === "cancel") {
     return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
   }
 
@@ -570,6 +595,29 @@ export async function botReplyServer(
       reply: [t.cancelNotFound],
       chips: state.cancelCandidates.map((cd) => cd.label),
       state: { stage: "await_cancel_pick", cancelCandidates: state.cancelCandidates },
+    };
+  }
+
+  // picking which appointment to pay for, when the phone has more than one
+  // active and unpaid — same matching rules as the cancel picker above.
+  if (state.stage === "await_pay_pick" && state.payCandidates?.length) {
+    const raw = input.trim();
+    const picked =
+      state.payCandidates.find((cd) => cd.label === raw) ??
+      state.payCandidates.find((cd) => String(cd.token) === raw) ??
+      state.payCandidates.find((cd) => cd.name.toLowerCase().includes(raw.toLowerCase()));
+    if (picked) {
+      try {
+        const url = await backend.createPaymentLink(picked.id, phone);
+        return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle" } };
+      } catch {
+        return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+      }
+    }
+    return {
+      reply: [t.payNotFound],
+      chips: state.payCandidates.map((cd) => cd.label),
+      state: { stage: "await_pay_pick", payCandidates: state.payCandidates },
     };
   }
 
@@ -695,6 +743,26 @@ export async function botReplyServer(
         reply: [t.cancelWhich],
         chips: candidates.map((cd) => cd.label),
         state: { stage: "await_cancel_pick", cancelCandidates: candidates },
+      };
+    }
+    case "pay": {
+      const active = (await backend.activeAppointmentsByPhone(phone)).filter((a) => !a.paid);
+      if (!active.length) {
+        return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
+      }
+      if (active.length === 1) {
+        try {
+          const url = await backend.createPaymentLink(active[0].id, phone);
+          return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle" } };
+        } catch {
+          return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+        }
+      }
+      const candidates: PayCandidate[] = active.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
+      return {
+        reply: [t.payWhich],
+        chips: candidates.map((cd) => cd.label),
+        state: { stage: "await_pay_pick", payCandidates: candidates },
       };
     }
     case "hours": case "fee":
