@@ -139,7 +139,23 @@ export async function sendList(phone: string, body: string, buttonLabel: string,
   });
 }
 
-async function sendTemplate(phone: string, templateName: string | undefined, params: string[]): Promise<boolean> {
+// Meta locks a language code from accepting NEW templates for ~4 weeks after a
+// template in it is deleted, so a clinic that deletes an "en" template can no
+// longer create more "en" ones until the cooldown passes. The workaround is to
+// approve new templates under a different locale bucket (en_GB, te, hi ...).
+// Each sender can then pass its own code via a per-template <TEMPLATE>_LANG
+// env var, falling back to the global META_TEMPLATE_LANG so nothing changes
+// for templates that share its locale.
+function templateLang(env: string): string {
+  return process.env[env] || process.env.META_TEMPLATE_LANG || "en_US";
+}
+
+async function sendTemplate(
+  phone: string,
+  templateName: string | undefined,
+  params: string[],
+  lang: string = process.env.META_TEMPLATE_LANG || "en_US"
+): Promise<boolean> {
   const to = normalizeIndianPhone(phone);
   if (!templateName) {
     console.error("Meta WhatsApp template send skipped: template name env var not set");
@@ -152,7 +168,7 @@ async function sendTemplate(phone: string, templateName: string | undefined, par
     type: "template",
     template: {
       name: templateName,
-      language: { code: process.env.META_TEMPLATE_LANG || "en_US" },
+      language: { code: lang },
       components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }],
     },
   });
@@ -171,7 +187,7 @@ export function sendBookingConfirmation(appt: Pick<Appt, "name" | "phone" | "dat
     dateTimeLabel(appt),
     "Orthopedic Consultation",
     `Token #${appt.token}`,
-  ]);
+  ], templateLang("META_TEMPLATE_LANG_CONFIRM"));
 }
 
 // Fired when staff cancels a booking from /admin.
@@ -180,7 +196,7 @@ export function sendBookingCancellation(appt: Pick<Appt, "name" | "phone" | "dat
     appt.name,
     dateTimeLabel(appt),
     `Token #${appt.token}`,
-  ]);
+  ], templateLang("META_TEMPLATE_LANG_CANCEL"));
 }
 
 // Fired by the Razorpay webhook once a payment link is paid. Optional —
@@ -192,5 +208,5 @@ export function sendPaymentReceived(appt: Pick<Appt, "name" | "phone" | "date" |
     appt.name,
     dateTimeLabel(appt),
     `Token #${appt.token}`,
-  ]);
+  ], templateLang("META_TEMPLATE_LANG_PAID"));
 }

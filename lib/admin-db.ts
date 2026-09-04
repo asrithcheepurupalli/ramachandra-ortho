@@ -29,6 +29,7 @@ function rowToAppt(r: any): Appt {
     source: r.source,
     fee: r.fee,
     paid: r.paid,
+    paidVia: r.paid_via ?? null,
     createdAt: new Date(r.created_at).getTime(),
   };
 }
@@ -109,7 +110,11 @@ export async function dbAddWalkIn(input: { name: string; phone: string; reason: 
 }
 
 export async function dbTogglePaidClient(id: string, currentPaid: boolean): Promise<void> {
-  const { error } = await supabaseBrowser().from("appointments").update({ paid: !currentPaid }).eq("id", id);
+  const update: Record<string, unknown> = { paid: !currentPaid };
+  // Staff manual toggle always represents cash collected at the clinic.
+  if (!currentPaid) update.paid_via = "cash";   // toggling to paid
+  else update.paid_via = null;                   // toggling to unpaid
+  const { error } = await supabaseBrowser().from("appointments").update(update).eq("id", id);
   if (error) throw error;
 }
 

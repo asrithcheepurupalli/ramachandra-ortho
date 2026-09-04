@@ -66,6 +66,7 @@ function rowToAppt(r: any): Appt {
     source: r.source,
     fee: r.fee,
     paid: r.paid,
+    paidVia: r.paid_via ?? null,
     createdAt: new Date(r.created_at).getTime(),
   };
 }
@@ -173,9 +174,20 @@ export async function dbSetStatus(id: string, status: ApptStatus): Promise<void>
 // Same write as dbSetStatus, but returns the updated row — needed by
 // /api/appointments/status to fire a WhatsApp cancellation notice.
 export async function dbSetStatusReturning(id: string, status: ApptStatus): Promise<Appt> {
-  const { data, error } = await supabaseAdmin()
+  const db = supabaseAdmin();
+  // When marking "done", set paid+paid_via only if the appointment is still
+  // unpaid — never overwrite an existing paid_via:"razorpay" tag from a
+  // webhook. Two calls: first the conditional paid-write, then the status.
+  if (status === "done") {
+    await db
+      .from("appointments")
+      .update({ paid: true, paid_via: "cash" })
+      .eq("id", id)
+      .eq("paid", false);
+  }
+  const { data, error } = await db
     .from("appointments")
-    .update({ status, ...(status === "done" ? { paid: true } : {}) })
+    .update({ status })
     .eq("id", id)
     .select("*")
     .single();
@@ -224,7 +236,7 @@ export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promi
 export async function dbMarkPaidByPaymentLink(paymentLinkId: string): Promise<Appt | null> {
   const { data, error } = await supabaseAdmin()
     .from("appointments")
-    .update({ paid: true })
+    .update({ paid: true, paid_via: "razorpay" })
     .eq("razorpay_payment_link_id", paymentLinkId)
     .eq("paid", false)
     .select("*")

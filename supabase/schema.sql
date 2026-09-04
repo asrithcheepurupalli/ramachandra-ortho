@@ -42,6 +42,10 @@ create table if not exists public.appointments (
 -- from `create table if not exists` above, hence the idempotent add here.
 alter table public.appointments add column if not exists razorpay_payment_link_id text;
 alter table public.appointments add column if not exists razorpay_payment_link_url text;
+-- Payment channel audit trail: null = unpaid, 'cash' = staff/mark-done,
+-- 'razorpay' = webhook. Needed so we can tell which payments went through
+-- made.'s Razorpay account (temp bridge while the clinic's PAN is pending).
+alter table public.appointments add column if not exists paid_via text;
 create index if not exists appointments_date_idx on public.appointments (appt_date);
 -- Real double-booking guard: two active (non-cancelled) appointments can never
 -- share a date+time, even under concurrent inserts. A cancelled slot frees up
