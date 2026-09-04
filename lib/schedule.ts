@@ -84,6 +84,19 @@ const toMin = (t: string) => {
 // halves that blackout without dropping the lead-time protection entirely.
 export const BOOKING_LEAD_MIN = 5;
 
+// True when date+time is today and inside the lead-time cutoff (or already
+// past) — the one check every booking/reschedule path must agree on. The
+// slot pickers (BookForm, MyAppointment, the WhatsApp bot) already filter
+// these out of the UI, but that's advisory only; this is what dbAddBooking,
+// dbRescheduleAppointment and the mock store call to actually reject one,
+// since a stale page, a cached slot list, or a direct API call can otherwise
+// submit a time that's already gone.
+export function isPastLeadTime(date: string, time: string, now: Date): boolean {
+  if (date !== ymd(now)) return false;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  return toMin(time) <= nowMin + BOOKING_LEAD_MIN;
+}
+
 export const fmt = (t: string) => {
   const [h, m] = t.split(":").map(Number);
   const am = h < 12;

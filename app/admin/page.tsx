@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, CalendarCog, Users, IndianRupee, ArrowLeft, Plus,
   Megaphone, PhoneCall, Check, X, Play, Clock, CircleDot, Globe, MessageCircle,
-  Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff,
+  Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff, LogOut,
 } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import {
@@ -18,7 +18,7 @@ import {
   statusAt, fmt, weekdayName, defaultWeeklyHours, applySchedule, setOverride,
   weeklyHours, exceptions, overrideRef, ymd, type WeeklyHours, type Exception,
 } from "@/lib/schedule";
-import { hasSupabase } from "@/lib/supabase";
+import { hasSupabase, supabaseBrowser } from "@/lib/supabase";
 import {
   useAdminAppts, dbAddWalkIn, dbTogglePaidClient,
   dbLoadScheduleClient, dbSaveScheduleClient, dbSetAvailabilityOverride,
@@ -43,6 +43,13 @@ function changePaid(id: string, currentPaid: boolean) {
 }
 async function addWalkInAny(f: { name: string; phone: string; reason: string }): Promise<{ token: number }> {
   return hasSupabase() ? dbAddWalkIn(f) : addWalkIn(f);
+}
+
+// Only relevant in DB mode — mock mode has no Supabase session to sign out
+// of, and proxy.ts doesn't gate /admin at all when Supabase isn't configured.
+async function signOutStaff() {
+  await supabaseBrowser().auth.signOut();
+  window.location.href = "/login";
 }
 
 type Tab = "today" | "schedule" | "patients" | "revenue";
@@ -92,6 +99,9 @@ export default function Admin() {
           {!hasSupabase() && (
             <button onClick={resetDemo} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs text-muted hover:text-out"><RotateCcw className="h-3.5 w-3.5" /> Reset demo data</button>
           )}
+          {hasSupabase() && (
+            <button onClick={signOutStaff} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-muted hover:text-out"><LogOut className="h-4 w-4" /> Sign out</button>
+          )}
         </div>
       </aside>
 
@@ -108,7 +118,12 @@ export default function Admin() {
             </div>
             <h1 className="font-display text-xl capitalize hidden sm:block">{tab}</h1>
           </div>
-          <DoctorStatus />
+          <div className="flex items-center gap-2">
+            <DoctorStatus />
+            {hasSupabase() && (
+              <button onClick={signOutStaff} className="md:hidden rounded-lg p-2 text-muted hover:text-out" aria-label="Sign out"><LogOut className="h-4 w-4" /></button>
+            )}
+          </div>
         </div>
 
         <div className="p-4 md:p-8">
@@ -527,7 +542,11 @@ function Patients({ appts }: { appts: Appt[] }) {
   const list = useMemo(() => {
     const by = new Map<string, { name: string; phone: string; visits: number; last: Appt }>();
     for (const a of [...appts].sort((x, y) => y.createdAt - x.createdAt)) {
-      const k = a.phone || a.name;
+      // Dedup by phone only — it's the one reliable identity signal. Without a
+      // phone on file, two different people can share a name (e.g. two walk-ins
+      // named "Ramesh"), so each such visit stays its own row rather than
+      // silently merging into one patient.
+      const k = a.phone ? `p:${a.phone}` : `a:${a.id}`;
       const cur = by.get(k);
       if (cur) cur.visits++;
       else by.set(k, { name: a.name, phone: a.phone, visits: 1, last: a });
@@ -539,7 +558,7 @@ function Patients({ appts }: { appts: Appt[] }) {
       <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search patients…" className="mb-4 w-full max-w-sm rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
       <div className="rounded-2xl border border-line bg-paper divide-y divide-line">
         {list.map((p) => (
-          <div key={p.phone + p.name} className="flex items-center gap-3 px-5 py-3">
+          <div key={p.last.id} className="flex items-center gap-3 px-5 py-3">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-tint text-sm font-semibold text-brand">{p.name[0]}</span>
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{p.name}</div>

@@ -66,6 +66,36 @@ insert into public.settings (id, weekly) values (1, '{
 }'::jsonb)
 on conflict (id) do nothing;
 
+-- Staff allowlist ────────────────────────────────────────────────────────────
+-- Single source of truth for who counts as clinic staff — the RLS policies
+-- below and the app (proxy.ts, lib/auth-server.ts, via `.rpc("is_staff", ...)`)
+-- all read this instead of each keeping their own copy (a hardcoded SQL array
+-- here plus an ADMIN_EMAILS env var in the app, synced only by a code comment).
+create table if not exists public.staff_emails (
+  email text primary key
+);
+insert into public.staff_emails (email) values ('admin@ramachandracare.in')
+on conflict (email) do nothing;
+alter table public.staff_emails enable row level security;
+-- No select policy: nothing reads this table directly (not even staff via
+-- PostgREST) — only is_staff() below does, and security definer lets it see
+-- the table's rows regardless of RLS.
+
+-- security definer so it can read staff_emails even though that table has no
+-- policies granting anon/authenticated select access directly.
+create or replace function public.is_staff(check_email text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.staff_emails where email = lower(check_email)
+  );
+$$;
+grant execute on function public.is_staff(text) to anon, authenticated;
+
 -- Row Level Security ─────────────────────────────────────────────────────────
 -- Patient data is never exposed to anonymous visitors. Public booking + slot
 -- availability go through server API routes using the service_role key, which
@@ -74,26 +104,25 @@ on conflict (id) do nothing;
 -- IMPORTANT: public signup is ON for this Supabase project, so `to authenticated`
 -- alone is NOT proof of staff — any stranger can self-register via Supabase's
 -- own Auth API and get a valid `authenticated` session, then hit PostgREST
--- directly (bypassing this app's ADMIN_EMAILS-gated routes entirely). Policies
--- below check the caller's email against the same staff allowlist as the
--- ADMIN_EMAILS env var (lib/auth-server.ts) — keep the two in sync by hand.
+-- directly (bypassing this app's staff-gated routes entirely). Policies below
+-- check the caller's email against public.staff_emails via is_staff().
 alter table public.patients      enable row level security;
 alter table public.appointments  enable row level security;
 alter table public.settings      enable row level security;
 
 -- staff (logged in AND on the allowlist) can do everything with patients + appointments
 create policy "staff full patients" on public.patients for all to authenticated
-  using (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']))
-  with check (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']));
+  using (public.is_staff(auth.jwt() ->> 'email'))
+  with check (public.is_staff(auth.jwt() ->> 'email'));
 create policy "staff full appointments" on public.appointments for all to authenticated
-  using (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']))
-  with check (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']));
+  using (public.is_staff(auth.jwt() ->> 'email'))
+  with check (public.is_staff(auth.jwt() ->> 'email'));
 
 -- schedule/hours are safe to read publicly (drives the site banner); only staff edit
 create policy "public read settings" on public.settings for select to anon, authenticated using (true);
 create policy "staff update settings" on public.settings for update to authenticated
-  using (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']))
-  with check (auth.jwt() ->> 'email' = any (array['admin@ramachandracare.in']));
+  using (public.is_staff(auth.jwt() ->> 'email'))
+  with check (public.is_staff(auth.jwt() ->> 'email'));
 
 -- Realtime: the admin dashboard subscribes to appointment changes for the live queue
 alter publication supabase_realtime add table public.appointments;

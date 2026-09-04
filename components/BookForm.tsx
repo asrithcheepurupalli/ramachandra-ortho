@@ -122,7 +122,12 @@ export function BookForm() {
         setSubmitting(false);
       }
     } else {
-      setBooked(addBooking({ ...form, date: selDate, time: selTime, source: "website" }));
+      try {
+        setBooked(addBooking({ ...form, date: selDate, time: selTime, source: "website" }));
+      } catch {
+        setErr("Could not book. Please try again.");
+        return;
+      }
     }
     if (typeof window !== "undefined") window.scrollTo(0, 0);
   };

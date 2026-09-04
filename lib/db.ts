@@ -7,7 +7,7 @@
 import { supabaseAdmin } from "@/lib/supabase";
 import { clinic, type Lang } from "@/clinic.config";
 import {
-  defaultWeeklyHours, slotsFor, ymd, nowIST,
+  defaultWeeklyHours, slotsFor, ymd, nowIST, isPastLeadTime,
   type WeeklyHours, type Exception, type Override, type SchedState,
 } from "@/lib/schedule";
 import type { Appt, ApptStatus, Source } from "@/lib/store";
@@ -83,7 +83,9 @@ export async function dbAddBooking(input: {
   // submission in particular — don't pre-check at all. This is the one place
   // every booking source funnels through, so it's the right place to make
   // "can't book a past date, or outside clinic hours" hold for real.
-  if (input.date < ymd(nowIST())) throw new InvalidSlotError();
+  const now = nowIST();
+  if (input.date < ymd(now)) throw new InvalidSlotError();
+  if (isPastLeadTime(input.date, input.time, now)) throw new InvalidSlotError();
   const sched = await dbLoadSchedule();
   const openSlots = slotsFor(new Date(`${input.date}T00:00:00`), [], sched);
   if (!openSlots.includes(input.time)) throw new InvalidSlotError();
@@ -143,7 +145,9 @@ export async function dbAddBooking(input: {
 // dbAddBooking, since a slot can be taken between the client's read and
 // this write.
 export async function dbRescheduleAppointment(id: string, date: string, time: string): Promise<Appt> {
-  if (date < ymd(nowIST())) throw new InvalidSlotError();
+  const now = nowIST();
+  if (date < ymd(now)) throw new InvalidSlotError();
+  if (isPastLeadTime(date, time, now)) throw new InvalidSlotError();
   const sched = await dbLoadSchedule();
   const openSlots = slotsFor(new Date(`${date}T00:00:00`), [], sched);
   if (!openSlots.includes(time)) throw new InvalidSlotError();

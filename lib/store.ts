@@ -7,8 +7,10 @@ import { useSyncExternalStore } from "react";
 import { clinic } from "@/clinic.config";
 import {
   ymd, weeklyHours, exceptions, applySchedule, setOverride, overrideRef, windowsFor, allSlotsFor,
+  isPastLeadTime,
   type WeeklyHours, type Exception, type Override,
 } from "@/lib/schedule";
+import { SlotTakenError, InvalidSlotError } from "@/lib/errors";
 
 export type ApptStatus =
   | "reserved" | "confirmed" | "waiting" | "consulting" | "done" | "cancelled";
@@ -127,6 +129,7 @@ export function addWalkIn(input: { name: string; phone: string; reason: string; 
 }
 // A patient booking a specific date + time from the website (or WhatsApp).
 export function addBooking(input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }): Appt {
+  if (isPastLeadTime(input.date, input.time, new Date())) throw new InvalidSlotError();
   const all = read();
   const dayAppts = all.filter((a) => a.date === input.date);
   const token = (dayAppts.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
@@ -157,10 +160,11 @@ export function cancelBooking(id: string) {
   setStatus(id, "cancelled");
 }
 export function rescheduleBooking(id: string, date: string, time: string) {
+  if (isPastLeadTime(date, time, new Date())) throw new InvalidSlotError();
   const all = read();
   const taken = all.filter((a) => a.date === date && a.status !== "cancelled" && a.id !== id).map((a) => a.time);
   const d = new Date(date + "T00:00:00");
-  if (!allSlotsFor(d).includes(time) || taken.includes(time)) throw new Error("slot_taken");
+  if (!allSlotsFor(d).includes(time) || taken.includes(time)) throw new SlotTakenError();
   write(all.map((a) => (a.id === id ? { ...a, date, time } : a)));
 }
 export function togglePaid(id: string) {

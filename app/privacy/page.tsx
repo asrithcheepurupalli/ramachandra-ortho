@@ -12,6 +12,11 @@ export const metadata: Metadata = {
 const waLink = (msg: string) =>
   `https://wa.me/${clinic.contact.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
 
+// Bump this whenever the policy text below actually changes — it's the only
+// place the "last updated" date lives, so it can't drift from the content.
+const LAST_UPDATED = new Date("2026-09-02");
+const lastUpdatedLabel = LAST_UPDATED.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-t border-line py-7 first:border-t-0 first:pt-0">
@@ -35,7 +40,7 @@ export default function PrivacyPage() {
         <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Privacy &amp; Appointment Policy</h1>
       </div>
       <p className="mt-3 text-[15px] text-muted">
-        Last updated 2 September 2026. This page explains what {clinic.shortName} collects when you book or
+        Last updated {lastUpdatedLabel}. This page explains what {clinic.shortName} collects when you book or
         message us, how we use it, and the terms your token booking is made under. Plain language, no fine print
         surprises.
       </p>
