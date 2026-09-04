@@ -138,6 +138,29 @@ export async function dbAddBooking(input: {
   throw new SlotTakenError();
 }
 
+// Moves an existing appointment to a new date/time, used by patient
+// self-service reschedule. Same availability check + race guard as
+// dbAddBooking, since a slot can be taken between the client's read and
+// this write.
+export async function dbRescheduleAppointment(id: string, date: string, time: string): Promise<Appt> {
+  if (date < ymd(nowIST())) throw new InvalidSlotError();
+  const sched = await dbLoadSchedule();
+  const openSlots = slotsFor(new Date(`${date}T00:00:00`), [], sched);
+  if (!openSlots.includes(time)) throw new InvalidSlotError();
+
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ appt_date: date, appt_time: time })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (!error) return rowToAppt(data);
+  if (error.code !== "23505") throw error;
+  if (error.message.includes("appointments_slot_idx")) throw new SlotTakenError();
+  throw error;
+}
+
 export async function dbSetStatus(id: string, status: ApptStatus): Promise<void> {
   await dbSetStatusReturning(id, status);
 }

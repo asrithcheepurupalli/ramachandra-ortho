@@ -149,6 +149,7 @@ export function BookForm() {
           <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>
           <div className="mt-6 flex flex-col gap-2">
             <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark"><MessageCircle className="h-4 w-4" /> {t("cta.whatsapp")}</a>
+            <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex items-center justify-center gap-2 rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.view")}</Link>
             <div className="flex gap-2">
               <button onClick={() => { setBooked(null); setSelTime(null); setForm({ name: "", phone: "", reason: "" }); }} className="press flex-1 rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
               <Link href="/" className="press flex-1 rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>

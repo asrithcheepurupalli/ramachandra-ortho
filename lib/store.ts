@@ -6,7 +6,7 @@
 import { useSyncExternalStore } from "react";
 import { clinic } from "@/clinic.config";
 import {
-  ymd, weeklyHours, exceptions, applySchedule, setOverride, overrideRef, windowsFor,
+  ymd, weeklyHours, exceptions, applySchedule, setOverride, overrideRef, windowsFor, allSlotsFor,
   type WeeklyHours, type Exception, type Override,
 } from "@/lib/schedule";
 
@@ -145,6 +145,23 @@ export function takenSlots(date: string): string[] {
 }
 export function setStatus(id: string, status: ApptStatus) {
   write(read().map((a) => (a.id === id ? { ...a, status, paid: status === "done" ? true : a.paid } : a)));
+}
+// A patient's active (not cancelled/done) appointments, nearest first — mirrors
+// dbActiveAppointmentsByPhone for the mock/localStorage path.
+export function activeAppointmentsByPhone(phone: string): Appt[] {
+  return read()
+    .filter((a) => a.phone === phone && activeStatuses.includes(a.status))
+    .sort((a, b) => (a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date)));
+}
+export function cancelBooking(id: string) {
+  setStatus(id, "cancelled");
+}
+export function rescheduleBooking(id: string, date: string, time: string) {
+  const all = read();
+  const taken = all.filter((a) => a.date === date && a.status !== "cancelled" && a.id !== id).map((a) => a.time);
+  const d = new Date(date + "T00:00:00");
+  if (!allSlotsFor(d).includes(time) || taken.includes(time)) throw new Error("slot_taken");
+  write(all.map((a) => (a.id === id ? { ...a, date, time } : a)));
 }
 export function togglePaid(id: string) {
   write(read().map((a) => (a.id === id ? { ...a, paid: !a.paid } : a)));

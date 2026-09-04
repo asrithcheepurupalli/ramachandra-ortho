@@ -101,6 +101,7 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
               <a key={id} href={`#${id}`} className="ulink rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t(k)}</a>
             ))}
           </div>
+          <Link href="/my-appointment" className="ulink hidden md:inline-flex items-center rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t("nav.myappt")}</Link>
           <LangToggle lang={lang} setLang={setLang} />
           {/* Book lives in the mobile action bar on phones, so the nav stays clean */}
           <Link href="/book" className="press ml-0.5 hidden md:inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark">
@@ -457,6 +458,7 @@ function Footer({ t }: { t: T }) {
             <Link href="/book" className="ulink text-white/75">{t("cta.book")}</Link>
             <a href={waLink("Hi, I would like to book an appointment.")} target="_blank" rel="noreferrer" className="ulink text-white/75">{t("cta.whatsapp")}</a>
             <a href={`tel:${clinic.contact.phone}`} className="ulink text-white/75">{t("cta.call")}</a>
+            <Link href="/my-appointment" className="ulink text-white/75">{t("nav.myappt")}</Link>
           </div>
         </div>
       </div>
