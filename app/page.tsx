@@ -69,10 +69,12 @@ export default function Home() {
       <Hero status={status} t={t} />
       <HelpBand t={t} />
       <WhatsAppSection />
+      <HowItWorks t={t} />
       <Services t={t} />
       <Reviews t={t} />
       <DoctorStrip t={t} />
       <LocationHours t={t} />
+      <FAQ t={t} />
       <Footer t={t} />
       <MobileBar t={t} />
       <RCChat />
@@ -241,9 +243,9 @@ function HelpBand({ t }: { t: T }) {
     { icon: Ticket, t: t("help.wait.t"), d: t("help.wait.d") },
   ];
   return (
-    <section className="mx-auto max-w-6xl px-5 md:px-8 py-6">
-      <Reveal><h2 className="text-center text-sm font-semibold uppercase tracking-wider text-muted">{t("help.title")}</h2></Reveal>
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+    <section className="mx-auto max-w-6xl px-5 md:px-8 py-12 md:py-20">
+      <Reveal><SectionHead n="01" title={t("help.title")} /></Reveal>
+      <div className="mt-10 grid gap-4 sm:grid-cols-3">
         {items.map((it, i) => (
           <Reveal key={it.t} delay={i * 90}>
             <div className="lift h-full rounded-2xl border border-line bg-surface p-5">
@@ -297,11 +299,38 @@ function WhatsAppSection() {
   );
 }
 
+/* ── How it works ────────────────────────────────────────────────────────── */
+function HowItWorks({ t }: { t: T }) {
+  const steps = [
+    { n: "01", icon: CalendarPlus, t: t("hiw.step1.t"), d: t("hiw.step1.d") },
+    { n: "02", icon: Ticket, t: t("hiw.step2.t"), d: t("hiw.step2.d") },
+    { n: "03", icon: Check, t: t("hiw.step3.t"), d: t("hiw.step3.d") },
+  ];
+  return (
+    <section className="mx-auto max-w-6xl px-5 md:px-8 py-12 md:py-24">
+      <Reveal><SectionHead n="02" title={t("sec.howitworks")} /></Reveal>
+      <div className="relative mt-10 grid grid-cols-1 gap-8 sm:grid-cols-3">
+        <span className="pointer-events-none absolute left-[16.6%] right-[16.6%] top-7 hidden border-t-2 border-dashed border-brand/20 sm:block" aria-hidden />
+        {steps.map((s, i) => (
+          <Reveal key={s.n} delay={i * 100}>
+            <div className="relative text-center">
+              <span className="font-mono text-xs text-accent">/{s.n}</span>
+              <span className="mx-auto mt-3 grid h-14 w-14 place-items-center rounded-2xl bg-brand-tint text-brand"><s.icon className="h-6 w-6" /></span>
+              <h3 className="mt-4 text-lg font-semibold text-ink">{s.t}</h3>
+              <p className="mx-auto mt-1.5 max-w-[16rem] text-sm leading-relaxed text-muted">{s.d}</p>
+            </div>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /* ── Services ────────────────────────────────────────────────────────────── */
 function Services({ t }: { t: T }) {
   return (
     <section id="services" className="mx-auto max-w-6xl scroll-mt-16 px-5 md:px-8 py-12 md:py-24">
-      <Reveal><SectionHead n="01" title={t("sec.services")} /></Reveal>
+      <Reveal><SectionHead n="03" title={t("sec.services")} /></Reveal>
       <div className="mt-10 space-y-8">
         {serviceGroups.map((g) => (
           <div key={g.group}>
@@ -332,7 +361,7 @@ function Reviews({ t }: { t: T }) {
     <section id="reviews" className="scroll-mt-16 border-y border-line bg-brand-tint/30">
       <div className="mx-auto max-w-6xl px-5 md:px-8 py-12 md:py-24">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <Reveal><SectionHead n="02" title={t("sec.reviews")} /></Reveal>
+          <Reveal><SectionHead n="04" title={t("sec.reviews")} /></Reveal>
           <Reveal delay={80}>
             <div className="flex items-center gap-2"><Stars n={5} /><span className="font-semibold">{clinic.rating.score}</span><span className="text-sm text-muted">· {clinic.rating.count} {clinic.rating.source} reviews</span></div>
           </Reveal>
@@ -391,7 +420,7 @@ function LocationHours({ t }: { t: T }) {
   return (
     <section id="location" className="mx-auto grid max-w-6xl scroll-mt-16 gap-8 px-5 md:px-8 pb-12 md:pb-24 lg:grid-cols-2">
       <Reveal>
-        <SectionHead n="03" title={t("sec.location")} />
+        <SectionHead n="05" title={t("sec.location")} />
         <div className="lift mt-8 rounded-3xl border border-line bg-surface p-6">
           <div className="flex items-start gap-3">
             <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
@@ -416,7 +445,7 @@ function LocationHours({ t }: { t: T }) {
         </div>
       </Reveal>
       <Reveal delay={100}>
-        <SectionHead n="04" title={t("sec.hours")} />
+        <SectionHead n="06" title={t("sec.hours")} />
         <div className="mt-8 rounded-3xl border border-line bg-surface p-6">
           <ul className="divide-y divide-line">
             {DAYS.map((d) => {
@@ -433,6 +462,47 @@ function LocationHours({ t }: { t: T }) {
           <p className="mt-4 text-xs text-muted">Closed Sundays. Check the live status at the top before visiting.</p>
         </div>
       </Reveal>
+    </section>
+  );
+}
+
+/* ── FAQ ─────────────────────────────────────────────────────────────────── */
+function FAQ({ t }: { t: T }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const items = [
+    { q: t("faq.q1"), a: t("faq.a1") },
+    { q: t("faq.q2"), a: t("faq.a2", { fee: `${clinic.currency}${clinic.consultationFee}` }) },
+    { q: t("faq.q3"), a: t("faq.a3") },
+    { q: t("faq.q4"), a: t("faq.a4") },
+    { q: t("faq.q5"), a: t("faq.a5") },
+  ];
+  return (
+    <section className="mx-auto max-w-3xl px-5 md:px-8 pb-12 md:pb-24">
+      <Reveal><SectionHead n="07" title={t("sec.faq")} /></Reveal>
+      <div className="mt-10 space-y-3">
+        {items.map((it, i) => (
+          <Reveal key={i} delay={i * 40}>
+            <div className="rounded-2xl border border-line bg-surface">
+              <button
+                type="button"
+                onClick={() => setOpen(open === i ? null : i)}
+                aria-expanded={open === i}
+                className="flex w-full items-center justify-between gap-4 p-5 text-left"
+              >
+                <span className="text-[15px] font-semibold text-ink">{it.q}</span>
+                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${open === i ? "rotate-45 border-brand bg-brand-tint text-brand" : "border-line text-muted"}`}>
+                  <ChevronRight className="h-4 w-4 -rotate-90" />
+                </span>
+              </button>
+              <div className={`grid transition-all duration-300 ${open === i ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+                <div className="overflow-hidden">
+                  <p className="px-5 pb-5 text-sm leading-relaxed text-muted">{it.a}</p>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+        ))}
+      </div>
     </section>
   );
 }
