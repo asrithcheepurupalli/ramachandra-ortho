@@ -228,3 +228,14 @@ export function sendClinicNotice(phone: string, name: string, message: string) {
 export function sendWelcomeBookingLink(phone: string) {
   return sendTemplate(phone, process.env.META_TEMPLATE_WELCOME, [], templateLang("META_TEMPLATE_LANG_WELCOME"));
 }
+
+// Patient-verification code, sent outside any conversation window so it must
+// be a template. This is the ownership proof for cancel / reschedule / pay —
+// the code lands on the SIM that owns the appointment, which is the point.
+// Expected template: a UTILITY "ortho_verification_code" with one {{1}} param
+// for the 6-digit code. If META_TEMPLATE_OTP isn't set (template not yet
+// approved in Meta), this no-ops with a logged reason, keeping the clinic on
+// the old bare-phone-number path — degraded, not broken.
+export function sendVerificationCode(phone: string, code: string) {
+  return sendTemplate(phone, process.env.META_TEMPLATE_OTP, [code], templateLang("META_TEMPLATE_LANG_OTP"));
+}

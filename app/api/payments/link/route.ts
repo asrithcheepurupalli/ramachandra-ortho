@@ -1,9 +1,11 @@
 // Public: get (or create) a Razorpay payment link for one of the caller's own
-// active, unpaid appointments. Same ownership model as /api/appointments/*:
-// no login, so the phone must match one of that number's own active
-// appointments before a link is produced.
+// active, unpaid appointments. Same two-step ownership proof as
+// /api/appointments/*: the phone must match one of that number's own active
+// appointments AND have verified itself with a one-time SIM code before a
+// link is produced.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbGetOrCreatePaymentLink } from "@/lib/db";
+import { otpVerified, otpEnabled } from "@/lib/otp";
 
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -27,6 +29,9 @@ export async function POST(req: NextRequest) {
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
 
   try {
+    if (otpEnabled() && !otpVerified(phone.trim())) {
+      return NextResponse.json({ error: "Verify your number to continue", otpRequired: true }, { status: 401 });
+    }
     const url = await dbGetOrCreatePaymentLink(id, phone.trim());
     return NextResponse.json({ url });
   } catch (err) {

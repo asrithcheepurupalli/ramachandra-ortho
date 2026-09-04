@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, CalendarDays, Clock, User, Ticket, Search, XCircle, PencilLine, Wallet,
+  MessageCircle, ShieldCheck,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
@@ -28,10 +29,15 @@ function MyAppointmentInner() {
   const [appts, setAppts] = useState<Appt[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const [verified, setVerified] = useState(false);
+  // Mirrors otpEnabled() from the server: when the OTP template isn't set up
+  // yet, cancel/reschedule/pay stay on the old bare-phone path and we skip
+  // the verify panel entirely instead of showing a dead gate.
+  const [otpEnabled, setOtpEnabled] = useState(false);
 
   const search = async (p: string) => {
     if (!p.trim()) return;
-    setLoading(true); setErr(""); setAppts(null);
+    setLoading(true); setErr(""); setAppts(null); setVerified(false);
     try {
       if (hasSupabase()) {
         const res = await fetch("/api/appointments/lookup", {
@@ -41,9 +47,11 @@ function MyAppointmentInner() {
         });
         const data = await res.json();
         if (!res.ok) { setErr(data.error ?? t("myappt.error")); return; }
+        setOtpEnabled(Boolean(data.otpEnabled));
         setAppts(data.appointments as Appt[]);
       } else {
         hydrateSchedule();
+        setOtpEnabled(true); // demo the SIM-proof in mock mode regardless
         setAppts(activeAppointmentsByPhone(p.trim()));
       }
     } catch {
@@ -71,6 +79,10 @@ function MyAppointmentInner() {
   const onCancelled = (id: string) => setAppts((prev) => (prev ? prev.filter((a) => a.id !== id) : prev));
   const updateAppt = (updated: Appt) =>
     setAppts((prev) => (prev ? prev.map((a) => (a.id === updated.id ? updated : a)) : prev));
+
+  // A fresh lookup resets the session's verification — a new phone, a new (or
+  // forgotten) proof. Runs it as a plain state reset, no API involved.
+  const resetVerified = () => setVerified(false);
 
   return (
     <main className="mx-auto w-full max-w-lg px-5 pb-16 pt-6">
@@ -115,7 +127,7 @@ function MyAppointmentInner() {
       {appts && appts.length > 0 && (
         <div className="mt-6 space-y-4">
           {appts.map((a) => (
-            <ApptCard key={a.id} appt={a} t={t} onCancelled={onCancelled} onUpdated={updateAppt} />
+            <ApptCard key={a.id} appt={a} t={t} phone={phone} otpEnabled={otpEnabled} verified={verified} onVerified={() => setVerified(true)} onCancelled={onCancelled} onUpdated={updateAppt} />
           ))}
         </div>
       )}
@@ -132,15 +144,27 @@ export function MyAppointment() {
 }
 
 function ApptCard({
-  appt, t, onCancelled, onUpdated,
+  appt, t, phone, otpEnabled, verified, onVerified, onCancelled, onUpdated,
 }: {
-  appt: Appt; t: Tr; onCancelled: (id: string) => void; onUpdated: (a: Appt) => void;
+  appt: Appt; t: Tr; phone: string; otpEnabled: boolean;
+  verified: boolean; onVerified: () => void;
+  onCancelled: (id: string) => void; onUpdated: (a: Appt) => void;
 }) {
   const [mode, setMode] = useState<"idle" | "cancelConfirm" | "reschedule">("idle");
   const [busy, setBusy] = useState(false);
   const [payBusy, setPayBusy] = useState(false);
   const [err, setErr] = useState("");
   const d = new Date(appt.date + "T00:00:00");
+
+  // The self-service mutations now require proof of SIM ownership (see the
+  // /api/appointments/request-otp flow). Each destructive button routes
+  // through this gate: unverified → the number must prove itself once (the
+  // 6-digit code lands on WhatsApp); verified → the intended action runs.
+  const [pending, setPending] = useState<null | (() => void)>(null);
+  const gate = (action: () => void) => {
+    if (!otpEnabled || verified) { action(); return; }
+    setPending(() => action);
+  };
 
   const doCancel = async () => {
     setBusy(true); setErr("");
@@ -149,7 +173,7 @@ function ApptCard({
         const res = await fetch("/api/appointments/cancel", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: appt.id, phone: appt.phone }),
+          body: JSON.stringify({ id: appt.id, phone }),
         });
         const data = await res.json();
         if (!res.ok) { setErr(data.error ?? t("myappt.error")); setBusy(false); return; }
@@ -170,7 +194,7 @@ function ApptCard({
         const res = await fetch("/api/payments/link", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: appt.id, phone: appt.phone }),
+          body: JSON.stringify({ id: appt.id, phone }),
         });
         const data = await res.json();
         if (!res.ok) { setErr(data.error ?? t("myappt.payerror")); setPayBusy(false); return; }
@@ -210,19 +234,28 @@ function ApptCard({
       {err && <p role="alert" className="mt-3 text-sm text-out">{err}</p>}
 
       {mode === "idle" && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {!appt.paid && (
-            <button onClick={doPay} disabled={payBusy} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition disabled:opacity-60">
-              <Wallet className="h-4 w-4" /> {t("myappt.paynow")}
+        pending ? (
+          <VerifyGate
+            t={t}
+            phone={phone}
+            onVerified={() => { onVerified(); const next = pending; setPending(null); next(); }}
+            onClose={() => setPending(null)}
+          />
+        ) : (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {!appt.paid && (
+              <button onClick={() => gate(doPay)} disabled={payBusy} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition disabled:opacity-60">
+                <Wallet className="h-4 w-4" /> {t("myappt.paynow")}
+              </button>
+            )}
+            <button onClick={() => gate(() => setMode("reschedule"))} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
+              <PencilLine className="h-4 w-4" /> {t("myappt.reschedule")}
             </button>
-          )}
-          <button onClick={() => setMode("reschedule")} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
-            <PencilLine className="h-4 w-4" /> {t("myappt.reschedule")}
-          </button>
-          <button onClick={() => setMode("cancelConfirm")} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-out">
-            <XCircle className="h-4 w-4" /> {t("myappt.cancel")}
-          </button>
-        </div>
+            <button onClick={() => gate(() => setMode("cancelConfirm"))} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-out">
+              <XCircle className="h-4 w-4" /> {t("myappt.cancel")}
+            </button>
+          </div>
+        )
       )}
 
       {mode === "cancelConfirm" && (
@@ -243,6 +276,9 @@ function ApptCard({
         <RescheduleFlow
           appt={appt}
           t={t}
+          phone={phone}
+          verified={verified}
+          onVerified={onVerified}
           onDone={(updated) => { onUpdated(updated); setMode("idle"); }}
           onCancel={() => setMode("idle")}
         />
@@ -251,16 +287,131 @@ function ApptCard({
   );
 }
 
+// The verify-your-number panel shown when the SIM proof hasn't been given yet.
+// In Supabase mode the code is real (sent as a WhatsApp template to the phone,
+// see /api/appointments/request-otp); in mock mode there's no network, so it
+// reveals a demo code instead — one simulation, not a security hole.
+function VerifyGate({ t, phone, onVerified, onClose }: {
+  t: Tr; phone: string; onVerified: () => void; onClose: () => void;
+}) {
+  const [sent, setSent] = useState(false);
+  const [mockCode, setMockCode] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const send = async () => {
+    setBusy(true); setErr("");
+    try {
+      if (hasSupabase()) {
+        const res = await fetch("/api/appointments/request-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setErr(data.error ?? t("myappt.otpFail")); setBusy(false); return; }
+        setSent(true);
+      } else {
+        setMockCode(String(Math.floor(Math.random() * 1_000_000)).padStart(6, "0"));
+        setSent(true);
+      }
+    } catch {
+      setErr(t("myappt.otpFail"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const check = async () => {
+    setBusy(true); setErr("");
+    try {
+      if (hasSupabase()) {
+        const res = await fetch("/api/appointments/verify-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone, code }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setErr(data.error ?? t("myappt.otpWrong")); setBusy(false); return; }
+        onVerified();
+      } else {
+        if (code === mockCode) { onVerified(); return; }
+        setErr(t("myappt.otpWrong"));
+        setBusy(false);
+      }
+    } catch {
+      setErr(t("myappt.otpFail"));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-xl bg-bg p-4" role="form" aria-label={t("myappt.otpTitle")}>
+      <div className="flex items-start gap-2">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink">{t("myappt.otpTitle")}</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted">{t("myappt.otpHint")}</p>
+        </div>
+      </div>
+
+      {!sent && (
+        <button
+          onClick={send}
+          disabled={busy}
+          className="press mt-3 flex w-full items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
+        >
+          <MessageCircle className="h-4 w-4" /> {busy ? t("myappt.otpSending") : t("myappt.otpGet")}
+        </button>
+      )}
+
+      {sent && (
+        <div className="mt-3">
+          <p className="text-xs font-medium text-brand">{t("myappt.otpSent")}</p>
+          {mockCode && (
+            <p className="mt-1 rounded-lg bg-out/10 px-2 py-1 font-mono text-xs text-out">Demo mode code: {mockCode}</p>
+          )}
+          <div className="mt-2 flex gap-2">
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+              placeholder={t("myappt.otpPlaceholder")}
+              aria-label={t("myappt.otpPlaceholder")}
+              className="w-28 rounded-lg border border-line bg-surface px-3 py-2.5 text-center font-mono text-base tracking-[0.3em] outline-none focus:border-brand"
+            />
+            <button
+              onClick={check}
+              disabled={busy || code.length !== 6}
+              className={`press flex-1 rounded-full py-2.5 text-sm font-semibold transition ${busy || code.length !== 6 ? "cursor-not-allowed bg-line text-muted" : "bg-brand text-white hover:bg-brand-dark"}`}
+            >
+              {busy ? t("myappt.otpChecking") : t("myappt.otpVerify")}
+            </button>
+            <button onClick={onClose} disabled={busy} className="press rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink">
+              {t("myappt.cancelNo")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {err && <p role="alert" className="mt-2 text-xs text-out">{err}</p>}
+    </div>
+  );
+}
+
 function RescheduleFlow({
-  appt, t, onDone, onCancel,
+  appt, t, phone, verified, onVerified, onDone, onCancel,
 }: {
-  appt: Appt; t: Tr; onDone: (a: Appt) => void; onCancel: () => void;
+  appt: Appt; t: Tr; phone: string; verified: boolean; onVerified: () => void;
+  onDone: (a: Appt) => void; onCancel: () => void;
 }) {
   const [days, setDays] = useState<DayOpt[]>([]);
   const [selDate, setSelDate] = useState<string | null>(null);
   const [selTime, setSelTime] = useState<string | null>(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [needsVerify, setNeedsVerify] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -338,10 +489,13 @@ function RescheduleFlow({
         const res = await fetch("/api/appointments/reschedule", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: appt.id, phone: appt.phone, date: selDate, time: selTime }),
+          body: JSON.stringify({ id: appt.id, phone, date: selDate, time: selTime }),
         });
         const data = await res.json();
-        if (!res.ok) { setErr(data.error ?? t("myappt.error")); setBusy(false); return; }
+        if (!res.ok) {
+          if (data && data.otpRequired) { setNeedsVerify(true); setBusy(false); return; }
+          setErr(data.error ?? t("myappt.error")); setBusy(false); return;
+        }
         onDone(data.appointment as Appt);
       } else {
         rescheduleBooking(appt.id, selDate, selTime);
@@ -355,6 +509,15 @@ function RescheduleFlow({
 
   return (
     <div className="mt-4 rounded-xl bg-bg p-4">
+      {needsVerify && (
+        <VerifyGate
+          t={t}
+          phone={phone}
+          onVerified={() => { onVerified(); setNeedsVerify(false); }}
+          onClose={() => setNeedsVerify(false)}
+        />
+      )}
+
       <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label={t("book.day")}>
         {days.map((o, i) => {
           const disabled = o.slots.length === 0;

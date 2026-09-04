@@ -3,6 +3,7 @@
 // the booking flow and the WhatsApp bot.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbActiveAppointmentsByPhone } from "@/lib/db";
+import { otpEnabled } from "@/lib/otp";
 
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -26,7 +27,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const appointments = await dbActiveAppointmentsByPhone(phone.trim());
-    return NextResponse.json({ appointments });
+    // otpEnabled tells the client whether cancel/reschedule/pay are gated on a
+    // SIM proof, so it only shows the verify panel when the gate is actually
+    // on (the OTP template exists in Meta) rather than dead UI on 503.
+    return NextResponse.json({ appointments, otpEnabled: otpEnabled() });
   } catch (err) {
     console.error("/api/appointments/lookup", err);
     return NextResponse.json({ error: "Could not look up appointments" }, { status: 500 });

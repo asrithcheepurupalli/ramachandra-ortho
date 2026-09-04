@@ -1,12 +1,14 @@
-// Public patient self-service reschedule. Same phone-ownership check as
-// cancel, then reuses the booking confirmation template — "your appointment
-// is confirmed for X" reads fine for a moved booking too, no new template
-// needed.
+// Public patient self-service reschedule. Same two-step ownership proof as
+// cancel (phone owns an active appointment AND verified itself with a
+// one-time SIM code), then reuses the booking confirmation template — "your
+// appointment is confirmed for X" reads fine for a moved booking too, no new
+// template needed.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbActiveAppointmentsByPhone, dbRescheduleAppointment } from "@/lib/db";
 import { sendBookingConfirmation } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
 import { ymd, nowIST } from "@/lib/schedule";
+import { otpVerified, otpEnabled } from "@/lib/otp";
 
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -35,6 +37,10 @@ export async function POST(req: NextRequest) {
   try {
     const owned = await dbActiveAppointmentsByPhone(phone.trim());
     if (!owned.some((a) => a.id === id)) return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+
+    if (otpEnabled() && !otpVerified(phone.trim())) {
+      return NextResponse.json({ error: "Verify your number to continue", otpRequired: true }, { status: 401 });
+    }
 
     const appt = await dbRescheduleAppointment(id, date, time);
     try { await sendBookingConfirmation(appt); } catch (err) { console.error("/api/appointments/reschedule: notify failed", err); }
