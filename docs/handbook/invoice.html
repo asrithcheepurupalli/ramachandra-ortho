@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Ramachandra Ortho Care — Invoice &amp; payment options</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f8f6;
+    --surface: #ffffff;
+    --ink: #0e1a17;
+    --muted: #5c6b66;
+    --line: #e3ebe7;
+    --brand: #0c7a68;
+    --brand-dark: #0a5d50;
+    --brand-tint: #e2f1ec;
+    --accent: #ef6f53;
+    --accent-tint: #fdeae4;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.011em;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .page { width: 210mm; min-height: 297mm; position: relative; background: var(--bg); }
+  .page + .page { page-break-before: always; }
+
+  h1, h2, h3 { letter-spacing: -0.025em; font-weight: 800; }
+  p { color: var(--muted); }
+
+  /* ── Hero band ─────────────────────────────────────────────────────────── */
+  .hero { background: var(--brand-dark); color: #fff; padding: 8mm 18mm 7mm; }
+  .hero-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 6px; margin-bottom: 7px; border-bottom: 1px solid rgba(255,255,255,0.18);
+  }
+  .brandmark { display: flex; align-items: center; gap: 10px; }
+  .brandmark .dot {
+    width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,0.14);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .brandmark .name { font-size: 13.5px; font-weight: 800; letter-spacing: -0.01em; }
+  .brandmark .tag { font-size: 9.5px; color: #b9e4d8; letter-spacing: 0.03em; }
+  .hero-doctype { font-size: 10px; color: #b9e4d8; text-align: right; letter-spacing: 0.02em; line-height: 1.5; }
+
+  .eyebrow {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--brand);
+  }
+  .hero .eyebrow { color: #9fe0cf; }
+  .hero h1 { font-size: 21px; line-height: 1.14; color: #fff; margin-top: 3px; max-width: 160mm; }
+  .hero .sub { font-size: 10.5px; color: #cdece2; margin-top: 4px; max-width: 148mm; }
+
+  /* ── Body ──────────────────────────────────────────────────────────────── */
+  .body { padding: 7mm 18mm 8mm; }
+
+  .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .party-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 14px; }
+  .party-card .l { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  .party-card .n { font-size: 13px; font-weight: 800; color: var(--ink); }
+  .party-card .d { font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+
+  .meta-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+  .meta-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; }
+  .meta-card .n { font-size: 13px; font-weight: 800; color: var(--brand-dark); letter-spacing: -0.01em; }
+  .meta-card .l { font-size: 9px; color: var(--muted); margin-top: 1px; font-weight: 600; }
+
+  .section-label {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); margin: 3px 0 6px;
+  }
+
+  table.items { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 8px; }
+  table.items th {
+    text-align: left; font-size: 9px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted); background: var(--brand-tint); padding: 6px 12px; border-bottom: 1px solid var(--line);
+  }
+  table.items th.num, table.items td.num { text-align: right; }
+  table.items td { padding: 6px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.items tr:last-child td { border-bottom: none; }
+  table.items .t { font-weight: 800; font-size: 11.5px; color: var(--ink); }
+  table.items .d { font-size: 9.5px; color: var(--muted); margin-top: 1px; line-height: 1.3; }
+  table.items .market { font-size: 10.5px; color: var(--muted); text-decoration: line-through; }
+  table.items .amt { font-size: 12.5px; font-weight: 800; color: var(--brand-dark); }
+  table.items .amt.free { color: var(--accent); font-size: 10.5px; }
+
+  .totals { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+  .totals-box { width: 82mm; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 9px 16px; }
+  .totals-row { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); padding: 2px 0; }
+  .totals-row.discount { color: var(--accent); font-weight: 700; }
+  .totals-row.due { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; font-size: 12px; font-weight: 800; color: var(--ink); align-items: baseline; }
+  .totals-row.due .amt { color: var(--brand-dark); font-size: 18px; }
+  .totals-box .pointer { font-size: 9px; color: var(--muted); margin-top: 4px; font-style: italic; }
+
+  .quote-box {
+    background: var(--brand-tint); border-radius: 10px; padding: 8px 14px; font-size: 10.5px;
+    color: var(--brand-dark); margin-bottom: 8px; border-left: 3px solid var(--brand); line-height: 1.45;
+  }
+  .quote-box b { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+
+  .terms { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 9px 16px; }
+  .terms .t { font-weight: 800; font-size: 11px; color: var(--ink); margin-bottom: 3px; }
+  .terms .d { font-size: 10px; color: var(--muted); line-height: 1.42; }
+  .terms .d b { color: var(--ink); }
+
+  .foot {
+    margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; font-size: 9px; color: var(--muted); font-weight: 600;
+  }
+
+  /* ── Page 2: payment options ─────────────────────────────────────────────── */
+  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 2px; margin-bottom: 9px; }
+  .plan-card { background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px; padding: 13px 16px; }
+  .plan-card .bar { height: 4px; border-radius: 4px; margin: -13px -16px 11px; }
+  .plan-card.a .bar { background: linear-gradient(90deg, var(--brand), var(--brand-dark)); }
+  .plan-card.b .bar { background: linear-gradient(90deg, var(--accent), #d95a3e); }
+  .plan-card .kicker { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .plan-card .name { font-size: 15px; font-weight: 800; color: var(--ink); margin-top: 2px; }
+  .plan-card .desc { font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.35; min-height: 26px; }
+  .plan-card .price { margin-top: 8px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .plan-card .price .n { font-size: 22px; font-weight: 800; color: var(--brand-dark); letter-spacing: -0.02em; }
+  .plan-card .price .u { font-size: 10px; color: var(--muted); font-weight: 700; }
+  .plan-card .price2 { font-size: 10px; color: var(--muted); margin-top: 1px; font-weight: 600; }
+  .plan-card ul { list-style: none; margin-top: 9px; }
+  .plan-card li { font-size: 9.8px; color: var(--ink); padding: 4px 0; border-top: 1px solid var(--line); display: flex; gap: 6px; line-height: 1.3; }
+  .plan-card li:first-child { border-top: none; }
+  .plan-card li:before { content: "✓"; color: var(--brand); font-weight: 800; flex-shrink: 0; }
+
+  .equalizer {
+    background: var(--ink); color: #fff; border-radius: 12px; padding: 9px 16px; margin-bottom: 8px;
+    font-size: 10.5px; line-height: 1.45; display: flex; align-items: center; gap: 10px;
+  }
+  .equalizer b { color: #9fe0cf; }
+
+  .addon { display: flex; justify-content: space-between; align-items: center; gap: 14px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 8px 16px; margin-bottom: 8px; }
+  .addon .t { font-weight: 800; font-size: 11px; color: var(--ink); }
+  .addon .d { font-size: 9.5px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+  .addon .p { font-size: 11px; font-weight: 800; color: var(--brand-dark); white-space: nowrap; text-align: right; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="hero">
+    <div class="hero-top">
+      <div class="brandmark">
+        <span class="dot">🦴</span>
+        <div>
+          <div class="name">Ramachandra Ortho Care</div>
+          <div class="tag">Visakhapatnam</div>
+        </div>
+      </div>
+      <div class="hero-doctype">Invoice RC-2026-01<br/>4 September 2026</div>
+    </div>
+    <div class="eyebrow">Invoice &amp; payment options</div>
+    <h1>Everything built so far, and two straightforward ways to settle it.</h1>
+    <p class="sub">First, the scope delivered to date, priced against what an outside agency would typically charge for the same work. Page two lays out two ways to pay it, so you can pick whichever suits the clinic's cash flow.</p>
+  </div>
+
+  <div class="body">
+    <div class="parties">
+      <div class="party-card">
+        <div class="l">Billed to</div>
+        <div class="n">Dr. M. Ramachandra</div>
+        <div class="d">Ramachandra Ortho Care<br/>Visakhapatnam, Andhra Pradesh</div>
+      </div>
+      <div class="party-card">
+        <div class="l">From</div>
+        <div class="n">Asrith Cheepurupalli · made.</div>
+        <div class="d">Design and software, built and maintained end to end<br/>rcorthocare.made-by-ac.com</div>
+      </div>
+    </div>
+
+    <div class="meta-strip">
+      <div class="meta-card"><div class="n">RC-2026-01</div><div class="l">Invoice number</div></div>
+      <div class="meta-card"><div class="n">4 Sep 2026</div><div class="l">Date issued</div></div>
+      <div class="meta-card"><div class="n">See page 2</div><div class="l">Payment terms</div></div>
+    </div>
+
+    <div class="section-label">What's on this invoice</div>
+    <table class="items">
+      <tr>
+        <th style="width:44%">Item</th>
+        <th class="num" style="width:22%">Agency rate</th>
+        <th class="num" style="width:34%">This build</th>
+      </tr>
+      <tr>
+        <td><div class="t">Patient website and booking</div><div class="d">Three languages, installable on a phone, live slot booking, no double-bookings.</div></td>
+        <td class="num market">₹90,000</td>
+        <td class="num"><div class="amt">₹35,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Admin dashboard</div><div class="d">Queue, schedule, patient history and revenue, in one screen.</div></td>
+        <td class="num market">₹70,000</td>
+        <td class="num"><div class="amt">₹20,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">WhatsApp automation</div><div class="d">Direct Meta Cloud API integration, automatic confirmations and cancellations.</div></td>
+        <td class="num market">₹90,000</td>
+        <td class="num"><div class="amt">₹15,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Patient self-service</div><div class="d">Patients look up, cancel, or reschedule by phone number, no call needed.</div></td>
+        <td class="num market">₹20,000</td>
+        <td class="num"><div class="amt">₹5,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Security hardening</div><div class="d">Access control, login protection, full audit pass, this month.</div></td>
+        <td class="num market">₹25,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Documentation</div><div class="d">The clinic handbook, kept current as things change.</div></td>
+        <td class="num market">₹8,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+    </table>
+
+    <div class="totals">
+      <div class="totals-box">
+        <div class="totals-row"><span>Typical agency rate</span><span>₹3,03,000</span></div>
+        <div class="totals-row discount"><span>Founding-build adjustment</span><span>&minus; ₹2,28,000</span></div>
+        <div class="totals-row due"><span>Priced at</span><span class="amt">₹75,000</span></div>
+        <div class="pointer">Two ways to pay this on page 2 →</div>
+      </div>
+    </div>
+
+    <div class="quote-box"><b>Why the rate is what it is</b>Ramachandra Ortho Care is made.'s first clinic built ground up, direct Meta WhatsApp integration and all, and that reference is worth more right now than a full market quote. The number above is real, not symbolic. It's just intentionally under what the same build would cost from an agency.</div>
+  </div>
+
+  <div style="padding: 0 18mm 10mm;">
+    <div class="foot">
+      <span>Ramachandra Ortho Care · Invoice RC-2026-01</span>
+      <span>Page 1 of 2</span>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="hero">
+    <div class="hero-top">
+      <div class="brandmark">
+        <span class="dot">🦴</span>
+        <div>
+          <div class="name">Ramachandra Ortho Care</div>
+          <div class="tag">Visakhapatnam</div>
+        </div>
+      </div>
+      <div class="hero-doctype">Invoice RC-2026-01<br/>4 September 2026</div>
+    </div>
+    <div class="eyebrow">Two ways to pay</div>
+    <h1>Pick whichever is easier on the clinic's cash flow.</h1>
+    <p class="sub">Both options land at the same ₹75,000 across the first year. The only real difference is when the money moves, and whether ongoing hosting, WhatsApp costs, and small fixes are bundled in or handled as they come up.</p>
+  </div>
+
+  <div class="body">
+    <div class="plans">
+      <div class="plan-card a">
+        <div class="bar"></div>
+        <div class="kicker">Option A</div>
+        <div class="name">Pay it in full</div>
+        <div class="desc">One payment settles the build. Nothing recurring afterward.</div>
+        <div class="price"><span class="n">₹75,000</span><span class="u">one time</span></div>
+        <div class="price2">&nbsp;</div>
+        <ul>
+          <li>Settles everything on page 1, in full</li>
+          <li>Small fixes and content updates stay free, same as always</li>
+          <li>Site keeps running on its current hosting at no extra cost</li>
+          <li>A new feature down the line gets scoped and quoted on its own</li>
+          <li>No monthly commitment either way</li>
+        </ul>
+      </div>
+      <div class="plan-card b">
+        <div class="bar"></div>
+        <div class="kicker">Option B</div>
+        <div class="name">Pay over time</div>
+        <div class="desc">Less upfront, with ongoing hosting and support built in.</div>
+        <div class="price"><span class="n">₹45,000</span><span class="u">now</span></div>
+        <div class="price2">plus ₹2,500 / month, ongoing</div>
+        <ul>
+          <li>Hosting, domain, and account upkeep, handled</li>
+          <li>WhatsApp message costs from Meta, covered in the monthly fee</li>
+          <li>Unlimited small fixes and content or schedule changes</li>
+          <li>One small new feature included every quarter</li>
+          <li>Same-day response if anything ever breaks</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="equalizer"><span>&#9878;&#65039;</span><span>Over twelve months, Option B totals ₹45,000 + (₹2,500 &times; 12) = <b>₹75,000</b>, the same as Option A. Same value, different pacing. Pick whichever suits the clinic's cash flow this quarter.</span></div>
+
+    <div class="section-label">What "ongoing" would actually cover</div>
+    <div class="addon">
+      <div>
+        <div class="t">Hosting, domain &amp; WhatsApp usage</div>
+        <div class="d">Runs on free-tier infrastructure today, so there's no real bill yet. If that ever changes, Option B's monthly fee already covers it.</div>
+      </div>
+      <div class="p">Included in<br/>Option B</div>
+    </div>
+    <div class="addon">
+      <div>
+        <div class="t">A domain of the clinic's own</div>
+        <div class="d">The site currently lives at rcorthocare.made-by-ac.com. Moving it to a dedicated address, for example ramachandraorthocare.in, is a one-time registration whenever you'd like it.</div>
+      </div>
+      <div class="p">About ₹700&ndash;1,200<br/>per year</div>
+    </div>
+
+    <div class="terms">
+      <div class="t">Notes</div>
+      <div class="d">No due date and no interest either way. On Option A, this invoice is paid whenever suits you. On Option B, the first ₹45,000 covers the build to date and the ₹2,500 monthly starts whenever you're ready. Switching from A to B later, or the other way round, is fine, just say so. <b>Bank details / UPI:</b> to be added.</div>
+    </div>
+  </div>
+
+  <div style="padding: 0 18mm 10mm;">
+    <div class="foot">
+      <span>Ramachandra Ortho Care · Invoice RC-2026-01</span>
+      <span>rcorthocare.made-by-ac.com · Prepared by Asrith Cheepurupalli · made. · Page 2 of 2</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
