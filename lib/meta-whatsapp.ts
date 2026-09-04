@@ -169,7 +169,10 @@ async function sendTemplate(
     template: {
       name: templateName,
       language: { code: lang },
-      components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }],
+      // Omit entirely for a template whose body has no {{n}} placeholders
+      // (e.g. clinic_welcome_booking_link) — Meta rejects an empty parameters
+      // array against a body component that isn't expecting any.
+      ...(params.length ? { components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }] } : {}),
     },
   });
 }
@@ -209,4 +212,19 @@ export function sendPaymentReceived(appt: Pick<Appt, "name" | "phone" | "date" |
     dateTimeLabel(appt),
     `Token #${appt.token}`,
   ], templateLang("META_TEMPLATE_LANG_PAID"));
+}
+
+// Fired by /admin's Broadcast panel (running-late / closed-today notices to
+// today's active queue). A template, not sendText, because most patients
+// book via the website and never open a WhatsApp conversation — sendText
+// only reaches the few who happen to have an active (<24h) chat.
+export function sendClinicNotice(phone: string, name: string, message: string) {
+  return sendTemplate(phone, process.env.META_TEMPLATE_NOTICE, [name, message], templateLang("META_TEMPLATE_LANG_NOTICE"));
+}
+
+// Static re-engagement nudge (zero body params — "Book Appointment" + "Call"
+// buttons only). No automatic trigger wired yet; call this directly from
+// wherever staff should be able to re-invite a specific patient onto WhatsApp.
+export function sendWelcomeBookingLink(phone: string) {
+  return sendTemplate(phone, process.env.META_TEMPLATE_WELCOME, [], templateLang("META_TEMPLATE_LANG_WELCOME"));
 }

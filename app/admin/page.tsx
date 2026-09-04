@@ -386,8 +386,8 @@ function Broadcast({ count }: { count: number }) {
         const note = data.attempted === 0
           ? "No patients with a phone number in today's queue."
           : data.failed === data.attempted
-          ? "None delivered. This only reaches patients with an open WhatsApp conversation (they've messaged the bot in the last 24h). Ask them to message the bot first, or use a WhatsApp template for this notice."
-          : `Attempted ${data.attempted}${data.failed ? `, ${data.failed} did not deliver (only patients in an active WhatsApp conversation receive this)` : ", all queued for delivery"}.`;
+          ? "None delivered. Check the WhatsApp template setup in the server logs."
+          : `Attempted ${data.attempted}${data.failed ? `, ${data.failed} did not deliver` : ", all queued for delivery"}.`;
         setResult({ msg, note });
       } else {
         setResult({ msg, note: `Simulated — sent to ${count} patients (demo mode).` });
@@ -565,12 +565,47 @@ function Patients({ appts }: { appts: Appt[] }) {
               <div className="text-xs text-muted">{p.phone || "no phone"} · last: {p.last.reason}</div>
             </div>
             <span className="rounded-full bg-brand-tint px-2.5 py-1 text-xs font-medium text-brand">{p.visits} visit{p.visits > 1 ? "s" : ""}</span>
+            {p.phone && <InviteButton phone={p.phone} />}
           </div>
         ))}
         {list.length === 0 && <div className="px-5 py-8 text-center text-sm text-muted">No patients.</div>}
       </div>
       <p className="mt-3 text-xs text-muted">Basic patient records (beta). Full history, prescriptions and reports come later.</p>
     </div>
+  );
+}
+
+// Manual nudge onto WhatsApp for a patient who's only ever booked via the
+// website or as a walk-in — sends clinic_welcome_booking_link once per click.
+function InviteButton({ phone }: { phone: string }) {
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const invite = async () => {
+    setState("sending");
+    try {
+      if (hasSupabase()) {
+        const res = await fetch("/api/admin/whatsapp-invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone }),
+        });
+        if (!res.ok) throw new Error();
+      }
+      setState("sent");
+    } catch {
+      setState("error");
+    } finally {
+      setTimeout(() => setState("idle"), 4000);
+    }
+  };
+  return (
+    <button
+      onClick={invite}
+      disabled={state === "sending"}
+      title="Send WhatsApp invite"
+      className="shrink-0 rounded-lg border border-line p-1.5 text-muted hover:border-brand/50 hover:text-brand disabled:opacity-50"
+    >
+      {state === "sent" ? <Check className="h-4 w-4 text-in" /> : state === "error" ? <X className="h-4 w-4 text-out" /> : <MessageCircle className="h-4 w-4" />}
+    </button>
   );
 }
 

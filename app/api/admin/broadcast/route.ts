@@ -1,12 +1,13 @@
 // Staff-only broadcast to today's active queue (running-late / closed-today
-// notices). Sends a free-form WhatsApp text to each patient with a phone
-// number — Meta only delivers these inside an active (patient-initiated,
-// <24h) conversation and silently drops the rest, so this reaches whoever
-// currently has an open conversation with the clinic's number.
+// notices). Sends the ortho_clinic_notice template to each patient with a
+// phone number — a template (not free-form text) so this reaches everyone
+// in the queue, not just whoever happens to have an active (<24h) WhatsApp
+// conversation open, since most patients book via the website and never
+// message the clinic's number at all.
 import { NextResponse, type NextRequest } from "next/server";
 import { requireStaff } from "@/lib/auth-server";
 import { dbApptsForDate } from "@/lib/db";
-import { sendText } from "@/lib/meta-whatsapp";
+import { sendClinicNotice } from "@/lib/meta-whatsapp";
 import { ymd, nowIST } from "@/lib/schedule";
 import { activeStatuses } from "@/lib/store";
 
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     const today = await dbApptsForDate(ymd(nowIST()));
     const waiting = today.filter((a) => activeStatuses.includes(a.status) && a.status !== "consulting" && a.phone);
 
-    const results = await Promise.allSettled(waiting.map((a) => sendText(a.phone, message)));
+    const results = await Promise.allSettled(waiting.map((a) => sendClinicNotice(a.phone, a.name, message)));
     const failed = results.filter((r) => r.status === "rejected" || !r.value).length;
 
     return NextResponse.json({ attempted: waiting.length, failed });
