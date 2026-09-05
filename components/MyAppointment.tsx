@@ -242,16 +242,20 @@ function ApptCard({
             onClose={() => setPending(null)}
           />
         ) : (
-          <div className="mt-4 flex flex-wrap gap-2">
+          /* Stacked full-width pills at every width, matching the confirmation
+             screen's own CTA stack. A flex-1 row can't fit these labels: at the
+             card's max-w-lg (512px) a 3-across column is ~152px but the longest
+             label needs ~162px, so it wraps to 2-3 lines on every screen. */
+          <div className="mt-4 grid grid-cols-1 gap-2">
             {!appt.paid && (
-              <button onClick={() => gate(doPay)} disabled={payBusy} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition disabled:opacity-60">
+              <button onClick={() => gate(doPay)} disabled={payBusy} className="press flex w-full items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition disabled:opacity-60">
                 <Wallet className="h-4 w-4" /> {t("myappt.paynow")}
               </button>
             )}
-            <button onClick={() => gate(() => setMode("reschedule"))} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
+            <button onClick={() => gate(() => setMode("reschedule"))} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
               <PencilLine className="h-4 w-4" /> {t("myappt.reschedule")}
             </button>
-            <button onClick={() => gate(() => setMode("cancelConfirm"))} className="press flex flex-1 items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-out">
+            <button onClick={() => gate(() => setMode("cancelConfirm"))} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-out">
               <XCircle className="h-4 w-4" /> {t("myappt.cancel")}
             </button>
           </div>
