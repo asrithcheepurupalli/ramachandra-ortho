@@ -152,3 +152,19 @@ alter table public.wa_sessions enable row level security;
 -- Idempotent for a table created before last_wamid existed (create table
 -- if not exists above won't add columns to an already-existing table).
 alter table public.wa_sessions add column if not exists last_wamid text;
+
+-- Self-service OTP proof (cancel / reschedule / pay). One row per phone, so
+-- the state is visible from every server function on Vercel — an in-memory
+-- Map written by verify-otp is invisible to the reschedule route (each /api
+-- route is its own Node instance). Codes are sha256-hashed; a stray log can
+-- never leak a usable code. Service-role only — RLS is on with no policies.
+create table if not exists public.otp_challenges (
+  phone             text primary key,
+  code_hash         text,                            -- sha256 of the live code, null once used/expired
+  expires_at        timestamptz,                     -- code TTL (matches the template's 10 minutes)
+  attempts          integer not null default 0,      -- bad guesses toward the 5-cap
+  issue_count       integer not null default 0,      -- code issues inside the current window
+  window_started_at timestamptz not null default now(),
+  verified_until    timestamptz                      -- session proof, rides the same TTL
+);
+alter table public.otp_challenges enable row level security;

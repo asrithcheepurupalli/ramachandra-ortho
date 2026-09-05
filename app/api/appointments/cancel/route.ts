@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     // check sits after the ownership match so an attacker probing random ids
     // is still told "not found", not "you just need a code" — the existence
     // of a booking stays secret.
-    if (otpEnabled() && !otpVerified(phone.trim())) {
+    if (otpEnabled() && !(await otpVerified(phone.trim()))) {
       return NextResponse.json({ error: "Verify your number to continue", otpRequired: true }, { status: 401 });
     }
 

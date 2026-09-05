@@ -5,27 +5,18 @@
 // stranger who merely knows a patient's phone number can no longer touch
 // their booking.
 //
-// ── Template contract (paste this EXACT body into Meta's composer) ──────────
-//   Name:     ortho_verification_code
-//   Category: Utility — NOT "Authentication". The Authentication (one-time
-//             passcode) category makes Meta generate the code and auto-fill it
-//             into a native app; we need the code generated server-side and
-//             typed into a web page, so it must be a Utility body with a {{1}}.
-//   Language: English (IND) — the composer offers en_IN here, and
-//             META_TEMPLATE_LANG_OTP must match whatever the approved language
-//             code ends up being (en_IN, or en if offered).
-//   Body:     Your Ramachandra Ortho Care verification code is {{1}}. Enter it
-//             on the appointment page within 5 minutes to confirm your number.
-//             Do not share this code with anyone.
-//
-// Meta rejects a body that fails its length/variable rules, which will surface
-// as "too many variables for its length" or "variables can't be at the start
-// or end of the template" in the composer. The safe shape is exactly one {{1}}
-// placeholder, sat mid-sentence with plain text before it and after it, and a
-// body long enough that the 6-digit sample value doesn't dominate it. This
-// route sends exactly one text parameter ({type:"text"}), so keep {{1}} the
-// only placeholder and the code the only thing it receives — never two
-// {{n}}s, never a placeholder slapped at the very start or end of the line.
+// ── Template contract ────────────────────────────────────────────────────────
+//   Name:     ortho_verification_codev1
+//   Category: AUTHENTICATION (one-time passcode), NOT Utility — Meta rejects
+//             OTP-flavored copy ("verification code / do not share / expires")
+//             in Utility templates. The Authentication category ships a
+//             Meta-fixed, uneditable body plus a "Copy code" button.
+//   Language: English (IND) = en_IN; META_TEMPLATE_LANG_OTP must match.
+//   Body:     "{{1}} is your verification code. For your security, do not share
+//             this code." + "Expires in 10 minutes".
+//   Send:     The code goes into the {{1}} body slot AND the "Copy code" URL
+//             button param (sendVerificationCode in lib/meta-whatsapp.ts) —
+//             without the button param Meta rejects the send with (#131008).
 // ────────────────────────────────────────────────────────────────────────────
 import { NextResponse, type NextRequest } from "next/server";
 import { dbActiveAppointmentsByPhone } from "@/lib/db";
@@ -64,7 +55,7 @@ export async function POST(req: NextRequest) {
     const owned = await dbActiveAppointmentsByPhone(phone.trim());
     if (!owned.length) return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
 
-    const code = requestOtp(phone.trim());
+    const code = await requestOtp(phone.trim());
     if (!code) return NextResponse.json({ error: "A code was recently sent. Please try again in a few minutes." }, { status: 429 });
 
     const sent = await sendVerificationCode(phone.trim(), code);

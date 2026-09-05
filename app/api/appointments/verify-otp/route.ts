@@ -26,10 +26,10 @@ export async function POST(req: NextRequest) {
   if (typeof code !== "string" || code.trim().length !== 6) return NextResponse.json({ error: "Enter the 6-digit code" }, { status: 400 });
   if (!otpEnabled()) return NextResponse.json({ error: "Verification isn't set up yet" }, { status: 503 });
 
-  const result = consumeOtp(phone.trim(), code.trim());
+  const result = await consumeOtp(phone.trim(), code.trim());
   console.log("verify-otp result", result);
   if (result === "none") return NextResponse.json({ error: "That code has expired. Tap send again for a new one." }, { status: 410 });
   if (result === "bad") return NextResponse.json({ error: "That code didn't match. Check it and try again." }, { status: 401 });
-  markVerified(phone.trim());
+  await markVerified(phone.trim());
   return NextResponse.json({ verified: true });
 }

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
 
   try {
-    if (otpEnabled() && !otpVerified(phone.trim())) {
+    if (otpEnabled() && !(await otpVerified(phone.trim()))) {
       return NextResponse.json({ error: "Verify your number to continue", otpRequired: true }, { status: 401 });
     }
     const url = await dbGetOrCreatePaymentLink(id, phone.trim());
