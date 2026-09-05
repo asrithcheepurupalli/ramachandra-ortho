@@ -36,17 +36,20 @@ export async function POST(req: NextRequest) {
 
   try {
     const owned = await dbActiveAppointmentsByPhone(phone.trim());
-    if (!owned.some((a) => a.id === id)) return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
-
-    if (otpEnabled() && !otpVerified(phone.trim())) {
+    const owns = owned.some((a) => a.id === id);
+    const gateOk = !otpEnabled() || otpVerified(phone.trim());
+    console.log("reschedule diag", JSON.stringify({ owns, otpEnabled: otpEnabled(), otpVerified: otpVerified(phone.trim()), gateOk }));
+    if (!owns) return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+    if (!gateOk) {
       return NextResponse.json({ error: "Verify your number to continue", otpRequired: true }, { status: 401 });
     }
 
     const appt = await dbRescheduleAppointment(id, date, time);
+    console.log("reschedule ok", date, time);
     try { await sendBookingConfirmation(appt); } catch (err) { console.error("/api/appointments/reschedule: notify failed", err); }
     return NextResponse.json({ appointment: appt });
   } catch (err) {
-    if (err instanceof SlotTakenError) return NextResponse.json({ error: "That time isn't available. Please pick another slot." }, { status: 409 });
+    if (err instanceof SlotTakenError) { console.log("reschedule 409 slot taken", date, time); return NextResponse.json({ error: "That time isn't available. Please pick another slot." }, { status: 409 }); }
     console.error("/api/appointments/reschedule", err);
     return NextResponse.json({ error: "Could not reschedule appointment" }, { status: 500 });
   }
