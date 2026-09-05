@@ -44,7 +44,20 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = JSON.parse(rawBody);
-    const message = payload?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    const value = payload?.entry?.[0]?.changes?.[0]?.value;
+    // Delivery/read/failed callbacks arrive on the same messages webhook field.
+    // Log them so a template Meta accepts but silently drops (authentication
+    // messages in particular) still leaves a verdict in the Vercel logs —
+    // "delivered", or a failed status carrying Meta's error code.
+    for (const st of value?.statuses ?? []) {
+      console.log(
+        "WhatsApp status",
+        st.id ?? "",
+        st.status ?? "",
+        Array.isArray(st.errors) ? JSON.stringify(st.errors) : ""
+      );
+    }
+    const message = value?.messages?.[0];
     if (!message) return new NextResponse("OK", { status: 200 }); // status/read receipts, no-op
 
     const from: string = message.from;
