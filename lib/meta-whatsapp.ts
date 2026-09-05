@@ -154,7 +154,8 @@ async function sendTemplate(
   phone: string,
   templateName: string | undefined,
   params: string[],
-  lang: string = process.env.META_TEMPLATE_LANG || "en_US"
+  lang: string = process.env.META_TEMPLATE_LANG || "en_US",
+  urlButtonValue?: string
 ): Promise<boolean> {
   const to = normalizeIndianPhone(phone);
   if (!templateName) {
@@ -163,16 +164,30 @@ async function sendTemplate(
   }
   if (!to) return false;
 
+  const components: Record<string, unknown>[] = [];
+  // Omit the body component entirely for a template whose body has no {{n}}
+  // placeholders (e.g. clinic_welcome_booking_link) — Meta rejects an empty
+  // parameters array against a body component that isn't expecting any.
+  if (params.length) {
+    components.push({ type: "body", parameters: params.map((text) => ({ type: "text", text })) });
+  }
+  // Authentication templates (ortho_verification_code) ship a "Copy code"
+  // button, which Meta represents as a URL button at index 0 that expects the
+  // code as its parameter. Without it the send is rejected with (#131008)
+  // "Button at index 0 of type Url requires a parameter". Supplied only by
+  // sendVerificationCode — the classic templates (confirm/cancel/paid/notice/
+  // welcome) have no such button and must NOT receive a button component.
+  if (urlButtonValue) {
+    components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: urlButtonValue }] });
+  }
+
   return callGraphApi({
     to,
     type: "template",
     template: {
       name: templateName,
       language: { code: lang },
-      // Omit entirely for a template whose body has no {{n}} placeholders
-      // (e.g. clinic_welcome_booking_link) — Meta rejects an empty parameters
-      // array against a body component that isn't expecting any.
-      ...(params.length ? { components: [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }] } : {}),
+      ...(components.length ? { components } : {}),
     },
   });
 }
@@ -232,10 +247,13 @@ export function sendWelcomeBookingLink(phone: string) {
 // Patient-verification code, sent outside any conversation window so it must
 // be a template. This is the ownership proof for cancel / reschedule / pay —
 // the code lands on the SIM that owns the appointment, which is the point.
-// Expected template: a UTILITY "ortho_verification_code" with one {{1}} param
-// for the 6-digit code. If META_TEMPLATE_OTP isn't set (template not yet
-// approved in Meta), this no-ops with a logged reason, keeping the clinic on
-// the old bare-phone-number path — degraded, not broken.
+// Template: the AUTHENTICATION-category "ortho_verification_code" (Utility
+// OTP bodies get rejected). Its body is Meta-fixed with a {{1}} for the code
+// and a "Copy code" button, so the code goes BOTH into the body param and
+// the index-0 URL-button param — the button is how the patient copies it.
+// If META_TEMPLATE_OTP isn't set (template not configured), this no-ops with
+// a logged reason, keeping the clinic on the old bare-phone-number path —
+// degraded, not broken.
 export function sendVerificationCode(phone: string, code: string) {
-  return sendTemplate(phone, process.env.META_TEMPLATE_OTP, [code], templateLang("META_TEMPLATE_LANG_OTP"));
+  return sendTemplate(phone, process.env.META_TEMPLATE_OTP, [code], templateLang("META_TEMPLATE_LANG_OTP"), code);
 }

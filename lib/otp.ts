@@ -16,7 +16,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash, randomInt } from "node:crypto";
 
-const CODE_TTL_MS = 5 * 60 * 1000; // Meta template reuse rules: an OTP stays valid ~5 min
+// Matches the auth template's "Expires in 10 minutes" so the server never
+// rejects a code the patient's WhatsApp message still shows as valid. Same
+// window rides the verified-map below, so one proof unlocks the session.
+const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const ISSUE_WINDOW_MS = 10 * 60 * 1000;
 const MAX_ISSUES = 4; // a patient needs one code per session, never a stream
