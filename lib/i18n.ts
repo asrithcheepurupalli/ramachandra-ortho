@@ -30,6 +30,7 @@ const en: Dict = {
   "sec.hours": "Consulting hours",
   "fee.line": "Consultation {cur}{fee}",
   "reviews.rating": "{score} · {count} Google reviews",
+  "reviews.swipe": "Swipe to read more",
   "loc.directions": "Get directions",
   "walkin.note":
     "Walk-in? You can also just come by during consulting hours, or reserve a token first to skip the wait.",
@@ -151,6 +152,7 @@ const te: Dict = {
   "sec.hours": "కన్సల్టింగ్ సమయాలు",
   "fee.line": "కన్సల్టేషన్ {cur}{fee}",
   "reviews.rating": "{score} · {count} గూగుల్ సమీక్షలు",
+  "reviews.swipe": "మరిన్ని చదవడానికి స్వైప్ చేయండి",
   "loc.directions": "దారి చూపించు",
   "walkin.note":
     "నేరుగా వస్తున్నారా? కన్సల్టింగ్ సమయాల్లో రావచ్చు, లేదా వెయిటింగ్ తప్పించుకోవడానికి ముందే టోకెన్ బుక్ చేసుకోండి.",
@@ -272,6 +274,7 @@ const hi: Dict = {
   "sec.hours": "परामर्श समय",
   "fee.line": "परामर्श {cur}{fee}",
   "reviews.rating": "{score} · {count} गूगल समीक्षाएं",
+  "reviews.swipe": "और पढ़ने के लिए स्वाइप करें",
   "loc.directions": "दिशा-निर्देश पाएं",
   "walkin.note":
     "सीधे आ रहे हैं? परामर्श समय में आ सकते हैं, या इंतज़ार से बचने के लिए पहले टोकन बुक करें।",

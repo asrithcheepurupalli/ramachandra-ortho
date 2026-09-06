@@ -14,6 +14,7 @@ import {
   activeAppointmentsByPhone, cancelBooking, rescheduleBooking, togglePaid,
   hydrateSchedule, takenSlots, type Appt,
 } from "@/lib/store";
+import { normalizePhone } from "@/lib/phone";
 import { hasSupabase } from "@/lib/supabase";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -65,13 +66,19 @@ function MyAppointmentInner() {
     const pre = params?.get("phone");
     const paidId = params?.get("paid");
     if (pre) {
-      setPhone(pre);
-      search(pre);
+      // Templates sometimes bake literal example digits into the dynamic URL
+      // ahead of the placeholder (landing a link like ?phone=12345678908317612636).
+      // Normalize to the clean 10 local digits before showing or searching, so
+      // the box never exposes the junk and the lookup matches. Also paddles the
+      // paying-return path where the same param carries an id.
+      const clean = normalizePhone(pre);
+      setPhone(clean);
+      search(clean);
       // Razorpay's callback_url redirect can land a second or two before the
       // webhook that actually flips `paid` finishes — one extra silent
       // re-fetch shortly after makes the return trip feel instant instead of
       // stale, without this page being the source of truth for the flag.
-      if (paidId) setTimeout(() => search(pre), 1500);
+      if (paidId) setTimeout(() => search(clean), 1500);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

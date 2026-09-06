@@ -54,6 +54,10 @@ h1, h2, h3 { letter-spacing: -0.03em; }
 .press { transition: transform 0.12s ease; }
 .press:active { transform: scale(0.97); }
 
+/* horizontal swipe strips (reviews on small screens) — hide the scrollbar */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 @keyframes pulsering {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 50%, transparent); }
   70% { box-shadow: 0 0 0 8px transparent; }

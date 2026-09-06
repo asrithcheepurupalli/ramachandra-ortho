@@ -12,7 +12,7 @@ import {
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { serviceGroups } from "@/lib/services";
-import { reviews } from "@/lib/reviews";
+import { reviews, type Review } from "@/lib/reviews";
 import { DoctorPhoto } from "@/components/DoctorPhoto";
 import { RCChat } from "@/components/RCChat";
 import {
@@ -356,6 +356,20 @@ function Services({ t }: { t: T }) {
 }
 
 /* ── Reviews ─────────────────────────────────────────────────────────────── */
+function ReviewCard({ r, swipe = false }: { r: Review; swipe?: boolean }) {
+  return (
+    <figure className={`lift flex flex-col rounded-2xl border border-line bg-surface ${swipe ? "h-full w-[78%] shrink-0 snap-center p-4" : "break-inside-avoid p-5"}`}>
+      <Quote className={`${swipe ? "h-4 w-4" : "h-5 w-5"} text-accent`} />
+      <blockquote className={`mt-2 flex-1 leading-relaxed text-ink/90 ${swipe ? "line-clamp-5 text-[13px]" : "text-[14px]"}`}>{r.text}</blockquote>
+      <figcaption className={`flex items-center gap-3 ${swipe ? "mt-3" : "mt-4"}`}>
+        <span className={`grid place-items-center rounded-full bg-brand-tint font-semibold text-brand ${swipe ? "h-8 w-8 text-xs" : "h-9 w-9 text-sm"}`}>{r.name[0].toUpperCase()}</span>
+        <span className="min-w-0"><span className="block truncate text-sm font-semibold">{r.name}</span><span className="block text-xs text-muted">{r.when}</span></span>
+        <Stars n={5} className="ml-auto" small />
+      </figcaption>
+    </figure>
+  );
+}
+
 function Reviews({ t }: { t: T }) {
   return (
     <section id="reviews" className="scroll-mt-16 border-y border-line bg-brand-tint/30">
@@ -366,18 +380,21 @@ function Reviews({ t }: { t: T }) {
             <div className="flex items-center gap-2"><Stars n={5} /><span className="font-semibold">{clinic.rating.score}</span><span className="text-sm text-muted">· {clinic.rating.count} {clinic.rating.source} reviews</span></div>
           </Reveal>
         </div>
-        <div className="mt-10 columns-1 gap-4 sm:columns-2 lg:columns-3">
+
+        {/* Mobile: one swipeable row, snap-scroll — reviews stay readable with
+            no vertical scrolling. Desktop keeps the full wall below. */}
+        <Reveal className="sm:hidden">
+          <div className="mt-8 -mx-5 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-3 px-5 pb-1">
+            {reviews.map((r) => <ReviewCard key={r.name} r={r} swipe />)}
+          </div>
+          <p className="mt-2 flex items-center gap-1 text-xs text-muted"><ChevronRight className="h-3.5 w-3.5" /> {t("reviews.swipe")}</p>
+        </Reveal>
+
+        {/* Tablet + desktop: full masonry wall. */}
+        <div className="mt-10 hidden columns-2 lg:columns-3 gap-4 sm:block">
           {reviews.map((r, i) => (
-            <Reveal key={r.name} delay={(i % 3) * 80} className="mb-4 inline-block w-full break-inside-avoid align-top">
-              <figure className="lift rounded-2xl border border-line bg-surface p-5">
-                <Quote className="h-5 w-5 text-accent" />
-                <blockquote className="mt-2 text-[14px] leading-relaxed text-ink/90">{r.text}</blockquote>
-                <figcaption className="mt-4 flex items-center gap-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-tint text-sm font-semibold text-brand">{r.name[0].toUpperCase()}</span>
-                  <span className="min-w-0"><span className="block truncate text-sm font-semibold">{r.name}</span><span className="block text-xs text-muted">{r.when}</span></span>
-                  <Stars n={5} className="ml-auto" small />
-                </figcaption>
-              </figure>
+            <Reveal key={r.name} delay={(i % 3) * 80} className="mb-4 inline-block w-full align-top">
+              <ReviewCard r={r} />
             </Reveal>
           ))}
         </div>
