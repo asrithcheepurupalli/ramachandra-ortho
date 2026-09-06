@@ -315,6 +315,11 @@ function QueueRow({ a }: { a: Appt }) {
         <div className="flex items-center gap-2">
           <span className="truncate font-medium">{a.name}</span>
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${statusMeta[a.status].cls}`}>{statusMeta[a.status].label}</span>
+          {a.refundedAt != null && (
+            <span title={`Refund ${a.refundId ? "(" + a.refundId + ")" : ""}`} className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+              Refunded
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted">
           <span>{fmt(a.time)}</span> · <span className="inline-flex items-center gap-1"><S.icon className="h-3 w-3" />{S.label}</span> · <span className="truncate">{a.reason}</span>

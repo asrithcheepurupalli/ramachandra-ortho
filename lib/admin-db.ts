@@ -30,6 +30,9 @@ function rowToAppt(r: any): Appt {
     fee: r.fee,
     paid: r.paid,
     paidVia: r.paid_via ?? null,
+    paymentId: r.razorpay_payment_id ?? null,
+    refundId: r.razorpay_refund_id ?? null,
+    refundedAt: r.refunded_at ? new Date(r.refunded_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
   };
 }

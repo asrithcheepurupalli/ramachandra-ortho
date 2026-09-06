@@ -41,6 +41,16 @@ export async function dbApptsForDate(date: string): Promise<Appt[]> {
 // remembered booking id, since a phone can have more than one appointment
 // on file (e.g. family members sharing a number) and a stale id would
 // cancel the wrong one.
+export async function dbGetAppt(id: string): Promise<Appt | null> {
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? rowToAppt(data) : null;
+}
+
 export async function dbActiveAppointmentsByPhone(phone: string): Promise<Appt[]> {
   const { data, error } = await supabaseAdmin()
     .from("appointments")
@@ -67,6 +77,9 @@ function rowToAppt(r: any): Appt {
     fee: r.fee,
     paid: r.paid,
     paidVia: r.paid_via ?? null,
+    paymentId: r.razorpay_payment_id ?? null,
+    refundId: r.razorpay_refund_id ?? null,
+    refundedAt: r.refunded_at ? new Date(r.refunded_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
   };
 }
@@ -233,16 +246,32 @@ export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promi
 // Called by the Razorpay webhook on payment_link.paid. Guards is("paid", false)
 // so a duplicate webhook delivery (Razorpay retries on anything but a 2xx) is
 // a harmless no-op rather than a second WhatsApp confirmation.
-export async function dbMarkPaidByPaymentLink(paymentLinkId: string): Promise<Appt | null> {
+export async function dbMarkPaidByPaymentLink(paymentLinkId: string, paymentId?: string): Promise<Appt | null> {
   const { data, error } = await supabaseAdmin()
     .from("appointments")
-    .update({ paid: true, paid_via: "razorpay" })
+    .update({ paid: true, paid_via: "razorpay", razorpay_payment_id: paymentId ?? null })
     .eq("razorpay_payment_link_id", paymentLinkId)
     .eq("paid", false)
     .select("*")
     .maybeSingle();
   if (error) throw error;
   return data ? rowToAppt(data) : null;
+}
+
+// Records that a paid appointment was refunded (a Razorpay refund id + the
+// moment). The appointment keeps paid=true and paid_via='razorpay' — money
+// really did come in then go back out; refunded_at is what marks the return,
+// so revenue rollups can subtract refunded rows. No-op-safe: only flips rows
+// that are actually paid via Razorpay and not already refunded.
+export async function dbMarkRefunded(id: string, refundId: string): Promise<void> {
+  const { error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ razorpay_refund_id: refundId, refunded_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("paid", true)
+    .eq("paid_via", "razorpay")
+    .is("refunded_at", null);
+  if (error) throw error;
 }
 
 export async function dbLoadSchedule(): Promise<SchedState> {

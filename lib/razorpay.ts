@@ -71,6 +71,36 @@ export async function createPaymentLink(
   }
 }
 
+// Refunds a payment in full. Requires the payment id (not the payment-link
+// id) — captured from the payment_link.paid webhook and stored on the
+// appointment. Returns the refund id on success, null on any failure. Same
+// posture as createPaymentLink: a refund failure must never throw its way
+// into a page render or a webhook ack.
+export async function refundPayment(paymentId: string): Promise<{ id: string; status: string } | null> {
+  const auth = authHeader();
+  if (!auth) {
+    console.error("Razorpay refund skipped: RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET not set");
+    return null;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/payments/${paymentId}/refund`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: auth },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      console.error("Razorpay refund failed", res.status, await res.text().catch(() => ""));
+      return null;
+    }
+    const data = await res.json();
+    if (!data?.id || !data?.status) return null;
+    return { id: data.id as string, status: data.status as string };
+  } catch (err) {
+    console.error("Razorpay refund error", err);
+    return null;
+  }
+}
+
 // Razorpay signs webhook deliveries with X-Razorpay-Signature: a bare hex
 // HMAC-SHA256 digest of the raw body using the webhook secret (set when the
 // webhook URL is added in Dashboard -> Settings -> Webhooks). Same

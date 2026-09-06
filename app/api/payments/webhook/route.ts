@@ -21,9 +21,10 @@ export async function POST(req: NextRequest) {
     if (payload?.event !== "payment_link.paid") return new NextResponse("OK", { status: 200 });
 
     const paymentLinkId: string | undefined = payload?.payload?.payment_link?.entity?.id;
+    const paymentId: string | undefined = payload?.payload?.payment?.entity?.id;
     if (!paymentLinkId) return new NextResponse("OK", { status: 200 });
 
-    const appt = await dbMarkPaidByPaymentLink(paymentLinkId);
+    const appt = await dbMarkPaidByPaymentLink(paymentLinkId, paymentId);
     if (appt) {
       try { await sendPaymentReceived(appt); } catch (err) { console.error("payments/webhook: notify failed", err); }
     }

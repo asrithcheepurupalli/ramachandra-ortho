@@ -42,6 +42,15 @@ create table if not exists public.appointments (
 -- from `create table if not exists` above, hence the idempotent add here.
 alter table public.appointments add column if not exists razorpay_payment_link_id text;
 alter table public.appointments add column if not exists razorpay_payment_link_url text;
+-- Payment id of the actual Razorpay payment (from the payment_link.paid
+-- webhook's payload.payment.entity.id) — needed to issue a refund on cancel.
+-- NULL until a patient actually pays.
+alter table public.appointments add column if not exists razorpay_payment_id text;
+-- Refund audit trail: set to the Razorpay refund id when a paid appointment is
+-- cancelled and the money is returned. Appointment stays paid:true (it WAS
+-- paid); refunded_at is what records the return, so revenue views can exclude.
+alter table public.appointments add column if not exists razorpay_refund_id text;
+alter table public.appointments add column if not exists refunded_at timestamptz;
 -- Payment channel audit trail: null = unpaid, 'cash' = staff/mark-done,
 -- 'razorpay' = webhook. Needed so we can tell which payments went through
 -- made.'s Razorpay account (temp bridge while the clinic's PAN is pending).
