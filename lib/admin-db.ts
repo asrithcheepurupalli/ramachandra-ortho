@@ -15,6 +15,7 @@ import {
   type WeeklyHours, type Exception, type Override, type SchedState,
 } from "@/lib/schedule";
 import { useAppts, type Appt, type Source } from "@/lib/store";
+import { normalizePhone } from "@/lib/phone";
 
 function rowToAppt(r: any): Appt {
   return {
@@ -74,7 +75,7 @@ export async function dbAddWalkIn(input: { name: string; phone: string; reason: 
   const db = supabaseBrowser();
   const today = ymd(new Date());
   const name = input.name.trim();
-  const phone = input.phone.trim();
+  const phone = normalizePhone(input.phone);
 
   let patientId: string | null = null;
   if (phone) {

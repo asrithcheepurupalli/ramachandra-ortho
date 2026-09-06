@@ -14,6 +14,7 @@ import type { Appt, ApptStatus, Source } from "@/lib/store";
 import type { ServerBotState } from "@/lib/bot";
 import { SlotTakenError, InvalidSlotError } from "@/lib/errors";
 import { createPaymentLink } from "@/lib/razorpay";
+import { normalizePhone, phoneMatchVariants } from "@/lib/phone";
 
 // Times already taken on a date (so the slot picker can hide them).
 export async function dbTakenSlots(date: string): Promise<string[]> {
@@ -51,11 +52,15 @@ export async function dbGetAppt(id: string): Promise<Appt | null> {
   return data ? rowToAppt(data) : null;
 }
 
+// Matches every stored shape of the same number (see phoneMatchVariants): a
+// WhatsApp booking can carry the sender's 91-country-code id verbatim, while
+// the patient types only the local 10 digits on the website, so a naive
+// `.eq("phone", ...)` against either form silently misses the other.
 export async function dbActiveAppointmentsByPhone(phone: string): Promise<Appt[]> {
   const { data, error } = await supabaseAdmin()
     .from("appointments")
     .select("*")
-    .eq("phone", phone)
+    .in("phone", phoneMatchVariants(phone))
     .in("status", ["reserved", "confirmed", "waiting", "consulting"])
     .order("appt_date", { ascending: true })
     .order("appt_time", { ascending: true });
@@ -90,7 +95,10 @@ export async function dbAddBooking(input: {
 }): Promise<Appt> {
   const db = supabaseAdmin();
   const name = input.name.trim();
-  const phone = input.phone.trim();
+  // Canonical 10-digit form (strips +91/91/0 country prefixes): the patient
+  // lookup matches on the same form, so a WhatsApp booking confirmed with the
+  // sender's 91-prefixed id has to store the same number the patient types.
+  const phone = normalizePhone(input.phone);
 
   // /api/book pre-checks both of these too, but that's a check-then-act race
   // (schedule can change, or the clock can tick past midnight, between the

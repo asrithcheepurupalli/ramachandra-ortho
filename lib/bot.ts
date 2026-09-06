@@ -175,13 +175,14 @@ type PhrasePack = {
   payNotFound: string;
   payDone: (url: string) => string;
   payFail: string;
+  payPrompt: string;
   flowCancelled: string;
   hours: string;
   location: string;
   about: string;
   fallback: string;
   thanks: string;
-  chips: { avail: string; book: string; timings: string; location: string; about: string; done: string; useNumber: string };
+  chips: { avail: string; book: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string };
 };
 const P: Record<Lang, PhrasePack> = {
   en: {
@@ -214,13 +215,14 @@ const P: Record<Lang, PhrasePack> = {
     payNotFound: "I couldn't match that to one of your appointments. Please tap an option above, or reply with the exact token number or name.",
     payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for a while, tap it whenever you're ready.`,
     payFail: "Something went wrong starting the payment. Please try again, or pay at the clinic.",
+    payPrompt: "You can also pay the consultation fee online now and skip the counter. Tap *Pay now* whenever you're ready.",
     flowCancelled: "No problem, stopped that. Tap *Book appointment* whenever you're ready. 🙏",
     hours: `🕒 Consulting hours:\nMon–Sat 10 AM–12:30 PM & 6–7:45 PM. Sunday closed.\nConsultation is ${cur}${fee}.\n🚑 Medical emergency? Call ${clinic.contact.emergency}.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ Directions: ${clinic.location.mapsUrl}`,
     about: `👨‍⚕️ *${dr}*\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nRated ${clinic.rating.score}★ from ${clinic.rating.count}+ ${clinic.rating.source} reviews.`,
     fallback: "I can tell you if the doctor is in, tell you about the doctor, book you an appointment, or share timings and location. What would you like?",
     thanks: "You're welcome 🙏 Get well soon!",
-    chips: { avail: "Is the doctor in today?", book: "Book appointment", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number" },
+    chips: { avail: "Is the doctor in today?", book: "Book appointment", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now" },
   },
   te: {
     greet: `నమస్కారం 🙏 నేను ${clinic.shortName} అసిస్టెంట్‌ని. మీకు ఎలా సహాయపడగలను?`,
@@ -252,13 +254,14 @@ const P: Record<Lang, PhrasePack> = {
     payNotFound: "అది మీ అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
     payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది కొంతకాలం చెల్లుతుంది, మీరు సిద్ధమైనప్పుడు నొక్కండి.`,
     payFail: "చెల్లింపు ప్రారంభించడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌లో చెల్లించండి.",
+    payPrompt: "కన్సల్టేషన్ ఫీజును ఇప్పుడే ఆన్‌లైన్‌లో చెల్లించి, కౌంటర్ వద్ద వేచి ఉండనవసరం లేదు. మీరు సిద్ధమైనప్పుడు *ఇప్పుడే చెల్లించండి* నొక్కండి.",
     flowCancelled: "పర్వాలేదు, ఆపేశాను. మీరు సిద్ధమైనప్పుడు *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
     hours: `🕒 కన్సల్టింగ్ సమయాలు:\nసోమ–శని ఉదయం 10–12:30 & సాయంత్రం 6–7:45 PM. ఆదివారం సెలవు.\nకన్సల్టేషన్ ${cur}${fee}.\n🚑 అత్యవసర పరిస్థితా? ${clinic.contact.emergency}కు కాల్ చేయండి.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ దిశలు: ${clinic.location.mapsUrl}`,
     about: `👨‍⚕️ *${dr}* గురించి:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} రేటింగ్: ${clinic.rating.score}★ (${clinic.rating.count}+ రివ్యూలు).`,
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
     thanks: "సంతోషం 🙏 త్వరగా కోలుకోండి!",
-    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి" },
+    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి" },
   },
   hi: {
     greet: `नमस्ते 🙏 मैं ${clinic.shortName} का असिस्टेंट हूँ। मैं आपकी कैसे मदद करूँ?`,
@@ -290,13 +293,14 @@ const P: Record<Lang, PhrasePack> = {
     payNotFound: "यह आपके किसी अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
     payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह कुछ समय के लिए मान्य है, जब तैयार हों तब दबाएँ।`,
     payFail: "भुगतान शुरू करने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक में भुगतान करें।",
+    payPrompt: "आप परामर्श शुल्क अभी ऑनलाइन भी चुका सकते हैं और काउंटर पर लाइन से बच सकते हैं। जब तैयार हों तब *अभी भुगतान करें* दबाएँ।",
     flowCancelled: "कोई बात नहीं, रोक दिया। जब तैयार हों तब *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
     hours: `🕒 परामर्श समय:\nसोम–शनि सुबह 10–12:30 और शाम 6–7:45 बजे। रविवार बंद।\nपरामर्श ${cur}${fee}।\n🚑 आपातकाल में कॉल करें: ${clinic.contact.emergency}।`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}।\n🗺️ दिशा-निर्देश: ${clinic.location.mapsUrl}`,
     about: `👨‍⚕️ *${dr}* के बारे में:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} रेटिंग: ${clinic.rating.score}★ (${clinic.rating.count}+ समीक्षाएं).`,
     fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, डॉक्टर के बारे में बता सकता हूँ, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
     thanks: "आपका स्वागत है 🙏 जल्दी स्वस्थ हों!",
-    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें" },
+    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें" },
   },
 };
 
@@ -644,7 +648,10 @@ export async function botReplyServer(
     }
     try {
       const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, reason: "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
-      return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.about, c.location, c.done], state: { stage: "idle" } };
+      // The booking is done — offer to settle the fee right here, so the
+      // patient doesn't have to know a "pay" keyword exists or find the My
+      // Appointment page. The chip routes into the shared pay intent below.
+      return { reply: [t.confirm(appt.token, state.slot.label), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.location, c.done], state: { stage: "idle" } };
     } catch (err) {
       if (err instanceof SlotTakenError) {
         const fresh = await timesForDateServer(state.slot.date, backend, sched);

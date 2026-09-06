@@ -11,6 +11,7 @@ import {
   type WeeklyHours, type Exception, type Override,
 } from "@/lib/schedule";
 import { SlotTakenError, InvalidSlotError } from "@/lib/errors";
+import { normalizePhone, phoneMatchVariants } from "@/lib/phone";
 
 export type ApptStatus =
   | "reserved" | "confirmed" | "waiting" | "consulting" | "done" | "cancelled";
@@ -124,7 +125,7 @@ export function addWalkIn(input: { name: string; phone: string; reason: string; 
   const todays = all.filter((a) => a.date === today);
   const token = (todays.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
   const appt: Appt = {
-    id: rid(), token, name: input.name.trim(), phone: input.phone.trim(),
+    id: rid(), token, name: input.name.trim(), phone: normalizePhone(input.phone),
     reason: input.reason.trim() || "Consultation", date: today,
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
     source: input.source ?? "walkin", fee: clinic.consultationFee, paid: false, paidVia: null,
@@ -140,7 +141,7 @@ export function addBooking(input: { name: string; phone: string; reason: string;
   const dayAppts = all.filter((a) => a.date === input.date);
   const token = (dayAppts.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
   const appt: Appt = {
-    id: rid(), token, name: input.name.trim(), phone: input.phone.trim(),
+    id: rid(), token, name: input.name.trim(), phone: normalizePhone(input.phone),
     reason: input.reason.trim() || "Consultation", date: input.date, time: input.time,
     status: "reserved", source: input.source ?? "website", fee: clinic.consultationFee,
     paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, createdAt: Date.now(),
@@ -158,8 +159,9 @@ export function setStatus(id: string, status: ApptStatus) {
 // A patient's active (not cancelled/done) appointments, nearest first — mirrors
 // dbActiveAppointmentsByPhone for the mock/localStorage path.
 export function activeAppointmentsByPhone(phone: string): Appt[] {
+  const variants = phoneMatchVariants(phone);
   return read()
-    .filter((a) => a.phone === phone && activeStatuses.includes(a.status))
+    .filter((a) => variants.includes(a.phone) && activeStatuses.includes(a.status))
     .sort((a, b) => (a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date)));
 }
 export function cancelBooking(id: string) {
