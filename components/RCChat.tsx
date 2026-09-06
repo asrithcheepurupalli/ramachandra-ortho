@@ -21,19 +21,24 @@ function fmt(s: string) {
 export function RCChat() {
   const [open, setOpen] = useState(false);
   const [lang, setLang] = useState<Lang>("en");
-  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
-  const [chips, setChips] = useState<string[]>([]);
-  const [state, setState] = useState<BotState>({ stage: "idle" });
+  const [prevLang, setPrevLang] = useState<Lang>("en");
+  const [msgs, setMsgs] = useState<ChatMsg[]>(() => [mkMsg("bot", tr("en", "rc.greet"))]);
+  const [chips, setChips] = useState<string[]>(() => botStart("en").chips);
+  const [state, setState] = useState<BotState>(() => botStart("en").state);
   const [typing, setTyping] = useState(false);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // (re)seed the conversation with RC's greeting when opened / language changes
-  useEffect(() => {
+  // Re-seed the conversation with RC's greeting when the language changes.
+  // Adjusting state during render (React's own pattern for "reset state when
+  // a prop changes") instead of an effect, since this must also cover the
+  // very first render — the useState initializers above already seed "en".
+  if (lang !== prevLang) {
+    setPrevLang(lang);
     const o = botStart(lang);
     setMsgs([mkMsg("bot", tr(lang, "rc.greet"))]);
     setChips(o.chips); setState(o.state); setTyping(false);
-  }, [lang]);
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });

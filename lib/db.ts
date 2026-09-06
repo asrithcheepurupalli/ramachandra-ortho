@@ -4,7 +4,7 @@
 // Used by /api routes and the WhatsApp webhook, which have no browser tab and
 // so can't use lib/store.ts's localStorage-backed functions.
 // ─────────────────────────────────────────────────────────────────────────────
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { clinic, type Lang } from "@/clinic.config";
 import {
   defaultWeeklyHours, slotsFor, ymd, nowIST, isPastLeadTime,
@@ -325,18 +325,6 @@ export async function dbLoadSchedule(): Promise<SchedState> {
     exceptions: (data.exceptions as Record<string, Exception>) ?? {},
     override: (data.override as Override | null) ?? null,
   };
-}
-
-export async function dbSaveSchedule(
-  weekly: WeeklyHours,
-  exceptions: Record<string, Exception>,
-  override: Override | null = null
-): Promise<void> {
-  const { error } = await supabaseAdmin()
-    .from("settings")
-    .update({ weekly, exceptions, override, updated_at: new Date().toISOString() })
-    .eq("id", 1);
-  if (error) throw error;
 }
 
 // A session mid-flow (awaiting a name/phone) that's gone quiet this long is

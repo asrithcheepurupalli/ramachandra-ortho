@@ -485,7 +485,7 @@ function Broadcast({ appts }: { appts: Appt[] }) {
   return (
     <div className="rounded-2xl border border-line bg-paper p-5">
       <h2 className="flex items-center gap-2 font-semibold"><Megaphone className="h-4 w-4 text-accent" /> Broadcast</h2>
-      <p className="mt-1 text-xs text-muted">Pick who to reach, tap a preset or write your own, then send. Free text is delivered as the clinic notice template. The Reminder preset instead uses the structured appointment reminder template (each patient's own time + a View Appointment button) once it's approved, and falls back to this text until then.</p>
+      <p className="mt-1 text-xs text-muted">Pick who to reach, tap a preset or write your own, then send. Free text is delivered as the clinic notice template. The Reminder preset instead uses the structured appointment reminder template (each patient&apos;s own time + a View Appointment button) once it&apos;s approved, and falls back to this text until then.</p>
 
       <div className="mt-3 flex rounded-full border border-line bg-white p-0.5">
         {([["today", "Today"], ["next", "Next session"]] as const).map(([k, label]) => (

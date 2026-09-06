@@ -26,7 +26,14 @@ function MyAppointmentInner() {
   const [lang, setLang] = useState<Lang>("en");
   const t: Tr = (k, v) => tr(lang, k, v);
 
-  const [phone, setPhone] = useState("");
+  // Templates sometimes bake literal example digits into the dynamic URL
+  // ahead of the placeholder (landing a link like ?phone=12345678908317612636).
+  // Normalize to the clean 10 local digits up front so the box never shows
+  // the junk and the lookup below matches.
+  const [phone, setPhone] = useState(() => {
+    const pre = params?.get("phone");
+    return pre ? normalizePhone(pre) : "";
+  });
   const [appts, setAppts] = useState<Appt[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -66,13 +73,11 @@ function MyAppointmentInner() {
     const pre = params?.get("phone");
     const paidId = params?.get("paid");
     if (pre) {
-      // Templates sometimes bake literal example digits into the dynamic URL
-      // ahead of the placeholder (landing a link like ?phone=12345678908317612636).
-      // Normalize to the clean 10 local digits before showing or searching, so
-      // the box never exposes the junk and the lookup matches. Also paddles the
-      // paying-return path where the same param carries an id.
       const clean = normalizePhone(pre);
-      setPhone(clean);
+      // search() is the same reusable lookup the search button/Enter key call;
+      // its internal setLoading/setAppts reset is the standard "fetch on mount"
+      // pattern, not a cascading-render bug.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       search(clean);
       // Razorpay's callback_url redirect can land a second or two before the
       // webhook that actually flips `paid` finishes — one extra silent
@@ -86,10 +91,6 @@ function MyAppointmentInner() {
   const onCancelled = (id: string) => setAppts((prev) => (prev ? prev.filter((a) => a.id !== id) : prev));
   const updateAppt = (updated: Appt) =>
     setAppts((prev) => (prev ? prev.map((a) => (a.id === updated.id ? updated : a)) : prev));
-
-  // A fresh lookup resets the session's verification — a new phone, a new (or
-  // forgotten) proof. Runs it as a plain state reset, no API involved.
-  const resetVerified = () => setVerified(false);
 
   return (
     <main className="mx-auto w-full max-w-lg px-5 pb-16 pt-6">
@@ -288,7 +289,6 @@ function ApptCard({
           appt={appt}
           t={t}
           phone={phone}
-          verified={verified}
           onVerified={onVerified}
           onDone={(updated) => { onUpdated(updated); setMode("idle"); }}
           onCancel={() => setMode("idle")}
@@ -412,9 +412,9 @@ function VerifyGate({ t, phone, onVerified, onClose }: {
 }
 
 function RescheduleFlow({
-  appt, t, phone, verified, onVerified, onDone, onCancel,
+  appt, t, phone, onVerified, onDone, onCancel,
 }: {
-  appt: Appt; t: Tr; phone: string; verified: boolean; onVerified: () => void;
+  appt: Appt; t: Tr; phone: string; onVerified: () => void;
   onDone: (a: Appt) => void; onCancel: () => void;
 }) {
   const [days, setDays] = useState<DayOpt[]>([]);

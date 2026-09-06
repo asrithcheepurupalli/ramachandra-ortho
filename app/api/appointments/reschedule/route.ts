@@ -39,7 +39,6 @@ export async function POST(req: NextRequest) {
     const owns = owned.some((a) => a.id === id);
     const otpOk = await otpVerified(phone.trim());
     const gateOk = !otpEnabled() || otpOk;
-    console.log("reschedule diag", JSON.stringify({ owns, otpEnabled: otpEnabled(), otpVerified: otpOk, gateOk }));
     if (!owns) return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
     if (!gateOk) {
       return NextResponse.json({ error: "Verify your number to continue", otpRequired: true }, { status: 401 });

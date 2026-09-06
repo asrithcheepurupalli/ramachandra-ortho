@@ -24,7 +24,8 @@
 // to spam the template sender.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createHash, randomInt } from "node:crypto";
-import { hasSupabase, supabaseAdmin } from "@/lib/supabase";
+import { hasSupabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // Matches the auth template's "Expires in 10 minutes" so the server never
 // rejects a code the patient's WhatsApp message still shows as valid. Same
