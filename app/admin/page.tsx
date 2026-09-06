@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, CalendarCog, Users, IndianRupee, ArrowLeft, Plus,
   Megaphone, PhoneCall, Check, X, Play, Clock, CircleDot, Globe, MessageCircle,
-  Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff, LogOut,
+  Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff, LogOut, Send,
 } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import {
@@ -16,7 +16,7 @@ import {
 } from "@/lib/store";
 import {
   statusAt, fmt, weekdayName, defaultWeeklyHours, applySchedule, setOverride,
-  weeklyHours, exceptions, overrideRef, ymd, type WeeklyHours, type Exception,
+  weeklyHours, exceptions, overrideRef, ymd, windowsFor, type WeeklyHours, type Exception,
 } from "@/lib/schedule";
 import { hasSupabase, supabaseBrowser } from "@/lib/supabase";
 import {
@@ -301,7 +301,7 @@ function Today({ appts }: { appts: Appt[] }) {
         {/* side */}
         <div className="space-y-6">
           <WalkIn />
-          <Broadcast count={inQueue.length} />
+          <Broadcast appts={appts} />
         </div>
       </div>
     </div>
@@ -394,54 +394,148 @@ function WalkIn() {
   );
 }
 
-function Broadcast({ count }: { count: number }) {
-  const [mins, setMins] = useState(30);
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ msg: string; note: string } | null>(null);
+// The states a queued patient can still be messaged about. Consulting are in
+// the room with the doctor; done/cancelled are gone.
+const broadcastStatuses: ApptStatus[] = ["reserved", "confirmed", "waiting"];
 
-  const send = async (msg: string) => {
+function nextSessionAfter(from: string): string {
+  const d = new Date(from + "T00:00:00");
+  for (let i = 0; i < 30; i++) {
+    d.setDate(d.getDate() + 1);
+    if (windowsFor(d).length > 0) return ymd(d);
+  }
+  return ymd(d);
+}
+
+function Broadcast({ appts }: { appts: Appt[] }) {
+  const [scope, setScope] = useState<"today" | "next">("today");
+  const [mins, setMins] = useState(30);
+  const [msg, setMsg] = useState("");
+  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const [selDate, setSelDate] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ note: string; recipients?: { name: string; ok: boolean }[] } | null>(null);
+
+  const today = ymd(new Date());
+  const next = nextSessionAfter(today);
+  const scopeDate = scope === "today" ? today : next;
+
+  const candidates = appts.filter((a) => a.date === scopeDate && broadcastStatuses.includes(a.status) && a.phone);
+  // Default-check every candidate when the scope's date changes. Deliberately
+  // not keyed on the candidates themselves: the 45s realtime poll reloads
+  // appts constantly, and it must never wipe a manual uncheck.
+  if (selDate !== scopeDate) {
+    setSelDate(scopeDate);
+    setSel(Object.fromEntries(candidates.map((a) => [a.id, true])));
+  }
+  const selCount = candidates.filter((a) => sel[a.id]).length;
+  const toggle = (id: string) => setSel((s) => ({ ...s, [id]: !s[id] }));
+
+  const presets: { key: string; label: string; scope: "today" | "next"; make: () => string }[] = [
+    { key: "late", label: "Running late", scope: "today", make: () => `Dr. Ramachandra is running about ${mins} minutes late today. Sorry for the wait.` },
+    { key: "remind", label: "Reminder for the next session", scope: "next", make: () => `Reminder: you have an appointment at Ramachandra Ortho Care on ${dateLabel(next)}. Kindly be on time. To reschedule or cancel, just reply on this chat.` },
+    { key: "closed", label: "Clinic closed today", scope: "today", make: () => "The clinic is closed today. We are sorry for the inconvenience and will help you rebook." },
+  ];
+  const applyPreset = (p: { scope: "today" | "next"; make: () => string }) => {
+    setScope(p.scope);
+    setMsg(p.make());
+  };
+
+  const send = async () => {
+    if (!selCount || !msg.trim()) return;
     setSending(true);
     try {
       if (hasSupabase()) {
         const res = await fetch("/api/admin/broadcast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: msg }),
+          body: JSON.stringify({ date: scopeDate, ids: candidates.filter((a) => sel[a.id]).map((a) => a.id), message: msg.trim() }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || "send failed");
-        const note = data.attempted === 0
-          ? "No patients with a phone number in today's queue."
-          : data.failed === data.attempted
+        const note = data.failed === data.attempted
           ? "None delivered. Check the WhatsApp template setup in the server logs."
-          : `Attempted ${data.attempted}${data.failed ? `, ${data.failed} did not deliver` : ", all queued for delivery"}.`;
-        setResult({ msg, note });
+          : data.failed
+          ? `Delivered ${data.attempted - data.failed} of ${data.attempted}. ${data.failed} did not deliver.`
+          : `Delivered to ${data.attempted} patient${data.attempted === 1 ? "" : "s"}.`;
+        setResult({ note, recipients: data.recipients });
       } else {
-        setResult({ msg, note: `Simulated — sent to ${count} patients (demo mode).` });
+        const rcpts = candidates.filter((a) => sel[a.id]).map((a) => ({ name: a.name, ok: true }));
+        setResult({ note: `Simulated, sent to ${rcpts.length} patient${rcpts.length === 1 ? "" : "s"} (demo mode, no WhatsApp).`, recipients: rcpts });
       }
     } catch (err) {
       console.error("admin: broadcast failed", err);
       const reason = err instanceof Error && err.message ? err.message : "unknown error";
-      setResult({ msg, note: `Could not send (${reason}). Check the server logs.` });
+      setResult({ note: `Could not send. ${reason}` });
     } finally {
       setSending(false);
-      setTimeout(() => setResult(null), 6000);
+      setTimeout(() => setResult(null), 8000);
     }
   };
 
   return (
     <div className="rounded-2xl border border-line bg-paper p-5">
       <h2 className="flex items-center gap-2 font-semibold"><Megaphone className="h-4 w-4 text-accent" /> Broadcast</h2>
-      <p className="mt-1 text-xs text-muted">Notify today&apos;s {count} waiting patients on WhatsApp in one tap.</p>
-      <div className="mt-3 space-y-2">
-        <div className="flex items-center gap-2">
-          <button disabled={sending} onClick={() => send(`Dr. Ramachandra is running about ${mins} minutes late today. Sorry for the wait.`)} className="flex-1 rounded-lg border border-line py-2 text-sm font-medium hover:border-accent/50 disabled:opacity-50">Running late</button>
+      <p className="mt-1 text-xs text-muted">Pick who to reach, tap a preset or write your own, then send. Free text is delivered as the clinic notice template, so it reaches patients who never opened a chat with the clinic.</p>
+
+      <div className="mt-3 flex rounded-full border border-line bg-white p-0.5">
+        {([["today", "Today"], ["next", "Next session"]] as const).map(([k, label]) => (
+          <button key={k} onClick={() => setScope(k)} className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium ${scope === k ? "bg-brand text-white" : "text-muted hover:text-ink"}`}>{label}</button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-xs text-muted"><b className="text-ink">{dateLabel(scopeDate)}</b>, {candidates.length} patient{candidates.length === 1 ? "" : "s"} with a phone number on file.</p>
+
+      {candidates.length > 0 ? (
+        <ul className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-xl border border-line bg-white p-2">
+          {candidates.map((a) => (
+            <li key={a.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-line/40">
+              <input type="checkbox" checked={!!sel[a.id]} onChange={() => toggle(a.id)} className="h-4 w-4 shrink-0 accent-[var(--color-brand)]" />
+              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-md font-mono text-[11px] font-semibold ${a.status === "waiting" ? "bg-accent-tint text-accent" : "bg-brand-tint text-brand"}`}>{a.token}</span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{a.name}</div>
+                <div className="truncate text-[11px] text-muted">{fmt(a.time)}, {sourceMeta[a.source].label} · +91 …{a.phone.slice(-4)}</div>
+              </div>
+              <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${statusMeta[a.status].cls}`}>{statusMeta[a.status].label}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="mt-2 rounded-xl border border-dashed border-line bg-line/20 px-4 py-5 text-center text-xs text-muted">
+          No one in {scope === "today" ? "today's" : "the next session's"} queue has a phone number to message.
+          <button onClick={() => setScope(scope === "today" ? "next" : "today")} className="mt-2 block w-full rounded-lg border border-line bg-white py-1.5 font-medium text-brand hover:bg-brand-tint">{scope === "today" ? "Message the next session instead" : "Message today's queue instead"}</button>
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-1 gap-1.5">
+        <div className="flex items-center gap-1.5">
+          <button disabled={sending} onClick={() => applyPreset(presets[0])} className="flex-1 rounded-lg border border-line py-2 text-sm font-medium hover:border-accent/50 disabled:opacity-50">Running late</button>
           <input type="number" value={mins} onChange={(e) => setMins(+e.target.value)} className="w-16 rounded-lg border border-line bg-white px-2 py-2 text-sm" />
           <span className="text-xs text-muted">min</span>
         </div>
-        <button disabled={sending} onClick={() => send("The clinic is closed today. We are sorry for the inconvenience and will help you rebook.")} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-out/30 py-2 text-sm font-medium text-out hover:bg-out/5 disabled:opacity-50"><TriangleAlert className="h-4 w-4" /> Clinic closed today</button>
+        <button disabled={sending} onClick={() => applyPreset(presets[1])} className="rounded-lg border border-line py-2 text-sm font-medium hover:border-accent/50 disabled:opacity-50">{presets[1].label}</button>
+        <button disabled={sending} onClick={() => applyPreset(presets[2])} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-out/30 py-2 text-sm font-medium text-out hover:bg-out/5 disabled:opacity-50"><TriangleAlert className="h-4 w-4" /> {presets[2].label}</button>
       </div>
-      {result && <div className="mt-3 rounded-lg bg-brand-tint px-3 py-2 text-xs text-brand"><b>“{result.msg}”</b><br />{result.note}</div>}
+
+      <textarea value={msg} onChange={(e) => setMsg(e.target.value.slice(0, 400))} rows={3} placeholder="Type a message, or tap a preset above to fill this in…" className="mt-3 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted">{msg.length}/400</span>
+        <button onClick={send} disabled={sending || selCount === 0 || !msg.trim()} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-40">
+          <Send className="h-3.5 w-3.5" /> {sending ? "Sending…" : `Send to ${selCount}`}
+        </button>
+      </div>
+
+      {result && (
+        <div className="mt-3 rounded-xl bg-brand-tint px-3 py-2.5 text-xs text-brand">
+          <div>{result.note}</div>
+          {result.recipients && result.recipients.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {result.recipients.map((r, i) => (
+                <span key={i} className={`inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-medium ${r.ok ? "text-in" : "text-out"}`}>{r.ok ? "✓" : "✕"} {r.name}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
