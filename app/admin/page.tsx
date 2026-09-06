@@ -415,6 +415,10 @@ function Broadcast({ appts }: { appts: Appt[] }) {
   const [selDate, setSelDate] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ note: string; recipients?: { name: string; ok: boolean }[] } | null>(null);
+  // Which send path the next broadcast uses: "reminder" (structured template,
+  // set by the Reminder preset) or "notice" (free text). Editing the message
+  // box falls back to "notice" so the desk always knows what it's sending.
+  const [kind, setKind] = useState<"notice" | "reminder">("notice");
 
   const today = ymd(new Date());
   const next = nextSessionAfter(today);
@@ -431,13 +435,14 @@ function Broadcast({ appts }: { appts: Appt[] }) {
   const selCount = candidates.filter((a) => sel[a.id]).length;
   const toggle = (id: string) => setSel((s) => ({ ...s, [id]: !s[id] }));
 
-  const presets: { key: string; label: string; scope: "today" | "next"; make: () => string }[] = [
-    { key: "late", label: "Running late", scope: "today", make: () => `Dr. Ramachandra is running about ${mins} minutes late today. Sorry for the wait.` },
-    { key: "remind", label: "Reminder for the next session", scope: "next", make: () => `Reminder: you have an appointment at Ramachandra Ortho Care on ${dateLabel(next)}. Kindly be on time. To reschedule or cancel, just reply on this chat.` },
-    { key: "closed", label: "Clinic closed today", scope: "today", make: () => "The clinic is closed today. We are sorry for the inconvenience and will help you rebook." },
+  const presets: { key: string; label: string; scope: "today" | "next"; kind: "notice" | "reminder"; make: () => string }[] = [
+    { key: "late", label: "Running late", scope: "today", kind: "notice", make: () => `Dr. Ramachandra is running about ${mins} minutes late today. Sorry for the wait.` },
+    { key: "remind", label: "Reminder for the next session", scope: "next", kind: "reminder", make: () => `Reminder: you have an appointment at Ramachandra Ortho Care on ${dateLabel(next)}. Kindly be on time. To reschedule or cancel, just reply on this chat.` },
+    { key: "closed", label: "Clinic closed today", scope: "today", kind: "notice", make: () => "The clinic is closed today. We are sorry for the inconvenience and will help you rebook." },
   ];
-  const applyPreset = (p: { scope: "today" | "next"; make: () => string }) => {
+  const applyPreset = (p: { scope: "today" | "next"; kind: "notice" | "reminder"; make: () => string }) => {
     setScope(p.scope);
+    setKind(p.kind);
     setMsg(p.make());
   };
 
@@ -449,14 +454,18 @@ function Broadcast({ appts }: { appts: Appt[] }) {
         const res = await fetch("/api/admin/broadcast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: scopeDate, ids: candidates.filter((a) => sel[a.id]).map((a) => a.id), message: msg.trim() }),
+          body: JSON.stringify({ date: scopeDate, ids: candidates.filter((a) => sel[a.id]).map((a) => a.id), message: msg.trim(), kind }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || "send failed");
         const note = data.failed === data.attempted
-          ? "None delivered. Check the WhatsApp template setup in the server logs."
+          ? data.kind === "reminder"
+            ? "None delivered. The reminder template may not be approved or set in Vercel yet."
+            : "None delivered. Check the WhatsApp template setup in the server logs."
           : data.failed
           ? `Delivered ${data.attempted - data.failed} of ${data.attempted}. ${data.failed} did not deliver.`
+          : data.kind === "reminder"
+          ? `Delivered to ${data.attempted} patient${data.attempted === 1 ? "" : "s"} via the reminder template.`
           : `Delivered to ${data.attempted} patient${data.attempted === 1 ? "" : "s"}.`;
         setResult({ note, recipients: data.recipients });
       } else {
@@ -476,7 +485,7 @@ function Broadcast({ appts }: { appts: Appt[] }) {
   return (
     <div className="rounded-2xl border border-line bg-paper p-5">
       <h2 className="flex items-center gap-2 font-semibold"><Megaphone className="h-4 w-4 text-accent" /> Broadcast</h2>
-      <p className="mt-1 text-xs text-muted">Pick who to reach, tap a preset or write your own, then send. Free text is delivered as the clinic notice template, so it reaches patients who never opened a chat with the clinic.</p>
+      <p className="mt-1 text-xs text-muted">Pick who to reach, tap a preset or write your own, then send. Free text is delivered as the clinic notice template. The Reminder preset instead uses the structured appointment reminder template (each patient's own time + a View Appointment button) once it's approved, and falls back to this text until then.</p>
 
       <div className="mt-3 flex rounded-full border border-line bg-white p-0.5">
         {([["today", "Today"], ["next", "Next session"]] as const).map(([k, label]) => (
@@ -516,7 +525,7 @@ function Broadcast({ appts }: { appts: Appt[] }) {
         <button disabled={sending} onClick={() => applyPreset(presets[2])} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-out/30 py-2 text-sm font-medium text-out hover:bg-out/5 disabled:opacity-50"><TriangleAlert className="h-4 w-4" /> {presets[2].label}</button>
       </div>
 
-      <textarea value={msg} onChange={(e) => setMsg(e.target.value.slice(0, 400))} rows={3} placeholder="Type a message, or tap a preset above to fill this in…" className="mt-3 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
+      <textarea value={msg} onChange={(e) => { setMsg(e.target.value.slice(0, 400)); setKind("notice"); }} rows={3} placeholder="Type a message, or tap a preset above to fill this in…" className="mt-3 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-muted">{msg.length}/400</span>
         <button onClick={send} disabled={sending || selCount === 0 || !msg.trim()} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-40">
