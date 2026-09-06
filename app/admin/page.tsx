@@ -239,6 +239,10 @@ function Today({ appts }: { appts: Appt[] }) {
   // toward nothing. dbMarkRefunded keeps paid=true so the refund is traceable;
   // refunded_at is what rollups must subtract.
   const revenue = list.filter((a) => a.paid && a.refundedAt == null).reduce((s, a) => s + a.fee, 0);
+  // Cash still owed to the desk today: every non-cancelled unpaid row. The
+  // desk reconciles Collected + this against the fee box at close.
+  const toCollectList = list.filter((a) => a.status !== "cancelled" && !a.paid);
+  const toCollect = toCollectList.reduce((s, a) => s + a.fee, 0);
 
   const callNext = () => {
     if (serving) changeStatus(serving.id, "done");
@@ -264,6 +268,15 @@ function Today({ appts }: { appts: Appt[] }) {
         <Stat label="Now serving" value={serving ? `#${serving.token}` : "—"} icon={CircleDot} accent />
         <Stat label="Collected" value={money(revenue)} icon={IndianRupee} />
       </div>
+
+      {isToday && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line bg-paper px-4 py-2.5 text-sm">
+          <span className="font-medium">Collected <b className="text-in">{money(revenue)}</b></span>
+          <span className="text-muted">·</span>
+          <span className="font-medium">To collect at desk <b className="text-accent">{money(toCollect)}</b>{toCollectList.length > 0 ? ` (${toCollectList.length})` : ""}</span>
+          <span className="ml-auto text-xs text-muted">Online payments flip a row to Paid online on their own.</span>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* queue */}
@@ -303,7 +316,7 @@ const sourceMeta: Record<Source, { label: string; icon: typeof Globe }> = {
 const statusMeta: Record<ApptStatus, { label: string; cls: string }> = {
   reserved: { label: "Reserved", cls: "bg-brand-tint text-brand" },
   confirmed: { label: "Confirmed", cls: "bg-brand-tint text-brand" },
-  waiting: { label: "Waiting", cls: "bg-accent-soft text-accent" },
+  waiting: { label: "Waiting", cls: "bg-accent-tint text-accent" },
   consulting: { label: "In consult", cls: "bg-in/15 text-in" },
   done: { label: "Done", cls: "bg-muted/15 text-muted" },
   cancelled: { label: "Cancelled", cls: "bg-out/10 text-out line-through" },
