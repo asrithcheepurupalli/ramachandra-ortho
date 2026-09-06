@@ -68,7 +68,7 @@ export default function Home() {
       <Nav lang={lang} setLang={setLang} t={t} />
       <Hero status={status} t={t} />
       <HelpBand t={t} />
-      <WhatsAppSection />
+      <WhatsAppSection t={t} />
       <HowItWorks t={t} />
       <Services t={t} />
       <Reviews t={t} />
@@ -93,20 +93,20 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
   return (
     <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "border-b border-line bg-bg/85 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.02)]" : "bg-transparent"}`}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 md:px-8 h-16">
-        <Link href="/" className="flex items-center gap-2.5 group">
+        <Link href="/" className="focus-ring flex items-center gap-2.5 group">
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white transition group-hover:rotate-6"><Bone className="h-[18px] w-[18px]" /></span>
           <span className="whitespace-nowrap text-[15px] md:text-base font-semibold leading-none">Ramachandra <span className="text-brand">Ortho<span className="hidden sm:inline"> Care</span></span></span>
         </Link>
         <div className="flex items-center gap-1.5 md:gap-2">
           <div className="hidden md:flex items-center gap-1 mr-1">
             {[["services", "nav.services"], ["reviews", "nav.reviews"], ["location", "nav.location"]].map(([id, k]) => (
-              <a key={id} href={`#${id}`} className="ulink rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t(k)}</a>
+              <a key={id} href={`#${id}`} className="focus-ring ulink rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t(k)}</a>
             ))}
           </div>
-          <Link href="/my-appointment" className="ulink hidden md:inline-flex items-center rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t("nav.myappt")}</Link>
+          <Link href="/my-appointment" className="focus-ring ulink hidden md:inline-flex items-center rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t("nav.myappt")}</Link>
           <LangToggle lang={lang} setLang={setLang} />
           {/* Book lives in the mobile action bar on phones, so the nav stays clean */}
-          <Link href="/book" className="press ml-0.5 hidden md:inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark">
+          <Link href="/book" className="focus-ring press ml-0.5 hidden md:inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark">
             {t("nav.book")} <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
@@ -119,7 +119,7 @@ function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
   return (
     <div className="flex items-center rounded-full border border-line bg-surface/70 p-0.5">
       {(Object.keys(langLabels) as Lang[]).map((l) => (
-        <button key={l} onClick={() => setLang(l)} className={`press rounded-full px-2.5 py-1 text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted hover:text-ink"}`}>
+        <button key={l} onClick={() => setLang(l)} className={`focus-ring press rounded-full px-2.5 py-1 text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted hover:text-ink"}`}>
           {langLabels[l]}
         </button>
       ))}
@@ -152,11 +152,11 @@ function Hero({ status, t }: { status: Status | null; t: T }) {
               button pair is desktop-only to keep the mobile hero uncluttered. */}
           <Reveal delay={180}>
             <div className="mt-8 hidden flex-wrap items-center gap-3 md:flex">
-              <Link href="/book" className="press group inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3.5 text-[15px] font-semibold text-white shadow-soft transition hover:bg-brand-dark">
+              <Link href="/book" className="focus-ring press group inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3.5 text-[15px] font-semibold text-white shadow-soft transition hover:bg-brand-dark">
                 <CalendarPlus className="h-[18px] w-[18px]" /> {t("cta.book")}
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
               </Link>
-              <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="press inline-flex items-center gap-2 rounded-full border border-line bg-surface px-6 py-3.5 text-[15px] font-semibold text-ink transition hover:border-brand/40">
+              <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="focus-ring press inline-flex items-center gap-2 rounded-full border border-line bg-surface px-6 py-3.5 text-[15px] font-semibold text-ink transition hover:border-brand/40">
                 <MessageCircle className="h-[18px] w-[18px] text-brand" /> {t("cta.whatsapp")}
               </a>
             </div>
@@ -228,8 +228,8 @@ function TodayCard({ status, t }: { status: Status | null; t: T }) {
       </div>
 
       <div className="mt-3.5 grid grid-cols-2 gap-2">
-        <Link href="/book" className="press flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-brand px-2 py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-dark md:py-3 md:text-sm"><Ticket className="h-4 w-4 shrink-0" /> {t("cta.bookShort")}</Link>
-        <a href={`tel:${clinic.contact.phone}`} className="press flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-line px-2 py-2.5 text-[13px] font-semibold text-ink transition hover:border-brand/40 md:py-3 md:text-sm"><Phone className="h-4 w-4 shrink-0 text-brand" /> {t("cta.call")}</a>
+        <Link href="/book" className="focus-ring press flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-brand px-2 py-2.5 text-[13px] font-semibold text-white transition hover:bg-brand-dark md:py-3 md:text-sm"><Ticket className="h-4 w-4 shrink-0" /> {t("cta.bookShort")}</Link>
+        <a href={`tel:${clinic.contact.phone}`} className="focus-ring press flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-line px-2 py-2.5 text-[13px] font-semibold text-ink transition hover:border-brand/40 md:py-3 md:text-sm"><Phone className="h-4 w-4 shrink-0 text-brand" /> {t("cta.call")}</a>
       </div>
     </div>
   );
@@ -261,25 +261,19 @@ function HelpBand({ t }: { t: T }) {
 }
 
 /* ── WhatsApp booking ───────────────────────────────────────────────────── */
-function WhatsAppSection() {
-  const features = [
-    "Instant booking confirmation",
-    "Cancellation and reschedule updates",
-    "Day-before reminders",
-    "Missed a slot? Auto-moved to the next working day",
-    "“Is the doctor in?” answered any time",
-  ];
+function WhatsAppSection({ t }: { t: T }) {
+  const features = [t("wa.feat1"), t("wa.feat2"), t("wa.feat3"), t("wa.feat4"), t("wa.feat5")];
   return (
     <section id="whatsapp" className="scroll-mt-16 border-y border-line bg-brand-tint/25">
       <div className="mx-auto max-w-xl px-5 md:px-8 py-12 md:py-24">
         <Reveal>
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-[#075E54] md:px-3 md:py-1.5 md:text-[13px]">
-              <MessageCircle className="h-3.5 w-3.5 md:h-4 md:w-4" /> WhatsApp booking
+              <MessageCircle className="h-3.5 w-3.5 md:h-4 md:w-4" /> {t("wa.badge")}
             </span>
-            <h2 className="mt-4 text-2xl font-semibold md:mt-5 md:text-4xl">Book on WhatsApp, in your language.</h2>
+            <h2 className="mt-4 text-2xl font-semibold md:mt-5 md:text-4xl">{t("wa.title")}</h2>
             <p className="mt-3 max-w-md text-[14px] leading-relaxed text-muted md:mt-4 md:text-base">
-              Patients message the clinic just like they message anyone. The assistant checks if the doctor is in, books a slot and sends a token, in Telugu, English or Hindi.
+              {t("wa.desc")}
             </p>
             <ul className="mt-5 space-y-2 md:mt-6 md:space-y-2.5">
               {features.map((f) => (
@@ -289,8 +283,8 @@ function WhatsAppSection() {
                 </li>
               ))}
             </ul>
-            <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="press mt-6 inline-flex items-center gap-2 rounded-full bg-[#075E54] px-5 py-3 text-[14px] font-semibold text-white transition hover:brightness-110 md:mt-7 md:px-6 md:py-3.5 md:text-[15px]">
-              <MessageCircle className="h-[18px] w-[18px]" /> Open WhatsApp
+            <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="focus-ring press mt-6 inline-flex items-center gap-2 rounded-full bg-[#075E54] px-5 py-3 text-[14px] font-semibold text-white transition hover:brightness-110 md:mt-7 md:px-6 md:py-3.5 md:text-[15px]">
+              <MessageCircle className="h-[18px] w-[18px]" /> {t("wa.open")}
             </a>
           </div>
         </Reveal>
@@ -443,18 +437,18 @@ function LocationHours({ t }: { t: T }) {
             <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
             <address className="not-italic text-[15px] leading-relaxed">{clinic.location.line1}<br />{clinic.location.line2}<br />{clinic.location.city}, {clinic.location.state} {clinic.location.pin}</address>
           </div>
-          <a href={clinic.location.mapsUrl} target="_blank" rel="noreferrer" className="press mt-5 inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark"><Navigation className="h-4 w-4" /> {t("loc.directions")}</a>
+          <a href={clinic.location.mapsUrl} target="_blank" rel="noreferrer" className="focus-ring press mt-5 inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-dark"><Navigation className="h-4 w-4" /> {t("loc.directions")}</a>
 
           <div className="mt-6 space-y-2.5 border-t border-line pt-5">
-            <a href={`tel:${clinic.contact.landline}`} className="ulink flex items-center gap-3 text-[15px]">
+            <a href={`tel:${clinic.contact.landline}`} className="focus-ring ulink flex items-center gap-3 text-[15px]">
               <Phone className="h-4 w-4 shrink-0 text-brand" /> {clinic.contact.landline.replace("+91", "0")}
               <span className="text-xs text-muted">Clinic landline</span>
             </a>
-            <a href={`tel:${clinic.contact.phone}`} className="ulink flex items-center gap-3 text-[15px]">
+            <a href={`tel:${clinic.contact.phone}`} className="focus-ring ulink flex items-center gap-3 text-[15px]">
               <MessageCircle className="h-4 w-4 shrink-0 text-brand" /> {clinic.contact.phone.replace("+91", "")}
               <span className="text-xs text-muted">Mobile / WhatsApp</span>
             </a>
-            <a href={`tel:${clinic.contact.emergency}`} className="ulink flex items-center gap-3 text-[15px]">
+            <a href={`tel:${clinic.contact.emergency}`} className="focus-ring ulink flex items-center gap-3 text-[15px]">
               <TriangleAlert className="h-4 w-4 shrink-0 text-brand" /> {clinic.contact.emergency.replace("+91", "")}
               <span className="text-xs text-muted">Emergency only</span>
             </a>
@@ -471,7 +465,7 @@ function LocationHours({ t }: { t: T }) {
               return (
                 <li key={d} className={`flex items-center justify-between py-2.5 text-sm ${today ? "font-semibold text-ink" : "text-muted"}`}>
                   <span className="flex items-center gap-2">{today && <span className="h-1.5 w-1.5 rounded-full bg-in" />}{d}</span>
-                  <span className="text-right">{wins.length ? wins.map((w) => `${fmt(w.start)} – ${fmt(w.end)}`).join(", ") : "Closed"}</span>
+                  <span className="text-right">{wins.length ? wins.map((w) => `${fmt(w.start)}-${fmt(w.end)}`).join(", ") : "Closed"}</span>
                 </li>
               );
             })}
@@ -504,7 +498,7 @@ function FAQ({ t }: { t: T }) {
                 type="button"
                 onClick={() => setOpen(open === i ? null : i)}
                 aria-expanded={open === i}
-                className="flex w-full items-center justify-between gap-4 p-5 text-left"
+                className="focus-ring flex w-full items-center justify-between gap-4 p-5 text-left"
               >
                 <span className="text-[15px] font-semibold text-ink">{it.q}</span>
                 <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${open === i ? "rotate-45 border-brand bg-brand-tint text-brand" : "border-line text-muted"}`}>
@@ -537,22 +531,22 @@ function Footer({ t }: { t: T }) {
         <div className="text-sm">
           <div className="font-semibold text-white">Visit</div>
           <p className="mt-3 text-white/55">{clinic.location.line2}<br />{clinic.location.city} {clinic.location.pin}</p>
-          <a href={clinic.location.mapsUrl} target="_blank" rel="noreferrer" className="ulink mt-2 inline-block text-white/75">{t("loc.directions")}</a>
+          <a href={clinic.location.mapsUrl} target="_blank" rel="noreferrer" className="focus-ring ulink mt-2 inline-block text-white/75">{t("loc.directions")}</a>
         </div>
         <div className="text-sm">
           <div className="font-semibold text-white">Get in touch</div>
           <div className="mt-3 flex flex-col gap-1.5">
-            <Link href="/book" className="ulink text-white/75">{t("cta.book")}</Link>
-            <a href={waLink("Hi, I would like to book an appointment.")} target="_blank" rel="noreferrer" className="ulink text-white/75">{t("cta.whatsapp")}</a>
-            <a href={`tel:${clinic.contact.phone}`} className="ulink text-white/75">{t("cta.call")}</a>
-            <Link href="/my-appointment" className="ulink text-white/75">{t("nav.myappt")}</Link>
+            <Link href="/book" className="focus-ring ulink text-white/75">{t("cta.book")}</Link>
+            <a href={waLink("Hi, I would like to book an appointment.")} target="_blank" rel="noreferrer" className="focus-ring ulink text-white/75">{t("cta.whatsapp")}</a>
+            <a href={`tel:${clinic.contact.phone}`} className="focus-ring ulink text-white/75">{t("cta.call")}</a>
+            <Link href="/my-appointment" className="focus-ring ulink text-white/75">{t("nav.myappt")}</Link>
           </div>
         </div>
       </div>
       <div className="border-t border-white/10">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-5 md:px-8 py-4 pb-24 text-xs text-white/35 md:pb-4">
           <span>© {new Date().getFullYear()} {clinic.name}. {clinic.location.city}, {clinic.location.state}.</span>
-          <Link href="/privacy" className="ulink text-white/45 hover:text-white/70">Privacy &amp; appointment policy</Link>
+          <Link href="/privacy" className="focus-ring ulink text-white/45 hover:text-white/70">Privacy &amp; appointment policy</Link>
         </div>
       </div>
     </footer>
@@ -564,8 +558,8 @@ function MobileBar({ t }: { t: T }) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-bg/90 px-3 py-2 backdrop-blur-md md:hidden" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}>
       <div className="flex gap-2">
-        <Link href="/book" className="press flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-brand px-2 py-2.5 text-[13px] font-semibold text-white"><CalendarPlus className="h-4 w-4 shrink-0" /> {t("cta.bookShort")}</Link>
-        <a href={waLink("Hi, I would like to book an appointment.")} target="_blank" rel="noreferrer" className="press flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-brand/25 bg-surface px-2 py-2.5 text-[13px] font-semibold text-brand"><MessageCircle className="h-4 w-4 shrink-0" /> WhatsApp</a>
+        <Link href="/book" className="focus-ring press flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-brand px-2 py-2.5 text-[13px] font-semibold text-white"><CalendarPlus className="h-4 w-4 shrink-0" /> {t("cta.bookShort")}</Link>
+        <a href={waLink("Hi, I would like to book an appointment.")} target="_blank" rel="noreferrer" className="focus-ring press flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-brand/25 bg-surface px-2 py-2.5 text-[13px] font-semibold text-brand"><MessageCircle className="h-4 w-4 shrink-0" /> WhatsApp</a>
       </div>
     </div>
   );

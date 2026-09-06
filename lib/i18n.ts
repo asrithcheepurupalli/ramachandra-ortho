@@ -124,6 +124,15 @@ const en: Dict = {
   "faq.a4": "Message us on WhatsApp and we will move you to the next available time.",
   "faq.q5": "How do I check my appointment?",
   "faq.a5": "Visit My Appointment from the menu and enter your phone number.",
+  "wa.badge": "WhatsApp booking",
+  "wa.title": "Book on WhatsApp, in your language.",
+  "wa.desc": "Patients message the clinic just like they message anyone. The assistant checks if the doctor is in, books a slot and sends a token, in Telugu, English or Hindi.",
+  "wa.feat1": "Instant booking confirmation",
+  "wa.feat2": "Cancellation and reschedule updates",
+  "wa.feat3": "Day-before reminders",
+  "wa.feat4": "Missed a slot? Auto-moved to the next working day",
+  "wa.feat5": "“Is the doctor in?” answered any time",
+  "wa.open": "Open WhatsApp",
 };
 
 const te: Dict = {
@@ -246,6 +255,15 @@ const te: Dict = {
   "faq.a4": "WhatsApp ద్వారా మాకు సందేశం పంపండి, మేము తదుపరి అందుబాటులో ఉన్న సమయానికి మారుస్తాము.",
   "faq.q5": "నా అపాయింట్‌మెంట్ ఎలా చూడాలి?",
   "faq.a5": "మెనూ నుండి 'నా అపాయింట్‌మెంట్' సందర్శించి మీ ఫోన్ నంబర్ నమోదు చేయండి.",
+  "wa.badge": "వాట్సాప్ బుకింగ్",
+  "wa.title": "వాట్సాప్‌లో, మీ భాషలో బుక్ చేయండి.",
+  "wa.desc": "రోగులు ఇతరులతో మాట్లాడినట్టే క్లినిక్‌కు సందేశం పంపవచ్చు. అసిస్టెంట్ డాక్టర్ ఉన్నారో చూసి, స్లాట్ బుక్ చేసి, తెలుగు, ఇంగ్లీష్ లేదా హిందీలో టోకెన్ పంపుతుంది.",
+  "wa.feat1": "తక్షణ బుకింగ్ నిర్ధారణ",
+  "wa.feat2": "రద్దు, రీషెడ్యూల్ అప్‌డేట్‌లు",
+  "wa.feat3": "ముందురోజు రిమైండర్‌లు",
+  "wa.feat4": "స్లాట్ మిస్ అయిందా? తర్వాతి పనిదినానికి ఆటోమేటిక్‌గా మారుతుంది",
+  "wa.feat5": "“డాక్టర్ ఉన్నారా?” అని ఎప్పుడైనా అడగొచ్చు, సమాధానం వస్తుంది",
+  "wa.open": "వాట్సాప్ తెరవండి",
 };
 
 const hi: Dict = {
@@ -368,6 +386,15 @@ const hi: Dict = {
   "faq.a4": "WhatsApp पर हमें संदेश भेजें, हम आपको अगले उपलब्ध समय में शिफ्ट कर देंगे।",
   "faq.q5": "अपनी अपॉइंटमेंट कैसे देखें?",
   "faq.a5": "मेनू से 'मेरी अपॉइंटमेंट' पर जाएं और अपना फोन नंबर दर्ज करें।",
+  "wa.badge": "व्हाट्सएप बुकिंग",
+  "wa.title": "व्हाट्सएप पर, अपनी भाषा में बुक करें।",
+  "wa.desc": "मरीज़ क्लिनिक को वैसे ही संदेश भेजते हैं जैसे किसी और को भेजते हैं। असिस्टेंट देखता है कि डॉक्टर उपलब्ध हैं या नहीं, स्लॉट बुक करता है और तेलुगु, अंग्रेज़ी या हिंदी में टोकन भेजता है।",
+  "wa.feat1": "तुरंत बुकिंग पुष्टि",
+  "wa.feat2": "रद्द करने और रीशेड्यूल की जानकारी",
+  "wa.feat3": "एक दिन पहले रिमाइंडर",
+  "wa.feat4": "स्लॉट मिस हो गया? अपने आप अगले कार्य दिवस पर शिफ्ट हो जाता है",
+  "wa.feat5": "“क्या डॉक्टर उपलब्ध हैं?” कभी भी पूछें, जवाब मिलेगा",
+  "wa.open": "व्हाट्सएप खोलें",
 };
 
 const dicts: Record<Lang, Dict> = { en, te, hi };

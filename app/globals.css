@@ -54,6 +54,10 @@ h1, h2, h3 { letter-spacing: -0.03em; }
 .press { transition: transform 0.12s ease; }
 .press:active { transform: scale(0.97); }
 
+/* keyboard focus ring for links/buttons that don't already define their own */
+.focus-ring { outline: none; }
+.focus-ring:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 8px; }
+
 /* horizontal swipe strips (reviews on small screens) — hide the scrollbar */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }

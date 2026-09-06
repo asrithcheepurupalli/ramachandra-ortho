@@ -92,10 +92,12 @@ function LoginForm() {
         <h1 className="mt-5 text-2xl font-semibold">Clinic admin</h1>
         <p className="mt-1 text-sm text-muted">Sign in to manage {clinic.shortName}.</p>
         <form onSubmit={submit} className="mt-6 space-y-3">
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
-          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+          <label htmlFor="login-email" className="sr-only">Email</label>
+          <input id="login-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className="focus-ring w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+          <label htmlFor="login-password" className="sr-only">Password</label>
+          <input id="login-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" className="focus-ring w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
           {err && <p className="text-sm text-out">{err}</p>}
-          <button disabled={busy || isLocked} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
+          <button disabled={busy || isLocked} className="focus-ring press flex w-full items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
             <LogIn className="h-4 w-4" /> {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>

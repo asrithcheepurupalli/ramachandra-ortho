@@ -345,9 +345,9 @@ function QueueRow({ a }: { a: Appt }) {
         {a.refundedAt != null ? (
           <span title={`Refunded${a.refundId ? " · " + a.refundId : ""}`} className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Refunded</span>
         ) : a.paid && a.paidVia === "razorpay" ? (
-          <span title="Paid online via payment link — cannot be un-marked at the desk" className="shrink-0 rounded-full bg-in/15 px-2 py-0.5 text-[11px] font-medium text-in">Paid online</span>
+          <span title="Paid online via payment link. Cannot be un-marked at the desk." className="shrink-0 rounded-full bg-in/15 px-2 py-0.5 text-[11px] font-medium text-in">Paid online</span>
         ) : a.paid ? (
-          <button onClick={() => changePaid(a.id, true)} title="Cash collected — tap to mark unpaid if this was a mistake" className="shrink-0 rounded-full bg-in/15 px-2.5 py-0.5 text-[11px] font-medium text-in hover:bg-in/25">Paid · cash</button>
+          <button onClick={() => changePaid(a.id, true)} title="Cash collected. Tap to mark unpaid if this was a mistake." className="shrink-0 rounded-full bg-in/15 px-2.5 py-0.5 text-[11px] font-medium text-in hover:bg-in/25">Paid · cash</button>
         ) : a.status !== "cancelled" ? (
           <button onClick={() => changePaid(a.id, false)} title={`Collect ${money(a.fee)} in cash`} className="shrink-0 rounded-full border border-dashed border-out/40 px-2.5 py-0.5 text-[11px] font-medium text-out hover:bg-out/5">Collect</button>
         ) : null}
@@ -594,7 +594,7 @@ function Schedule() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-semibold">Weekly consulting hours</h2>
-            <p className="text-xs text-muted">This drives the live availability on the website and the WhatsApp bot. Mon–Sat share the same OPD hours by default; Sunday is the weekly holiday.</p>
+            <p className="text-xs text-muted">This drives the live availability on the website and the WhatsApp bot. Mon-Sat share the same OPD hours by default; Sunday is the weekly holiday.</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={reset} className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-line/40"><RotateCcw className="h-3.5 w-3.5" /> Reset to default</button>
@@ -610,7 +610,7 @@ function Schedule() {
                 {weekly[d].map((w, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <input type="time" value={w.start} onChange={(e) => setWin(d, i, "start", e.target.value)} className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm" />
-                    <span className="text-muted">–</span>
+                    <span className="text-muted">-</span>
                     <input type="time" value={w.end} onChange={(e) => setWin(d, i, "end", e.target.value)} className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm" />
                     <button onClick={() => rmWin(d, i)} className="rounded-lg p-1.5 text-muted hover:text-out"><X className="h-4 w-4" /></button>
                   </div>
@@ -643,7 +643,7 @@ function ExceptionsEditor({ ex, setEx }: { ex: Record<string, Exception>; setEx:
   return (
     <div className="rounded-2xl border border-line bg-paper p-5">
       <h2 className="font-semibold">Holidays &amp; date overrides</h2>
-      <p className="text-xs text-muted">Mark a specific date closed (festival, doctor leave) — overrides the weekly hours above for just that date. Remember to hit Save.</p>
+      <p className="text-xs text-muted">Mark a specific date closed (festival, doctor leave). Overrides the weekly hours above for just that date. Remember to hit Save.</p>
 
       <div className="mt-4 space-y-2">
         {dates.length === 0 && <div className="text-sm text-muted">No overrides set.</div>}

@@ -198,8 +198,20 @@ function dateTimeLabel(appt: Pick<Appt, "date" | "time">): string {
   return `${day}, ${fmt(appt.time)}`;
 }
 
-// Fired after every successful booking that has a phone number.
+// Fired after every successful booking that has a phone number. Prefers v2
+// (ortho_appointment_confirm_v2) once its env var is set: same body minus the
+// consultation-type param, but with "View or reschedule" / "Cancel
+// appointment" quick-reply buttons that drop the patient straight back into
+// the bot — turning every confirmation into a one-tap self-service entry
+// point. Falls back to the classic confirm template until then.
 export function sendBookingConfirmation(appt: Pick<Appt, "name" | "phone" | "date" | "time" | "token">) {
+  if (process.env.META_TEMPLATE_CONFIRM_V2) {
+    return sendTemplate(appt.phone, process.env.META_TEMPLATE_CONFIRM_V2, [
+      appt.name,
+      dateTimeLabel(appt),
+      `Token #${appt.token}`,
+    ], templateLang("META_TEMPLATE_LANG_CONFIRM_V2"));
+  }
   return sendTemplate(appt.phone, process.env.META_TEMPLATE_CONFIRM, [
     appt.name,
     dateTimeLabel(appt),

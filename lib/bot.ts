@@ -230,7 +230,7 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} is *not in today*. The next available is *${d} at ${t}*. Tap *Book appointment* to reserve.`,
     availNone: `${dr} has no slots in the coming days. Please call the clinic on ${clinic.contact.phone}.`,
     bookIntro: "Sure! Here are the open slots. Tap the one you want:",
-    pickDay: "Sure! Here are the days with open slots — tap one:",
+    pickDay: "Sure! Here are the days with open slots. Tap one:",
     pickWindow: (day: string) => `Sure! For ${day}, would you prefer morning or evening?`,
     pickRange: (day: string) => `That's a lot of open times for ${day}. Pick a range:`,
     timesFor: (day: string) => `Great, here are the open times for ${day}:`,
@@ -267,7 +267,7 @@ const P: Record<Lang, PhrasePack> = {
     reschedDone: (s: string) => `✅ Moved! Your appointment is now *${s}*. A confirmation has been sent on WhatsApp.`,
     reschedFail: "Something went wrong moving your appointment. Please try again, or call the clinic.",
     flowCancelled: "No problem, stopped that. Tap *Book appointment* whenever you're ready. 🙏",
-    hours: `🕒 Consulting hours:\nMon–Sat 10 AM–12:30 PM & 6–7:45 PM. Sunday closed.\nConsultation is ${cur}${fee}.\n🚑 Medical emergency? Call ${clinic.contact.emergency}.`,
+    hours: `🕒 Consulting hours:\nMon-Sat 10 AM-12:30 PM & 6-7:45 PM. Sunday closed.\nConsultation is ${cur}${fee}.\n🚑 Medical emergency? Call ${clinic.contact.emergency}.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ Directions: ${clinic.location.mapsUrl}`,
     about: `👨‍⚕️ *${dr}*\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nRated ${clinic.rating.score}★ from ${clinic.rating.count}+ ${clinic.rating.source} reviews.`,
     fallback: "I can tell you if the doctor is in, tell you about the doctor, book you an appointment, or share timings and location. What would you like?",
@@ -281,7 +281,7 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} ఈరోజు *అందుబాటులో లేరు*. తర్వాత అందుబాటు: *${d}, ${t}*. బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి.`,
     availNone: `రాబోయే రోజుల్లో స్లాట్‌లు లేవు. దయచేసి క్లినిక్‌కు కాల్ చేయండి: ${clinic.contact.phone}.`,
     bookIntro: "తప్పకుండా! ఖాళీగా ఉన్న స్లాట్‌లు ఇవి. మీకు కావలసినది నొక్కండి:",
-    pickDay: "తప్పకుండా! ఖాళీ స్లాట్‌లు ఉన్న రోజులు ఇవి — ఒకటి నొక్కండి:",
+    pickDay: "తప్పకుండా! ఖాళీ స్లాట్‌లు ఉన్న రోజులు ఇవి. ఒకటి నొక్కండి:",
     pickWindow: (day: string) => `సరే! ${day} కోసం, ఉదయం లేదా సాయంత్రం, ఏది కావాలి?`,
     pickRange: (day: string) => `${day} కోసం చాలా సమయాలు ఖాళీగా ఉన్నాయి. ఒక పరిధిని ఎంచుకోండి:`,
     timesFor: (day: string) => `సరే, ${day} కోసం ఖాళీగా ఉన్న సమయాలు ఇవి:`,
@@ -318,7 +318,7 @@ const P: Record<Lang, PhrasePack> = {
     reschedDone: (s: string) => `✅ మార్చబడింది! మీ అపాయింట్ ఇప్పుడు *${s}*. వాట్సాప్‌పై నిర్ధారణ పంపాము.`,
     reschedFail: "మీ అపాయింట్ మార్చడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
     flowCancelled: "పర్వాలేదు, ఆపేశాను. మీరు సిద్ధమైనప్పుడు *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
-    hours: `🕒 కన్సల్టింగ్ సమయాలు:\nసోమ–శని ఉదయం 10–12:30 & సాయంత్రం 6–7:45 PM. ఆదివారం సెలవు.\nకన్సల్టేషన్ ${cur}${fee}.\n🚑 అత్యవసర పరిస్థితా? ${clinic.contact.emergency}కు కాల్ చేయండి.`,
+    hours: `🕒 కన్సల్టింగ్ సమయాలు:\nసోమ-శని ఉదయం 10-12:30 & సాయంత్రం 6-7:45 PM. ఆదివారం సెలవు.\nకన్సల్టేషన్ ${cur}${fee}.\n🚑 అత్యవసర పరిస్థితా? ${clinic.contact.emergency}కు కాల్ చేయండి.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ దిశలు: ${clinic.location.mapsUrl}`,
     about: `👨‍⚕️ *${dr}* గురించి:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} రేటింగ్: ${clinic.rating.score}★ (${clinic.rating.count}+ రివ్యూలు).`,
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
@@ -332,7 +332,7 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} आज *उपलब्ध नहीं* हैं। अगली उपलब्धता: *${d}, ${t}*। बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ।`,
     availNone: `आने वाले दिनों में कोई स्लॉट नहीं है। कृपया क्लिनिक को कॉल करें: ${clinic.contact.phone}।`,
     bookIntro: "ज़रूर! ये खाली स्लॉट हैं। जो चाहिए उसे दबाएँ:",
-    pickDay: "ज़रूर! ये वे दिन हैं जिनमें स्लॉट खाली हैं — एक चुनें:",
+    pickDay: "ज़रूर! ये वे दिन हैं जिनमें स्लॉट खाली हैं। एक चुनें:",
     pickWindow: (day: string) => `ठीक है! ${day} के लिए, सुबह या शाम, कौन सा समय बेहतर रहेगा?`,
     pickRange: (day: string) => `${day} के लिए बहुत सारे खाली समय हैं। एक रेंज चुनें:`,
     timesFor: (day: string) => `बढ़िया, ${day} के लिए खाली समय ये हैं:`,
@@ -369,7 +369,7 @@ const P: Record<Lang, PhrasePack> = {
     reschedDone: (s: string) => `✅ बदल गया! आपका अपॉइंटमेंट अब *${s}* है। व्हाट्सएप पर पुष्टि भेजी गई।`,
     reschedFail: "अपॉइंटमेंट बदलने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
     flowCancelled: "कोई बात नहीं, रोक दिया। जब तैयार हों तब *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
-    hours: `🕒 परामर्श समय:\nसोम–शनि सुबह 10–12:30 और शाम 6–7:45 बजे। रविवार बंद।\nपरामर्श ${cur}${fee}।\n🚑 आपातकाल में कॉल करें: ${clinic.contact.emergency}।`,
+    hours: `🕒 परामर्श समय:\nसोम-शनि सुबह 10-12:30 और शाम 6-7:45 बजे। रविवार बंद।\nपरामर्श ${cur}${fee}।\n🚑 आपातकाल में कॉल करें: ${clinic.contact.emergency}।`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}।\n🗺️ दिशा-निर्देश: ${clinic.location.mapsUrl}`,
     about: `👨‍⚕️ *${dr}* के बारे में:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} रेटिंग: ${clinic.rating.score}★ (${clinic.rating.count}+ समीक्षाएं).`,
     fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, डॉक्टर के बारे में बता सकता हूँ, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
@@ -383,6 +383,12 @@ type Intent = "avail" | "book" | "cancel" | "pay" | "reschedule" | "view" | "hou
 function detect(s: string): Intent {
   const has = (re: RegExp) => re.test(s);
   if (has(/cancel|రద్దు|कैंसिल|रद्द/i)) return "cancel";
+  // The confirmation template's combined quick-reply button ("View or
+  // reschedule") would otherwise fall into the reschedule check below (it
+  // contains "reschedule") and drop the patient straight into the day picker
+  // with no chance to just look first — checked ahead so the button opens the
+  // (lower-commitment) view list, which itself offers a one-tap resched chip.
+  if (has(/view or resched/i)) return "view";
   // Checked before "book" on purpose: "reschedule my appointment" contains
   // "appointment", so without this lead it would land in the booking flow.
   if (has(/resched|re-?schedule|move (my )?appointment|change (my )?(appointment|slot|date|time|day)|postpone|పునఃషెడ్యూల్|రీషెడ్యూల్|షెడ్యూల్ మార్చ|సమయం మార్చ|అపాయింట్ మార్చ|अपॉइंटमेंट बदल|पुनर्निर्धारित|रीशेड्यूल|समय बदल|डेट बदल|तारीख बदल/i)) return "reschedule";
@@ -549,6 +555,14 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
   }
 
+  // A wrong or expired OTP code used to be a dead end (retry-only, no way
+  // out). Tapping the resched chip we now offer alongside a bad/expired code
+  // should actually restart the OTP request, not get swallowed as another
+  // guess at the 6-digit code.
+  if (state.stage === "await_otp" && state.otpPhone && detect(input) === "reschedule") {
+    return startRescheduleClient(state.otpPhone, t);
+  }
+
   // VIEW: this input is the phone number to look up
   if (state.stage === "await_view_phone") {
     const digits = input.replace(/\D/g, "");
@@ -585,7 +599,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
   // OTP: this input is the 6-digit code proving the phone owns the booking
   if (state.stage === "await_otp" && state.otpPhone && state.resched) {
     const code = input.trim();
-    if (code.length !== 6) return { reply: [t.otpBad], chips: [], state };
+    if (code.length !== 6) return { reply: [t.otpBad], chips: [c.resched], state };
     try {
       const res = await fetch("/api/appointments/verify-otp", {
         method: "POST",
@@ -593,7 +607,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         body: JSON.stringify({ phone: state.otpPhone, code }),
       });
       if (res.status === 410) return { reply: [t.otpExpired], chips: [c.resched], state: { stage: "idle", viewPhone: state.otpPhone } };
-      if (res.status === 401) return { reply: [t.otpBad], chips: [], state: { stage: "await_otp", otpPhone: state.otpPhone, resched: state.resched } };
+      if (res.status === 401) return { reply: [t.otpBad], chips: [c.resched], state: { stage: "await_otp", otpPhone: state.otpPhone, resched: state.resched } };
       if (!res.ok) return { reply: [t.otpFail], chips: [c.resched], state: { stage: "idle", viewPhone: state.otpPhone } };
       return enterPickerClient(state.resched, t);
     } catch {
@@ -762,7 +776,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       // My Appointment page's OTP-gated flow — this typed intent used to
       // silently "cancel" the mock store even against the live database,
       // which never touched the real booking or its refund.
-      if (hasSupabase()) return { reply: [t.cancelUsePage], chips: [c.view, c.book], state: { stage: "idle" } };
+      if (hasSupabase()) return { reply: [t.cancelUsePage], chips: [c.resched, c.view, c.book], state: { stage: "idle" } };
       if (lastBookingId) { setStatus(lastBookingId, "cancelled"); lastBookingId = null; return { reply: [t.cancelDone], chips: [c.book], state: { stage: "idle" } }; }
       return { reply: [t.cancelNone], chips: [c.book], state: { stage: "idle" } };
     }
