@@ -5,7 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
 import { cancelAppointmentWithRefund } from "@/lib/refunds";
-import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, type Backend, type ServerBotState } from "@/lib/bot";
+import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
 
@@ -114,12 +114,7 @@ export async function POST(req: NextRequest) {
         });
         await sendBookingConfirmation(appt);
       } catch (err) {
-        await sendText(
-          from,
-          err instanceof SlotTakenError
-            ? "Sorry, that slot was just taken. Please message us again to pick another time."
-            : "Something went wrong booking that. Please message us and we'll sort it out."
-        );
+        await sendText(from, err instanceof SlotTakenError ? flowSlotTakenMsg(lang) : flowBookFailMsg(lang));
       }
       await dbSaveWaSession(from, lang, state, wamid);
       return new NextResponse("OK", { status: 200 });
@@ -154,6 +149,26 @@ export async function POST(req: NextRequest) {
         await dbSaveWaSession(from, lang, newState, wamid);
         await sendReply(from, prompt.reply.join("\n\n"), prompt.chips);
       }
+      return new NextResponse("OK", { status: 200 });
+    }
+
+    // Same switch, for a phone that already picked a language at some point —
+    // works at any stage, not just idle, since a patient can ask for this
+    // mid-flow; matches the existing "cancel" escape hatch in dropping
+    // whatever was in progress rather than trying to preserve it.
+    const langSwitch = detectLangSwitch(text);
+    if (langSwitch === "ask") {
+      const prompt = langPickPrompt();
+      const newState: WaState = { stage: "await_lang", lastChips: prompt.chips };
+      await dbSaveWaSession(from, lang, newState, wamid);
+      await sendReply(from, prompt.reply.join("\n\n"), prompt.chips);
+      return new NextResponse("OK", { status: 200 });
+    }
+    if (langSwitch && langSwitch !== lang) {
+      const start = botStartServer(langSwitch);
+      const newState: WaState = { ...start.state, lastChips: start.chips };
+      await dbSaveWaSession(from, langSwitch, newState, wamid);
+      await sendReply(from, start.reply.join("\n\n"), start.chips);
       return new NextResponse("OK", { status: 200 });
     }
 

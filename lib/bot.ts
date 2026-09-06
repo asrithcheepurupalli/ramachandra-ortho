@@ -200,6 +200,11 @@ type PhrasePack = {
   badPhone: string;
   slotTaken: string;
   bookFail: string;
+  // One-shot equivalents of slotTaken/bookFail for the WhatsApp Flow's
+  // structured booking submission, which has no chat turn to follow up in —
+  // phrased as "message us again" rather than "here are other times".
+  flowSlotTaken: string;
+  flowBookFail: string;
   confirm: (tok: number, s: string) => string;
   cancelDone: string;
   cancelNone: string;
@@ -253,6 +258,8 @@ const P: Record<Lang, PhrasePack> = {
     badPhone: "That doesn't look like a valid phone number. Please enter a 10 digit number.",
     slotTaken: "Sorry, someone just booked that slot. Here are the times still open:",
     bookFail: "Something went wrong while booking. Please try again, or call the clinic.",
+    flowSlotTaken: "Sorry, that slot was just taken. Please message us again to pick another time.",
+    flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
     confirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${fee}. Please arrive a few minutes early.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\nReply *Cancel* if your plans change.`,
     cancelDone: "Done, your appointment is cancelled. Tap *Book appointment* to rebook anytime. 🙏",
     cancelNone: "You don't have an active appointment to cancel right now.",
@@ -305,6 +312,8 @@ const P: Record<Lang, PhrasePack> = {
     badPhone: "ఇది సరైన ఫోన్ నంబర్ లా లేదు. దయచేసి 10 అంకెల నంబర్ ఇవ్వండి.",
     slotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. ఇంకా ఖాళీగా ఉన్న సమయాలు ఇవి:",
     bookFail: "బుక్ చేయడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
+    flowSlotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. దయచేసి మళ్ళీ మెసేజ్ చేసి వేరే సమయం ఎంచుకోండి.",
+    flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
     confirm: (tok: number, s: string) => `✅ *బుక్ అయ్యింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${fee}. దయచేసి కొన్ని నిమిషాల ముందు రండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\nప్లాన్ మారితే *Cancel* అని రిప్లై చేయండి.`,
     cancelDone: "అయ్యింది, మీ అపాయింట్‌మెంట్ రద్దు చేయబడింది. మళ్లీ బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
     cancelNone: "ప్రస్తుతం రద్దు చేయడానికి యాక్టివ్ అపాయింట్‌మెంట్ లేదు.",
@@ -357,6 +366,8 @@ const P: Record<Lang, PhrasePack> = {
     badPhone: "यह सही फ़ोन नंबर नहीं लग रहा। कृपया 10 अंकों का नंबर दर्ज करें।",
     slotTaken: "माफ़ करें, वह स्लॉट अभी किसी और ने बुक कर लिया। ये समय अभी भी खाली हैं:",
     bookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
+    flowSlotTaken: "माफ़ करें, वह स्लॉट अभी बुक हो गया। कृपया दोबारा मैसेज करके दूसरा समय चुनें।",
+    flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
     confirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${fee}। कृपया कुछ मिनट पहले पहुँचें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\nयोजना बदले तो *Cancel* लिखें।`,
     cancelDone: "हो गया, आपका अपॉइंटमेंट रद्द कर दिया गया है। दोबारा बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
     cancelNone: "अभी रद्द करने के लिए कोई सक्रिय अपॉइंटमेंट नहीं है।",
@@ -922,6 +933,24 @@ export function matchLangChoice(input: string): Lang | null {
   if (raw === "3" || raw === "hindi" || raw.includes("हिंदी")) return "hi";
   return null;
 }
+
+// Lets an *existing* session switch languages mid-conversation, not just a
+// brand-new phone number — e.g. "మీరు ఇంగ్లీష్‌లో మాట్లాడుతున్నారు" or just
+// "telugu"/"hindi" typed at any point. Only unambiguous words qualify (no
+// bare "hi"/"en"/digit aliases here, unlike the picker reply above, since
+// this fires against ordinary conversation text, not a reply to a prompt
+// that was just shown). Checked in the webhook, not here, because only it
+// persists which language is active.
+export function detectLangSwitch(input: string): Lang | "ask" | null {
+  const raw = input.trim().toLowerCase();
+  if (/తెలుగు|\btelugu\b/.test(raw)) return "te";
+  if (/हिंदी|\bhindi\b/.test(raw)) return "hi";
+  if (/\benglish\b/.test(raw)) return "en";
+  if (/^(language|languages|change language|భాష|भाषा)$/.test(raw)) return "ask";
+  return null;
+}
+export function flowSlotTakenMsg(lang: Lang): string { return P[lang].flowSlotTaken; }
+export function flowBookFailMsg(lang: Lang): string { return P[lang].flowBookFail; }
 
 export async function botReplyServer(
   input: string,
