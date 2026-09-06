@@ -196,6 +196,7 @@ type PhrasePack = {
   cancelNone: string;
   cancelWhich: string;
   cancelNotFound: string;
+  cancelUsePage: string;
   payNone: string;
   payWhich: string;
   payNotFound: string;
@@ -247,6 +248,7 @@ const P: Record<Lang, PhrasePack> = {
     cancelNone: "You don't have an active appointment to cancel right now.",
     cancelWhich: "You have a few appointments booked on this number. Tap the one to cancel, or reply with its token number or the name it's booked under:",
     cancelNotFound: "I couldn't match that to one of your appointments. Please tap an option above, or reply with the exact token number or name.",
+    cancelUsePage: "You can cancel (and get refunded, if you already paid) from your appointment page. Tap *View my appointment* and I'll take you there.",
     payNone: "You don't have any unpaid appointments right now.",
     payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
     payNotFound: "I couldn't match that to one of your appointments. Please tap an option above, or reply with the exact token number or name.",
@@ -297,6 +299,7 @@ const P: Record<Lang, PhrasePack> = {
     cancelNone: "ప్రస్తుతం రద్దు చేయడానికి యాక్టివ్ అపాయింట్‌మెంట్ లేదు.",
     cancelWhich: "ఈ నంబర్‌పై మీకు కొన్ని అపాయింట్‌మెంట్‌లు బుక్ అయి ఉన్నాయి. రద్దు చేయాల్సినది నొక్కండి, లేదా దాని టోకెన్ నంబర్ లేదా బుక్ చేసిన పేరు రిప్లై చేయండి:",
     cancelNotFound: "అది మీ అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
+    cancelUsePage: "మీరు మీ అపాయింట్‌మెంట్ పేజీ నుండి రద్దు చేసుకోవచ్చు (ఇప్పటికే పే చేసి ఉంటే రీఫండ్ కూడా వస్తుంది). *నా అపాయింట్‌మెంట్ చూడండి* నొక్కండి, అక్కడికి తీసుకెళ్తాను.",
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
     payNotFound: "అది మీ అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
@@ -347,6 +350,7 @@ const P: Record<Lang, PhrasePack> = {
     cancelNone: "अभी रद्द करने के लिए कोई सक्रिय अपॉइंटमेंट नहीं है।",
     cancelWhich: "इस नंबर पर आपके कुछ अपॉइंटमेंट बुक हैं। जिसे रद्द करना है उसे दबाएँ, या उसका टोकन नंबर या बुकिंग वाला नाम रिप्लाई करें:",
     cancelNotFound: "यह आपके किसी अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
+    cancelUsePage: "आप अपने अपॉइंटमेंट पेज से रद्द कर सकते हैं (अगर पहले ही पेमेंट कर चुके हैं तो रिफंड भी मिलेगा)। *अपॉइंटमेंट देखें* दबाएँ, मैं आपको वहाँ ले चलता हूँ।",
     payNone: "अभी आपके पास कोई अवैतनिक अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
     payNotFound: "यह आपके किसी अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
@@ -754,6 +758,11 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
     }
     case "cancel": {
+      // Real cancellations (with refund handling) only happen through the
+      // My Appointment page's OTP-gated flow — this typed intent used to
+      // silently "cancel" the mock store even against the live database,
+      // which never touched the real booking or its refund.
+      if (hasSupabase()) return { reply: [t.cancelUsePage], chips: [c.view, c.book], state: { stage: "idle" } };
       if (lastBookingId) { setStatus(lastBookingId, "cancelled"); lastBookingId = null; return { reply: [t.cancelDone], chips: [c.book], state: { stage: "idle" } }; }
       return { reply: [t.cancelNone], chips: [c.book], state: { stage: "idle" } };
     }
@@ -787,6 +796,10 @@ export type Backend = {
   addBooking: (input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }) => Promise<Appt>;
   takenSlots: (date: string) => Promise<string[]>;
   setStatus: (id: string, status: ApptStatus) => Promise<void>;
+  // Cancels AND, if the appointment was paid, refunds it and tells the
+  // patient about both over WhatsApp — the only way a booking should ever be
+  // cancelled (mirrors the two website cancel routes' shared helper).
+  cancelWithRefund: (id: string) => Promise<Appt>;
   activeAppointmentsByPhone: (phone: string) => Promise<Appt[]>;
   createPaymentLink: (id: string, phone: string) => Promise<string>;
   reschedule: (id: string, date: string, time: string) => Promise<Appt>;
@@ -890,7 +903,7 @@ export async function botReplyServer(
       state.cancelCandidates.find((cd) => String(cd.token) === raw) ??
       state.cancelCandidates.find((cd) => cd.name.toLowerCase().includes(raw.toLowerCase()));
     if (picked) {
-      await backend.setStatus(picked.id, "cancelled");
+      await backend.cancelWithRefund(picked.id);
       return { reply: [t.cancelDone], chips: [c.book], state: { stage: "idle" } };
     }
     return {
@@ -1080,7 +1093,7 @@ export async function botReplyServer(
         return { reply: [t.cancelNone], chips: [c.book], state: { stage: "idle" } };
       }
       if (active.length === 1) {
-        await backend.setStatus(active[0].id, "cancelled");
+        await backend.cancelWithRefund(active[0].id);
         return { reply: [t.cancelDone], chips: [c.book], state: { stage: "idle" } };
       }
       const candidates: CancelCandidate[] = active.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));

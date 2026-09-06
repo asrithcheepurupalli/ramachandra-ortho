@@ -7,7 +7,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Appt } from "@/lib/store";
 import { refundPayment } from "@/lib/razorpay";
-import { dbMarkRefunded } from "@/lib/db";
+import { dbGetAppt, dbMarkRefunded, dbSetStatusReturning } from "@/lib/db";
+import { sendBookingCancellation, sendClinicNotice } from "@/lib/meta-whatsapp";
 
 export type RefundResult = "refunded" | "nothing_to_refund" | "not_paid" | "refund_failed";
 
@@ -33,4 +34,44 @@ export async function attemptRefund(appt: Pick<Appt, "id" | "paid" | "paidVia" |
     console.error("attemptRefund: unexpected error", err);
     return "refund_failed";
   }
+}
+
+// The one place every real cancellation path should go through: fetches the
+// appointment, refunds it if it was paid via Razorpay, flips the status, and
+// sends the patient both WhatsApp notices (cancellation + refund, when there
+// was one) using the clinic_notice template since there's no dedicated
+// "refund processed" template approved yet. Mirrors attemptRefund's posture:
+// a notify failure is logged, never thrown, so it can't block the cancel.
+export async function cancelAppointmentWithRefund(id: string): Promise<Appt> {
+  const before = await dbGetAppt(id);
+  let refunded = false;
+  if (before && before.paid && before.paidVia === "razorpay") {
+    const outcome = await attemptRefund(before);
+    refunded = outcome === "refunded";
+    if (outcome === "refund_failed") {
+      console.error(`cancelAppointmentWithRefund: refund failed for appt ${id}`);
+    }
+  }
+
+  const appt = await dbSetStatusReturning(id, "cancelled");
+
+  try {
+    await sendBookingCancellation(appt);
+  } catch (err) {
+    console.error("cancelAppointmentWithRefund: cancellation notice failed", err);
+  }
+
+  if (refunded) {
+    try {
+      await sendClinicNotice(
+        appt.phone,
+        appt.name,
+        `Your payment for Token #${appt.token} has been refunded. It should reflect in your account within 5 to 7 business days.`
+      );
+    } catch (err) {
+      console.error("cancelAppointmentWithRefund: refund notice failed", err);
+    }
+  }
+
+  return appt;
 }

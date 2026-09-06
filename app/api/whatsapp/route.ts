@@ -4,6 +4,7 @@
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
+import { cancelAppointmentWithRefund } from "@/lib/refunds";
 import { botReplyServer, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
@@ -12,6 +13,7 @@ const backend: Backend = {
   addBooking: dbAddBooking,
   takenSlots: dbTakenSlots,
   setStatus: dbSetStatus,
+  cancelWithRefund: cancelAppointmentWithRefund,
   activeAppointmentsByPhone: dbActiveAppointmentsByPhone,
   createPaymentLink: dbGetOrCreatePaymentLink,
   // Move the booking AND re-confirm it over WhatsApp, matching what the site's

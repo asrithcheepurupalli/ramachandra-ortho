@@ -4,9 +4,8 @@
 // happen server-side, outside the 24h window a template is required.
 import { NextResponse, type NextRequest } from "next/server";
 import { requireStaff } from "@/lib/auth-server";
-import { dbGetAppt, dbSetStatusReturning } from "@/lib/db";
-import { sendBookingCancellation } from "@/lib/meta-whatsapp";
-import { attemptRefund } from "@/lib/refunds";
+import { dbSetStatusReturning } from "@/lib/db";
+import { cancelAppointmentWithRefund } from "@/lib/refunds";
 import type { ApptStatus } from "@/lib/store";
 
 const validStatuses: ApptStatus[] = ["reserved", "confirmed", "waiting", "consulting", "done", "cancelled"];
@@ -27,22 +26,9 @@ export async function POST(req: NextRequest) {
   if (!isStatus(status)) return NextResponse.json({ error: "invalid status" }, { status: 400 });
 
   try {
-    // A refund only makes sense for a paid appointment, and only before it
-    // flips to cancelled — so for a cancel, look the appointment up first.
-    // Every other status change reads post-write state, which is what the
-    // returned row already is.
-    if (status === "cancelled") {
-      const before = await dbGetAppt(id);
-      if (before && before.paid && before.paidVia === "razorpay") {
-        const outcome = await attemptRefund(before);
-        if (outcome !== "refunded" && outcome !== "nothing_to_refund" && outcome !== "not_paid") {
-          console.error(`/api/appointments/status: refund outcome for ${id}:`, outcome);
-        }
-      }
-    }
-
-    const appt = await dbSetStatusReturning(id, status);
-    if (status === "cancelled") await sendBookingCancellation(appt);
+    // A cancel goes through the shared helper (refund + both WhatsApp
+    // notices); every other status change is a plain flip.
+    const appt = status === "cancelled" ? await cancelAppointmentWithRefund(id) : await dbSetStatusReturning(id, status);
     return NextResponse.json({ appointment: appt });
   } catch (err) {
     console.error("/api/appointments/status", err);

@@ -5,10 +5,9 @@
 // because a bare phone number is not a secret, and anyone who knows it could
 // otherwise cancel someone else's booking.
 import { NextResponse, type NextRequest } from "next/server";
-import { dbActiveAppointmentsByPhone, dbSetStatusReturning } from "@/lib/db";
-import { sendBookingCancellation } from "@/lib/meta-whatsapp";
+import { dbActiveAppointmentsByPhone } from "@/lib/db";
 import { otpVerified, otpEnabled } from "@/lib/otp";
-import { attemptRefund } from "@/lib/refunds";
+import { cancelAppointmentWithRefund } from "@/lib/refunds";
 
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -46,23 +45,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Verify your number to continue", otpRequired: true }, { status: 401 });
     }
 
-    // If this appointment was already paid via Razorpay, reverse the payment
-    // BEFORE flipping the status — the refund is the money part, the cancel is
-    // the booking part, and each should not depend on the other's success.
-    let refunded = false;
-    try {
-      const refund = await attemptRefund(target);
-      refunded = refund === "refunded";
-      if (refund !== "nothing_to_refund" && refund !== "not_paid") {
-        console.error(`/api/appointments/cancel: refund outcome for ${id}:`, refund);
-      }
-    } catch (err) {
-      console.error("/api/appointments/cancel: refund threw", err);
-    }
-
-    const appt = await dbSetStatusReturning(id, "cancelled");
-    try { await sendBookingCancellation(appt); } catch (err) { console.error("/api/appointments/cancel: notify failed", err); }
-    return NextResponse.json({ appointment: appt, refunded });
+    // Refund (if it was paid via Razorpay), flip the status, and notify the
+    // patient over WhatsApp of both — the refund is the money part, the
+    // cancel is the booking part, and each should not depend on the other's
+    // success.
+    const appt = await cancelAppointmentWithRefund(id);
+    return NextResponse.json({ appointment: appt, refunded: appt.refundedAt != null });
   } catch (err) {
     console.error("/api/appointments/cancel", err);
     return NextResponse.json({ error: "Could not cancel appointment" }, { status: 500 });
