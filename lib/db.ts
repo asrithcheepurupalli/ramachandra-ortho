@@ -347,11 +347,14 @@ export async function dbLoadWaSession(
     .eq("phone", phone)
     .maybeSingle();
   if (error) throw error;
-  if (!data) return { lang: "en", state: { stage: "idle" }, lastWamid: null };
+  // No row yet = a phone number the bot has never talked to — gate it on the
+  // one-time language pick before anything else, same as the website's
+  // language switcher up front.
+  if (!data) return { lang: "en", state: { stage: "await_lang" }, lastWamid: null };
 
   let state = (data.state as ServerBotState) ?? { stage: "idle" };
   const age = Date.now() - new Date(data.updated_at).getTime();
-  if (state.stage !== "idle" && age > SESSION_STALE_MS) state = { stage: "idle" };
+  if (state.stage !== "idle" && state.stage !== "await_lang" && age > SESSION_STALE_MS) state = { stage: "idle" };
 
   return { lang: (data.lang as Lang) ?? "en", state, lastWamid: data.last_wamid ?? null };
 }

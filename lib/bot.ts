@@ -29,6 +29,9 @@ export type ChatMsg = { id: string; from: Sender; text: string };
 export type BotState = {
   stage:
     | "idle"
+    // WhatsApp only: a brand-new phone number lands here before any greeting,
+    // same gate the website's language switcher gives a visitor up front.
+    | "await_lang"
     | "await_name"
     | "await_phone"
     | "await_cancel_pick"
@@ -890,6 +893,34 @@ async function slotTakenFallbackServer(resched: { id: string; phone: string }, d
 export function botStartServer(lang: Lang): { reply: string[]; chips: string[]; state: ServerBotState } {
   const t = P[lang];
   return { reply: [t.greet], chips: [t.chips.view, t.chips.book, t.chips.resched, t.chips.avail, t.chips.about, t.chips.timings, t.chips.location], state: { stage: "idle" } };
+}
+
+// WhatsApp's one-time language gate — asked once per phone number, before the
+// bot has any lang to render replies in, so it's written out in all three up
+// front rather than picked from a PhrasePack.
+export const LANG_CHOICES: { lang: Lang; label: string }[] = [
+  { lang: "en", label: "English" },
+  { lang: "te", label: "తెలుగు" },
+  { lang: "hi", label: "हिंदी" },
+];
+export function langPickPrompt(): { reply: string[]; chips: string[] } {
+  return {
+    reply: ["Please choose your language.\nదయచేసి మీ భాషను ఎంచుకోండి.\nकृपया अपनी भाषा चुनें।"],
+    chips: LANG_CHOICES.map((c) => c.label),
+  };
+}
+export function matchLangChoice(input: string): Lang | null {
+  const raw = input.trim().toLowerCase();
+  const byLabel = LANG_CHOICES.find((c) => c.label.toLowerCase() === raw);
+  if (byLabel) return byLabel.lang;
+  // "hi" is deliberately not an alias for Hindi here — it's the single most
+  // likely thing a patient replies to this exact prompt as a plain greeting,
+  // not a language pick, so it falls through to a re-prompt instead of
+  // silently switching them into Hindi.
+  if (raw === "1" || raw === "en" || raw === "english") return "en";
+  if (raw === "2" || raw === "te" || raw === "telugu" || raw.includes("తెలుగు")) return "te";
+  if (raw === "3" || raw === "hindi" || raw.includes("हिंदी")) return "hi";
+  return null;
 }
 
 export async function botReplyServer(

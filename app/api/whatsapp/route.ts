@@ -5,7 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
 import { cancelAppointmentWithRefund } from "@/lib/refunds";
-import { botReplyServer, type Backend, type ServerBotState } from "@/lib/bot";
+import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
 
@@ -30,6 +30,22 @@ const backend: Backend = {
 // "2" instead of the exact slot label — matched back to the same label text
 // botReplyServer expects (it only knows plain-text label matching).
 type WaState = ServerBotState & { lastChips?: string[] };
+
+// Tappable UI instead of a numbered wall of text where Meta's limits allow it
+// (3 buttons, or a 10-row list); only an overflow set (>10, shouldn't happen
+// post-window-split but a custom exception window could still do it) falls
+// back to the old numbered-text list.
+async function sendReply(to: string, body: string, chips: string[]) {
+  if (!chips.length) {
+    await sendText(to, body);
+  } else if (chips.length <= 3 && chips.every((c) => c.length <= 20)) {
+    await sendButtons(to, body, chips);
+  } else if (chips.length <= 10) {
+    await sendList(to, body, "Choose", chips);
+  } else {
+    await sendText(to, body + "\n\n" + chips.map((c, i) => `${i + 1}. ${c}`).join("\n"));
+  }
+}
 
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
@@ -115,6 +131,32 @@ export async function POST(req: NextRequest) {
 
     const waState = state as WaState;
 
+    // One-time language gate for a phone the bot has never talked to (or that
+    // never finished picking). First turn here has no lastChips yet — that's
+    // the signal to send the picker instead of treating the message as an
+    // intent; the reply turn resolves it against those chips like any other.
+    if (waState.stage === "await_lang") {
+      const asChoiceNumber = /^\s*(\d+)\s*$/.exec(text);
+      const choiceText =
+        waState.lastChips?.length && asChoiceNumber && waState.lastChips[Number(asChoiceNumber[1]) - 1]
+          ? waState.lastChips[Number(asChoiceNumber[1]) - 1]
+          : text;
+      const picked = waState.lastChips?.length ? matchLangChoice(choiceText) : null;
+
+      if (picked) {
+        const start = botStartServer(picked);
+        const newState: WaState = { ...start.state, lastChips: start.chips };
+        await dbSaveWaSession(from, picked, newState, wamid);
+        await sendReply(from, start.reply.join("\n\n"), start.chips);
+      } else {
+        const prompt = langPickPrompt();
+        const newState: WaState = { stage: "await_lang", lastChips: prompt.chips };
+        await dbSaveWaSession(from, lang, newState, wamid);
+        await sendReply(from, prompt.reply.join("\n\n"), prompt.chips);
+      }
+      return new NextResponse("OK", { status: 200 });
+    }
+
     const asChipNumber = /^\s*(\d+)\s*$/.exec(text);
     const effectiveInput =
       asChipNumber && waState.lastChips?.[Number(asChipNumber[1]) - 1]
@@ -127,21 +169,7 @@ export async function POST(req: NextRequest) {
     const newState: WaState = { ...result.state, lastChips: result.chips };
     await dbSaveWaSession(from, lang, newState, wamid);
 
-    // Tappable UI instead of a numbered wall of text where Meta's limits allow
-    // it (3 buttons, or a 10-row list); only an overflow set (>10, shouldn't
-    // happen post-window-split but a custom exception window could still do
-    // it) falls back to the old numbered-text list.
-    const { chips } = result;
-    const body = result.reply.join("\n\n");
-    if (!chips.length) {
-      await sendText(from, body);
-    } else if (chips.length <= 3 && chips.every((c) => c.length <= 20)) {
-      await sendButtons(from, body, chips);
-    } else if (chips.length <= 10) {
-      await sendList(from, body, "Choose", chips);
-    } else {
-      await sendText(from, body + "\n\n" + chips.map((c, i) => `${i + 1}. ${c}`).join("\n"));
-    }
+    await sendReply(from, result.reply.join("\n\n"), result.chips);
 
     return new NextResponse("OK", { status: 200 });
   } catch (err) {
