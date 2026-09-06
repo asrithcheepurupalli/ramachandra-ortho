@@ -3,7 +3,7 @@
 // Always acks POST with 200 quickly; Meta retries (and can disable) a webhook
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
-import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink } from "@/lib/db";
+import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
 import { botReplyServer, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
@@ -14,6 +14,14 @@ const backend: Backend = {
   setStatus: dbSetStatus,
   activeAppointmentsByPhone: dbActiveAppointmentsByPhone,
   createPaymentLink: dbGetOrCreatePaymentLink,
+  // Move the booking AND re-confirm it over WhatsApp, matching what the site's
+  // reschedule route does ("your appointment is confirmed for X" reads fine for
+  // a moved booking too).
+  reschedule: async (id, date, time) => {
+    const appt = await dbRescheduleAppointment(id, date, time);
+    try { await sendBookingConfirmation(appt); } catch (err) { console.error("whatsapp reschedule: notify failed", err); }
+    return appt;
+  },
 };
 
 // Remembers the numbered chip list from the last reply, so a patient can type

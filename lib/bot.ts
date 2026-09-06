@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { clinic, type Lang } from "@/clinic.config";
 import { statusAt, fmt, weekdayName, slotsFor, windowsFor, ymd, nowIST, BOOKING_LEAD_MIN, type SchedState, type Window } from "@/lib/schedule";
-import { addBooking, takenSlots, setStatus, type Source, type Appt, type ApptStatus } from "@/lib/store";
+import { addBooking, takenSlots, setStatus, activeAppointmentsByPhone, rescheduleBooking, type Source, type Appt, type ApptStatus } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 import { SlotTakenError } from "@/lib/errors";
 
@@ -26,7 +26,33 @@ export type ChatMsg = { id: string; from: Sender; text: string };
 // screen (the default 10-12:30 window alone is 15 slots at a 10-min grid) —
 // once picked, if it's still over MAX_CHIPS, this narrows further to a
 // sub-range of that window before finally listing individual times.
-export type BotState = { stage: "idle" | "await_name" | "await_phone" | "await_cancel_pick" | "await_pay_pick"; slot?: Slot; name?: string; pendingDate?: string; pendingWindow?: Window; pendingRange?: Window };
+export type BotState = {
+  stage:
+    | "idle"
+    | "await_name"
+    | "await_phone"
+    | "await_cancel_pick"
+    | "await_pay_pick"
+    | "await_view_phone"
+    | "await_resched_phone"
+    | "await_resched_pick"
+    | "await_otp";
+  slot?: Slot;
+  name?: string;
+  pendingDate?: string;
+  pendingWindow?: Window;
+  pendingRange?: Window;
+  // reschedule target: which appointment (id) to move, booked under which phone.
+  // Set once a booking is chosen, carried through the day/window/time picker, and
+  // committed (cleared) when a new time is tapped. On WhatsApp the phone is the
+  // sender's own; on the website chat it's the number the patient typed + OTP-gated.
+  resched?: { id: string; phone: string };
+  reschedCandidates?: CancelCandidate[]; // pick-one when the phone has several active
+  reschedPhone?: string; // website chat: owning phone while picking which booking to move
+  reschedOtp?: boolean; // website chat: whether this reschedule needs the WhatsApp code
+  otpPhone?: string; // website chat: phone awaiting the 6-digit WhatsApp code
+  viewPhone?: string; // website chat: phone whose appointments were just listed
+};
 // A candidate appointment shown when a cancel request is ambiguous (more
 // than one active appointment on the requesting phone) — label is what's
 // shown as a chip and matched back verbatim if tapped.
@@ -176,13 +202,24 @@ type PhrasePack = {
   payDone: (url: string) => string;
   payFail: string;
   payPrompt: string;
+  viewPrompt: string;
+  viewNone: string;
+  viewIntro: string;
+  reschedWhich: string;
+  reschedNotFound: string;
+  otpSent: (phone: string) => string;
+  otpBad: string;
+  otpExpired: string;
+  otpFail: string;
+  reschedDone: (s: string) => string;
+  reschedFail: string;
   flowCancelled: string;
   hours: string;
   location: string;
   about: string;
   fallback: string;
   thanks: string;
-  chips: { avail: string; book: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string };
+  chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string };
 };
 const P: Record<Lang, PhrasePack> = {
   en: {
@@ -216,13 +253,24 @@ const P: Record<Lang, PhrasePack> = {
     payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for a while, tap it whenever you're ready.`,
     payFail: "Something went wrong starting the payment. Please try again, or pay at the clinic.",
     payPrompt: "You can also pay the consultation fee online now and skip the counter. Tap *Pay now* whenever you're ready.",
+    viewPrompt: "Of course. Which phone number did you book with?",
+    viewNone: "You don't have any upcoming appointments on this number.",
+    viewIntro: "Here's what I found for this number:",
+    reschedWhich: "You have a few bookings on this number. Tap the one to move:",
+    reschedNotFound: "I couldn't match that to one of your bookings. Please tap an option above, or reply with the exact token number or name.",
+    otpSent: (phone: string) => `To move your appointment we'll verify it's you. We sent a 6-digit code on WhatsApp to *${phone}*. Type the code here.`,
+    otpBad: "That code didn't match. Check it and try again.",
+    otpExpired: "That code has expired. Tap *Reschedule* to send a fresh one.",
+    otpFail: "We couldn't verify your number right now. Please try again, or open *My Appointment* on the site.",
+    reschedDone: (s: string) => `✅ Moved! Your appointment is now *${s}*. A confirmation has been sent on WhatsApp.`,
+    reschedFail: "Something went wrong moving your appointment. Please try again, or call the clinic.",
     flowCancelled: "No problem, stopped that. Tap *Book appointment* whenever you're ready. 🙏",
     hours: `🕒 Consulting hours:\nMon–Sat 10 AM–12:30 PM & 6–7:45 PM. Sunday closed.\nConsultation is ${cur}${fee}.\n🚑 Medical emergency? Call ${clinic.contact.emergency}.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ Directions: ${clinic.location.mapsUrl}`,
     about: `👨‍⚕️ *${dr}*\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nRated ${clinic.rating.score}★ from ${clinic.rating.count}+ ${clinic.rating.source} reviews.`,
     fallback: "I can tell you if the doctor is in, tell you about the doctor, book you an appointment, or share timings and location. What would you like?",
     thanks: "You're welcome 🙏 Get well soon!",
-    chips: { avail: "Is the doctor in today?", book: "Book appointment", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now" },
+    chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now" },
   },
   te: {
     greet: `నమస్కారం 🙏 నేను ${clinic.shortName} అసిస్టెంట్‌ని. మీకు ఎలా సహాయపడగలను?`,
@@ -255,13 +303,24 @@ const P: Record<Lang, PhrasePack> = {
     payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది కొంతకాలం చెల్లుతుంది, మీరు సిద్ధమైనప్పుడు నొక్కండి.`,
     payFail: "చెల్లింపు ప్రారంభించడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌లో చెల్లించండి.",
     payPrompt: "కన్సల్టేషన్ ఫీజును ఇప్పుడే ఆన్‌లైన్‌లో చెల్లించి, కౌంటర్ వద్ద వేచి ఉండనవసరం లేదు. మీరు సిద్ధమైనప్పుడు *ఇప్పుడే చెల్లించండి* నొక్కండి.",
+    viewPrompt: "తప్పకుండా. మీ అపాయింట్ ఏ ఫోన్ నంబర్‌తో బుక్ చేశారు?",
+    viewNone: "ఈ నంబర్‌పై మీకు త్వరలో రాబోయే అపాయింట్‌లు లేవు.",
+    viewIntro: "ఈ నంబర్ కోసం మీ వివరాలు ఇవి:",
+    reschedWhich: "ఈ నంబర్‌పై మీకు కొన్ని బుకింగ్‌లు ఉన్నాయి. మార్చాల్సినది నొక్కండి:",
+    reschedNotFound: "అది మీ బుకింగ్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
+    otpSent: (phone: string) => `మీ అపాయింట్ మార్చడానికి మీరే అని నిర్ధారిస్తాము. *${phone}* నంబర్‌కు వాట్సాప్‌పై 6 అంకెల కోడ్ పంపాము. కోడ్ ఇక్కడ టైప్ చేయండి.`,
+    otpBad: "ఆ కోడ్ సరిపోలలేదు. మళ్ళీ చూసి ప్రయత్నించండి.",
+    otpExpired: "ఆ కోడ్ గడువు ముగిసింది. కొత్త కోడ్ కోసం *Reschedule* నొక్కండి.",
+    otpFail: "మీ నంబర్ ఇప్పుడు నిర్ధారించలేకపోయాము. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా సైట్‌లో *My Appointment* తెరవండి.",
+    reschedDone: (s: string) => `✅ మార్చబడింది! మీ అపాయింట్ ఇప్పుడు *${s}*. వాట్సాప్‌పై నిర్ధారణ పంపాము.`,
+    reschedFail: "మీ అపాయింట్ మార్చడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
     flowCancelled: "పర్వాలేదు, ఆపేశాను. మీరు సిద్ధమైనప్పుడు *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
     hours: `🕒 కన్సల్టింగ్ సమయాలు:\nసోమ–శని ఉదయం 10–12:30 & సాయంత్రం 6–7:45 PM. ఆదివారం సెలవు.\nకన్సల్టేషన్ ${cur}${fee}.\n🚑 అత్యవసర పరిస్థితా? ${clinic.contact.emergency}కు కాల్ చేయండి.`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}.\n🗺️ దిశలు: ${clinic.location.mapsUrl}`,
     about: `👨‍⚕️ *${dr}* గురించి:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} రేటింగ్: ${clinic.rating.score}★ (${clinic.rating.count}+ రివ్యూలు).`,
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
     thanks: "సంతోషం 🙏 త్వరగా కోలుకోండి!",
-    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి" },
+    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్ చూడండి", resched: "రీషెడ్యూల్", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి" },
   },
   hi: {
     greet: `नमस्ते 🙏 मैं ${clinic.shortName} का असिस्टेंट हूँ। मैं आपकी कैसे मदद करूँ?`,
@@ -294,21 +353,38 @@ const P: Record<Lang, PhrasePack> = {
     payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह कुछ समय के लिए मान्य है, जब तैयार हों तब दबाएँ।`,
     payFail: "भुगतान शुरू करने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक में भुगतान करें।",
     payPrompt: "आप परामर्श शुल्क अभी ऑनलाइन भी चुका सकते हैं और काउंटर पर लाइन से बच सकते हैं। जब तैयार हों तब *अभी भुगतान करें* दबाएँ।",
+    viewPrompt: "ज़रूर। आपका अपॉइंटमेंट किस फ़ोन नंबर से बुक हुआ है?",
+    viewNone: "इस नंबर पर आपका कोई आगामी अपॉइंटमेंट नहीं है।",
+    viewIntro: "इस नंबर के लिए आपका विवरण यह है:",
+    reschedWhich: "इस नंबर पर आपकी कुछ बुकिंग हैं। जिसे बदलना है उसे दबाएँ:",
+    reschedNotFound: "यह आपकी किसी बुकिंग से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
+    otpSent: (phone: string) => `अपॉइंटमेंट बदलने के लिए हम पुष्टि करेंगे कि आप ही हैं। आपके *${phone}* नंबर पर व्हाट्सएप से 6 अंकों का कोड भेजा है। कोड यहाँ टाइप करें।`,
+    otpBad: "वह कोड सही नहीं है। दोबारा देखें और कोशिश करें।",
+    otpExpired: "उस कोड की अवधि समाप्त हो गई। नया कोड पाने के लिए *Reschedule* दबाएँ।",
+    otpFail: "अभी आपका नंबर सत्यापित नहीं हो सका। कृपया दोबारा कोशिश करें, या साइट पर *My Appointment* खोलें।",
+    reschedDone: (s: string) => `✅ बदल गया! आपका अपॉइंटमेंट अब *${s}* है। व्हाट्सएप पर पुष्टि भेजी गई।`,
+    reschedFail: "अपॉइंटमेंट बदलने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
     flowCancelled: "कोई बात नहीं, रोक दिया। जब तैयार हों तब *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
     hours: `🕒 परामर्श समय:\nसोम–शनि सुबह 10–12:30 और शाम 6–7:45 बजे। रविवार बंद।\nपरामर्श ${cur}${fee}।\n🚑 आपातकाल में कॉल करें: ${clinic.contact.emergency}।`,
     location: `📍 ${clinic.location.line1}, ${clinic.location.line2}, ${clinic.location.city} ${clinic.location.pin}।\n🗺️ दिशा-निर्देश: ${clinic.location.mapsUrl}`,
     about: `👨‍⚕️ *${dr}* के बारे में:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} रेटिंग: ${clinic.rating.score}★ (${clinic.rating.count}+ समीक्षाएं).`,
     fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, डॉक्टर के बारे में बता सकता हूँ, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
     thanks: "आपका स्वागत है 🙏 जल्दी स्वस्थ हों!",
-    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें" },
+    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें" },
   },
 };
 
 // ── intent detection (heuristic for the beta; Claude in production) ──────────
-type Intent = "avail" | "book" | "cancel" | "pay" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback";
+type Intent = "avail" | "book" | "cancel" | "pay" | "reschedule" | "view" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback";
 function detect(s: string): Intent {
   const has = (re: RegExp) => re.test(s);
   if (has(/cancel|రద్దు|कैंसिल|रद्द/i)) return "cancel";
+  // Checked before "book" on purpose: "reschedule my appointment" contains
+  // "appointment", so without this lead it would land in the booking flow.
+  if (has(/resched|re-?schedule|move (my )?appointment|change (my )?(appointment|slot|date|time|day)|postpone|పునఃషెడ్యూల్|రీషెడ్యూల్|షెడ్యూల్ మార్చ|సమయం మార్చ|అపాయింట్ మార్చ|अपॉइंटमेंट बदल|पुनर्निर्धारित|रीशेड्यूल|समय बदल|डेट बदल|तारीख बदल/i)) return "reschedule";
+  // Also before "book": "view my appointment" contains "appointment". \bview\b so
+  // "review" never matches.
+  if (has(/\bview\b|my appointment|(see|check|show) (my )?appointment|అపాయింట్(.{0,10}చూడ|.{0,10}వివర)|నా అపాయింట్|अपॉइंटमेंट(.{0,10}देख|.{0,10}स्थिति)|मेरा अपॉइंटमेंट/i)) return "view";
   if (has(/\bpay\b|payment|checkout|చెల్లించ|చెల్లింపు|भुगतान|पेमेंट/i)) return "pay";
   if (has(/book|appoint|slot|token|బుక్|అపాయింట్|अपॉइंटमेंट|बुक|टोकन/i)) return "book";
   if (has(/about (the )?(doctor|dr)\b|doctor.?s? (bio|profile|qualification)|qualification|credentials|డాక్టర్.{0,3}గురించి|గురించి.{0,3}డాక్టర్|योग्यता|डॉक्टर.{0,3}(बारे|प्रोफाइल)/i)) return "about";
@@ -340,6 +416,13 @@ function formatIndianPhone(raw: string): string {
   return `+${digits}`;
 }
 
+// One line for the view/reschedule lists: token, name, and when they're booked
+// (day + time + status), so a phone with a few appointments stays legible.
+function fmtApptForView(a: Appt): string {
+  const day = weekdayName(new Date(a.date + "T00:00:00"));
+  return `#${a.token} · ${a.name}, ${day} ${fmt(a.time)} · ${a.status}`;
+}
+
 function availReply(t: PhrasePack): string {
   const st = statusAt();
   if (st.state === "in") return t.availIn(fmt(st.until));
@@ -350,7 +433,102 @@ function availReply(t: PhrasePack): string {
 
 export function botStart(lang: Lang): BotOut {
   const t = P[lang];
-  return { reply: [t.greet], chips: [t.chips.avail, t.chips.book, t.chips.about, t.chips.timings, t.chips.location], state: { stage: "idle" } };
+  return { reply: [t.greet], chips: [t.chips.view, t.chips.book, t.chips.resched, t.chips.avail, t.chips.about, t.chips.timings, t.chips.location], state: { stage: "idle" } };
+}
+
+// ── view / reschedule: client (website chat) ────────────────────────────────
+// The site chat has no WhatsApp sender identity, so it looks the phone number
+// up explicitly and, when the gate is enabled, proves ownership with a WhatsApp
+// OTP code before anything is moved. In mock (no-Supabase) mode the store's
+// localStorage mirrors the same reads and writes, and there is no gate to pass.
+
+// Active appointments for a phone + whether self-service mutations are gated
+// (mirrors the lookup route's response). Mock mode always reports no gate.
+async function lookupClient(phone: string): Promise<{ appts: Appt[]; otp: boolean }> {
+  if (hasSupabase()) {
+    try {
+      const res = await fetch("/api/appointments/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      if (!res.ok) return { appts: [], otp: false };
+      const data = (await res.json()) as { appointments?: Appt[]; otpEnabled?: boolean };
+      return { appts: data.appointments ?? [], otp: Boolean(data.otpEnabled) };
+    } catch {
+      return { appts: [], otp: false };
+    }
+  }
+  return { appts: activeAppointmentsByPhone(phone), otp: false };
+}
+
+// Ask Meta to send the verification code over WhatsApp. Errors are collapsed
+// into three outcomes the caller can phrase:
+//   "sent"  a fresh code went out
+//   "rate"  a code still stands (recently sent) - the patient has one to type
+//   "fail"  template missing / send failed / no active appointment
+async function requestOtpClient(phone: string): Promise<"sent" | "rate" | "fail"> {
+  try {
+    const res = await fetch("/api/appointments/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+    if (res.status === 429) return "rate";
+    if (!res.ok) return "fail";
+    return "sent";
+  } catch {
+    return "fail";
+  }
+}
+
+// Resume the slot picker for a move (resched carries which booking + phone).
+async function enterPickerClient(resched: { id: string; phone: string }, t: PhrasePack): Promise<BotOut> {
+  const days = await openDays();
+  if (!days.length) return { reply: [t.noSlots], chips: [t.chips.avail], state: { stage: "idle" } };
+  return { reply: [t.pickDay], chips: days.map((d) => d.label), state: { stage: "idle", resched } };
+}
+
+// Fresh-slot fallback after the target time got taken on a reschedule commit:
+// same day, same window where possible, re-listed as chips with the move kept
+// alive so the next tap still reschedules (not re-books).
+async function slotTakenFallbackClient(resched: { id: string; phone: string }, date: string, time: string, t: PhrasePack): Promise<BotOut> {
+  const fresh = await timesForDate(date);
+  const win = windowsFor(new Date(date + "T00:00:00")).find((w) => inWindow(time, w));
+  const scoped = win ? fresh.filter((t2) => inWindow(t2, win)) : fresh;
+  if (!scoped.length) return { reply: [t.slotTaken, t.noSlots], chips: [t.chips.avail], state: { stage: "idle" } };
+  if (win && scoped.length > MAX_CHIPS) {
+    const ranges = splitWindow(win, scoped.length);
+    const dayLabel = dayLabelForDate(date, new Date());
+    return { reply: [t.slotTaken, t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched, pendingDate: date, pendingWindow: win } };
+  }
+  return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", resched, pendingDate: date, pendingWindow: win } };
+}
+
+// Website chat: list the active appointments for a phone (the "view" outcome).
+async function viewAppointmentsClient(phone: string, t: PhrasePack): Promise<BotOut> {
+  const { appts } = await lookupClient(phone);
+  if (!appts.length) return { reply: [t.viewNone], chips: [t.chips.book], state: { stage: "idle" } };
+  return { reply: [t.viewIntro, ...appts.map(fmtApptForView)], chips: [t.chips.resched, t.chips.book], state: { stage: "idle", viewPhone: phone } };
+}
+
+// Website-chat entry to a reschedule for a known phone: fresh lookup, then
+// either ask which booking (several active), send the OTP code (gate on), or
+// drop straight into the slot picker (gate off / mock).
+async function startRescheduleClient(phone: string, t: PhrasePack): Promise<BotOut> {
+  const { appts, otp } = await lookupClient(phone);
+  if (!appts.length) return { reply: [t.viewNone], chips: [t.chips.book], state: { stage: "idle" } };
+  if (appts.length > 1) {
+    const candidates: CancelCandidate[] = appts.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
+    return { reply: [t.reschedWhich], chips: candidates.map((cd) => cd.label), state: { stage: "await_resched_pick", reschedCandidates: candidates, reschedPhone: phone, reschedOtp: otp } };
+  }
+  const appt = appts[0];
+  if (otp) {
+    const sent = await requestOtpClient(phone);
+    if (sent === "fail") return { reply: [t.otpFail], chips: [t.chips.resched], state: { stage: "idle", viewPhone: phone } };
+    return { reply: [t.otpSent(phone)], chips: [], state: { stage: "await_otp", otpPhone: phone, resched: { id: appt.id, phone } } };
+  }
+  return enterPickerClient({ id: appt.id, phone }, t);
 }
 
 export async function botReply(input: string, lang: Lang, state: BotState, source: Source = "whatsapp"): Promise<BotOut> {
@@ -360,8 +538,63 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
   // Escape hatch: without this, "cancel" typed while answering name/phone was
   // swallowed as literal input for that stage (e.g. booked as a patient named
   // "cancel") instead of backing the patient out of a flow they no longer want.
-  if ((state.stage === "await_name" || state.stage === "await_phone") && detect(input) === "cancel") {
+  if (
+    (state.stage === "await_name" || state.stage === "await_phone" || state.stage === "await_view_phone" || state.stage === "await_resched_phone" || state.stage === "await_resched_pick" || state.stage === "await_otp") &&
+    detect(input) === "cancel"
+  ) {
     return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
+  }
+
+  // VIEW: this input is the phone number to look up
+  if (state.stage === "await_view_phone") {
+    const digits = input.replace(/\D/g, "");
+    if (digits.length < 10) return { reply: [t.badPhone], chips: [], state };
+    return viewAppointmentsClient(digits, t);
+  }
+
+  // RESCHEDULE: this input is the phone number whose booking we move
+  if (state.stage === "await_resched_phone") {
+    const digits = input.replace(/\D/g, "");
+    if (digits.length < 10) return { reply: [t.badPhone], chips: [], state };
+    return startRescheduleClient(digits, t);
+  }
+
+  // RESCHEDULE: picking which appointment when the phone has several active
+  if (state.stage === "await_resched_pick" && state.reschedCandidates?.length) {
+    const raw = input.trim();
+    const picked =
+      state.reschedCandidates.find((cd) => cd.label === raw) ??
+      state.reschedCandidates.find((cd) => String(cd.token) === raw) ??
+      state.reschedCandidates.find((cd) => cd.name.toLowerCase().includes(raw.toLowerCase()));
+    if (!picked) {
+      return { reply: [t.reschedNotFound], chips: state.reschedCandidates.map((cd) => cd.label), state: { stage: "await_resched_pick", reschedCandidates: state.reschedCandidates, reschedPhone: state.reschedPhone, reschedOtp: state.reschedOtp } };
+    }
+    const phone = state.reschedPhone ?? "";
+    if (state.reschedOtp) {
+      const sent = await requestOtpClient(phone);
+      if (sent === "fail") return { reply: [t.otpFail], chips: [c.resched], state: { stage: "idle", viewPhone: phone } };
+      return { reply: [t.otpSent(phone)], chips: [], state: { stage: "await_otp", otpPhone: phone, resched: { id: picked.id, phone } } };
+    }
+    return enterPickerClient({ id: picked.id, phone }, t);
+  }
+
+  // OTP: this input is the 6-digit code proving the phone owns the booking
+  if (state.stage === "await_otp" && state.otpPhone && state.resched) {
+    const code = input.trim();
+    if (code.length !== 6) return { reply: [t.otpBad], chips: [], state };
+    try {
+      const res = await fetch("/api/appointments/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: state.otpPhone, code }),
+      });
+      if (res.status === 410) return { reply: [t.otpExpired], chips: [c.resched], state: { stage: "idle", viewPhone: state.otpPhone } };
+      if (res.status === 401) return { reply: [t.otpBad], chips: [], state: { stage: "await_otp", otpPhone: state.otpPhone, resched: state.resched } };
+      if (!res.ok) return { reply: [t.otpFail], chips: [c.resched], state: { stage: "idle", viewPhone: state.otpPhone } };
+      return enterPickerClient(state.resched, t);
+    } catch {
+      return { reply: [t.otpFail], chips: [c.resched], state: { stage: "idle", viewPhone: state.otpPhone } };
+    }
   }
 
   // completing a booking: this input is the patient's name
@@ -423,6 +656,32 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     const match = times.find((s) => fmt(s) === input);
     if (match) {
       const label = `${dayLabelForDate(state.pendingDate, new Date())} ${fmt(match)}`;
+      // a reschedule in progress: the tap MOVE the existing booking
+      if (state.resched) {
+        try {
+          if (hasSupabase()) {
+            const res = await fetch("/api/appointments/reschedule", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: state.resched.id, phone: state.resched.phone, date: state.pendingDate, time: match }),
+            });
+            if (res.status === 401) {
+              // OTP window lapsed (10 min) between the code and the tap
+              return { reply: [t.otpExpired], chips: [c.resched], state: { stage: "idle", viewPhone: state.resched.phone } };
+            }
+            if (res.status === 409) {
+              return slotTakenFallbackClient(state.resched, state.pendingDate, match, t);
+            }
+            if (!res.ok) throw new Error("reschedule failed");
+            return { reply: [t.reschedDone(label)], chips: [c.avail, c.book, c.done], state: { stage: "idle" } };
+          }
+          rescheduleBooking(state.resched.id, state.pendingDate, match);
+          return { reply: [t.reschedDone(label)], chips: [c.avail, c.book, c.done], state: { stage: "idle" } };
+        } catch (err) {
+          if (err instanceof SlotTakenError) return slotTakenFallbackClient(state.resched, state.pendingDate, match, t);
+          return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
+        }
+      }
       return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label } } };
     }
   }
@@ -435,7 +694,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     if (pickedRange) {
       const times = winTimes.filter((s) => inWindow(s, pickedRange));
       const dayLabel = dayLabelForDate(state.pendingDate, new Date());
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange } };
     }
   }
 
@@ -448,9 +707,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       const dayLabel = dayLabelForDate(state.pendingDate, new Date());
       if (times.length > MAX_CHIPS) {
         const ranges = splitWindow(pickedWin, times.length);
-        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", pendingDate: state.pendingDate, pendingWindow: pickedWin } };
+        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin } };
       }
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", pendingDate: state.pendingDate, pendingWindow: pickedWin } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin } };
     }
   }
 
@@ -461,23 +720,34 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     const times = await timesForDate(pickedDay.date);
     if (!times.length) {
       const fresh = days.filter((d) => d.date !== pickedDay.date);
-      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle" } };
-      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle" } };
+      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched } };
+      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched } };
     }
     const wins = await windowsWithSlotsFor(pickedDay.date);
     if (wins.length > 1) {
-      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", pendingDate: pickedDay.date } };
+      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date } };
     }
     if (times.length > MAX_CHIPS) {
       const ranges = splitWindow(wins[0], times.length);
-      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", pendingDate: pickedDay.date, pendingWindow: wins[0] } };
+      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
     }
-    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", pendingDate: pickedDay.date, pendingWindow: wins[0] } };
+    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
   }
 
   switch (detect(input)) {
     case "avail":
       return { reply: [availReply(t)], chips: [c.book, c.about, c.timings], state: { stage: "idle" } };
+    case "view": {
+      // A prior view already knows the phone, so re-show it instead of asking again.
+      if (state.viewPhone) return viewAppointmentsClient(state.viewPhone, t);
+      return { reply: [t.viewPrompt], chips: [], state: { stage: "await_view_phone" } };
+    }
+    case "reschedule": {
+      // A prior "view" already knows the phone, so hop straight to the move —
+      // otherwise ask for the number, same as looking one up.
+      if (state.viewPhone) return startRescheduleClient(state.viewPhone, t);
+      return { reply: [t.viewPrompt], chips: [], state: { stage: "await_resched_phone" } };
+    }
     case "book": {
       const dayList = await openDays();
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
@@ -519,6 +789,7 @@ export type Backend = {
   setStatus: (id: string, status: ApptStatus) => Promise<void>;
   activeAppointmentsByPhone: (phone: string) => Promise<Appt[]>;
   createPaymentLink: (id: string, phone: string) => Promise<string>;
+  reschedule: (id: string, date: string, time: string) => Promise<Appt>;
 };
 export type ServerBotState = BotState & { cancelCandidates?: CancelCandidate[]; payCandidates?: PayCandidate[] };
 
@@ -558,9 +829,33 @@ function availReplyServer(t: PhrasePack, sched: SchedState): string {
   return t.availNone;
 }
 
+// The WhatsApp bot trusts the sender's number as identity (no OTP needed here,
+// same as cancel/pay) — enter the slot picker for the move directly.
+async function enterPickerServer(resched: { id: string; phone: string }, backend: Backend, sched: SchedState, t: PhrasePack): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
+  const days = await openDaysServer(backend, sched);
+  if (!days.length) return { reply: [t.noSlots], chips: [t.chips.avail], state: { stage: "idle" } };
+  return { reply: [t.pickDay], chips: days.map((d) => d.label), state: { stage: "idle", resched } };
+}
+
+// Fresh-slot fallback after the target time got taken on a reschedule commit:
+// same day, same window where possible, re-listed as chips with the move kept
+// alive so the next tap still reschedules (not re-books).
+async function slotTakenFallbackServer(resched: { id: string; phone: string }, date: string, time: string, backend: Backend, sched: SchedState, t: PhrasePack): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
+  const fresh = await timesForDateServer(date, backend, sched);
+  const win = windowsFor(new Date(date + "T00:00:00"), sched).find((w) => inWindow(time, w));
+  const scoped = win ? fresh.filter((t2) => inWindow(t2, win)) : fresh;
+  if (!scoped.length) return { reply: [t.slotTaken, t.noSlots], chips: [t.chips.avail], state: { stage: "idle" } };
+  if (win && scoped.length > MAX_CHIPS) {
+    const ranges = splitWindow(win, scoped.length);
+    const dayLabel = dayLabelForDate(date, nowIST());
+    return { reply: [t.slotTaken, t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched, pendingDate: date, pendingWindow: win } };
+  }
+  return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", resched, pendingDate: date, pendingWindow: win } };
+}
+
 export function botStartServer(lang: Lang): { reply: string[]; chips: string[]; state: ServerBotState } {
   const t = P[lang];
-  return { reply: [t.greet], chips: [t.chips.avail, t.chips.book, t.chips.about, t.chips.timings, t.chips.location], state: { stage: "idle" } };
+  return { reply: [t.greet], chips: [t.chips.view, t.chips.book, t.chips.resched, t.chips.avail, t.chips.about, t.chips.timings, t.chips.location], state: { stage: "idle" } };
 }
 
 export async function botReplyServer(
@@ -578,7 +873,10 @@ export async function botReplyServer(
   // Escape hatch: without this, "cancel" typed while answering name/phone was
   // swallowed as literal input for that stage (e.g. booked as a patient named
   // "cancel") instead of backing the patient out of a flow they no longer want.
-  if ((state.stage === "await_name" || state.stage === "await_phone" || state.stage === "await_cancel_pick" || state.stage === "await_pay_pick") && detect(input) === "cancel") {
+  if (
+    (state.stage === "await_name" || state.stage === "await_phone" || state.stage === "await_cancel_pick" || state.stage === "await_pay_pick" || state.stage === "await_view_phone" || state.stage === "await_resched_phone" || state.stage === "await_resched_pick" || state.stage === "await_otp") &&
+    detect(input) === "cancel"
+  ) {
     return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
   }
 
@@ -623,6 +921,24 @@ export async function botReplyServer(
       chips: state.payCandidates.map((cd) => cd.label),
       state: { stage: "await_pay_pick", payCandidates: state.payCandidates },
     };
+  }
+
+  // picking which appointment to reschedule, when the phone has more than one
+  // active booking — same matching rules as the cancel/pay pickers above.
+  if (state.stage === "await_resched_pick" && state.reschedCandidates?.length) {
+    const raw = input.trim();
+    const picked =
+      state.reschedCandidates.find((cd) => cd.label === raw) ??
+      state.reschedCandidates.find((cd) => String(cd.token) === raw) ??
+      state.reschedCandidates.find((cd) => cd.name.toLowerCase().includes(raw.toLowerCase()));
+    if (!picked) {
+      return {
+        reply: [t.reschedNotFound],
+        chips: state.reschedCandidates.map((cd) => cd.label),
+        state: { stage: "await_resched_pick", reschedCandidates: state.reschedCandidates },
+      };
+    }
+    return enterPickerServer({ id: picked.id, phone }, backend, sched, t);
   }
 
   // name collected: hold the slot, ask which number to book it under —
@@ -676,6 +992,16 @@ export async function botReplyServer(
     const match = times.find((s) => fmt(s) === input);
     if (match) {
       const label = `${dayLabelForDate(state.pendingDate, nowIST())} ${fmt(match)}`;
+      // a reschedule in progress: the tap MOVE the existing booking
+      if (state.resched) {
+        try {
+          await backend.reschedule(state.resched.id, state.pendingDate, match);
+          return { reply: [t.reschedDone(label)], chips: [c.avail, c.book, c.done], state: { stage: "idle" } };
+        } catch (err) {
+          if (err instanceof SlotTakenError) return slotTakenFallbackServer(state.resched, state.pendingDate, match, backend, sched, t);
+          return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
+        }
+      }
       return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label } } };
     }
   }
@@ -688,7 +1014,7 @@ export async function botReplyServer(
     if (pickedRange) {
       const times = winTimes.filter((s) => inWindow(s, pickedRange));
       const dayLabel = dayLabelForDate(state.pendingDate, nowIST());
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange } };
     }
   }
 
@@ -701,9 +1027,9 @@ export async function botReplyServer(
       const dayLabel = dayLabelForDate(state.pendingDate, nowIST());
       if (times.length > MAX_CHIPS) {
         const ranges = splitWindow(pickedWin, times.length);
-        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", pendingDate: state.pendingDate, pendingWindow: pickedWin } };
+        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin } };
       }
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", pendingDate: state.pendingDate, pendingWindow: pickedWin } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin } };
     }
   }
 
@@ -714,23 +1040,35 @@ export async function botReplyServer(
     const times = await timesForDateServer(pickedDay.date, backend, sched);
     if (!times.length) {
       const fresh = days.filter((d) => d.date !== pickedDay.date);
-      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle" } };
-      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle" } };
+      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched } };
+      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched } };
     }
     const wins = await windowsWithSlotsForServer(pickedDay.date, backend, sched);
     if (wins.length > 1) {
-      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", pendingDate: pickedDay.date } };
+      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date } };
     }
     if (times.length > MAX_CHIPS) {
       const ranges = splitWindow(wins[0], times.length);
-      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", pendingDate: pickedDay.date, pendingWindow: wins[0] } };
+      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
     }
-    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", pendingDate: pickedDay.date, pendingWindow: wins[0] } };
+    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
   }
 
   switch (detect(input)) {
     case "avail":
       return { reply: [availReplyServer(t, sched)], chips: [c.book, c.about, c.timings], state: { stage: "idle" } };
+    case "view": {
+      const active = await backend.activeAppointmentsByPhone(phone);
+      if (!active.length) return { reply: [t.viewNone], chips: [c.book], state: { stage: "idle" } };
+      return { reply: [t.viewIntro, ...active.map(fmtApptForView)], chips: [c.resched, c.book], state: { stage: "idle" } };
+    }
+    case "reschedule": {
+      const active = await backend.activeAppointmentsByPhone(phone);
+      if (!active.length) return { reply: [t.viewNone], chips: [c.book], state: { stage: "idle" } };
+      if (active.length === 1) return enterPickerServer({ id: active[0].id, phone }, backend, sched, t);
+      const candidates: CancelCandidate[] = active.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
+      return { reply: [t.reschedWhich], chips: candidates.map((cd) => cd.label), state: { stage: "await_resched_pick", reschedCandidates: candidates } };
+    }
     case "book": {
       const dayList = await openDaysServer(backend, sched);
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
