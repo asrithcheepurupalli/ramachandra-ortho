@@ -181,15 +181,18 @@ export function BookForm() {
           {payErr && <p role="alert" className="mt-3 text-sm text-out">{payErr}</p>}
           <div className="mt-6 flex flex-col gap-2">
             {!booked.paid && (
-              <button onClick={doPay} disabled={payBusy} className="press flex items-center justify-center gap-2 rounded-full border border-brand py-3 text-sm font-semibold text-brand transition disabled:opacity-60">
-                <Wallet className="h-4 w-4" /> {t("book.done.paynow")}
+              <button onClick={doPay} disabled={payBusy} className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition disabled:opacity-60">
+                <Wallet className="h-4 w-4 shrink-0" /> {t("book.done.paynow")}
               </button>
             )}
-            <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark"><MessageCircle className="h-4 w-4" /> {t("cta.whatsapp")}</a>
-            <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex items-center justify-center gap-2 rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.view")}</Link>
-            <div className="flex gap-2">
-              <button onClick={() => { setBooked(null); setSelTime(null); setForm({ name: "", phone: "", reason: "" }); }} className="press flex-1 rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
-              <Link href="/" className="press flex-1 rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
+            <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
+            <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full border border-line px-3 py-3 text-center text-sm font-semibold text-ink">{t("book.done.view")}</Link>
+            {/* Stacked full-width, not a flex-1 side-by-side row. Telugu/Hindi
+                labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
+                column can hold on one line. */}
+            <div className="grid grid-cols-1 gap-2">
+              <button onClick={() => { setBooked(null); setSelTime(null); setForm({ name: "", phone: "", reason: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
+              <Link href="/" className="press w-full rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
             </div>
           </div>
         </div>

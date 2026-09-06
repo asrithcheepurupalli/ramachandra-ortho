@@ -89,6 +89,12 @@
   table.items .amt { font-size: 12.5px; font-weight: 800; color: var(--brand-dark); }
   table.items .amt.free { color: var(--accent); font-size: 10.5px; }
 
+  .seepage { display: inline-block; margin-left: 6px; font-size: 8px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand); }
+
+  .subtotal-note { display: flex; justify-content: space-between; align-items: baseline; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 16px; margin-top: 2px; margin-bottom: 8px; font-size: 10.5px; color: var(--muted); }
+  .subtotal-note b { color: var(--ink); }
+  .subtotal-note .amt { color: var(--brand-dark); font-weight: 800; font-size: 13px; }
+
   .totals { display: flex; justify-content: flex-end; margin-bottom: 8px; }
   .totals-box { width: 82mm; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 9px 16px; }
   .totals-row { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); padding: 2px 0; }
@@ -156,7 +162,7 @@
           <div class="tag">Visakhapatnam</div>
         </div>
       </div>
-      <div class="hero-doctype">Invoice RC-2026-01<br/>4 September 2026</div>
+      <div class="hero-doctype">Invoice RC-2026-01<br/>6 September 2026</div>
     </div>
     <div class="eyebrow">Invoice &amp; payment options</div>
     <h1>Everything built so far, and two straightforward ways to settle it.</h1>
@@ -179,7 +185,7 @@
 
     <div class="meta-strip">
       <div class="meta-card"><div class="n">RC-2026-01</div><div class="l">Invoice number</div></div>
-      <div class="meta-card"><div class="n">4 Sep 2026</div><div class="l">Date issued</div></div>
+      <div class="meta-card"><div class="n">6 Sep 2026</div><div class="l">Date issued</div></div>
       <div class="meta-card"><div class="n">See page 2</div><div class="l">Payment terms</div></div>
     </div>
 
@@ -191,53 +197,49 @@
         <th class="num" style="width:34%">This build</th>
       </tr>
       <tr>
-        <td><div class="t">Patient website and booking</div><div class="d">Three languages, installable on a phone, live slot booking, no double-bookings.</div></td>
+        <td><div class="t">Patient website and booking<span class="seepage">Details &rarr; p.3</span></div><div class="d">Three languages, installable on a phone, live slot booking, no double-bookings.</div></td>
         <td class="num market">₹90,000</td>
         <td class="num"><div class="amt">₹35,000</div></td>
       </tr>
       <tr>
-        <td><div class="t">Admin dashboard</div><div class="d">Queue, schedule, patient history and revenue, in one screen.</div></td>
+        <td><div class="t">Admin dashboard<span class="seepage">Details &rarr; p.4</span></div><div class="d">Queue, schedule, patient history and revenue, updating live the moment anything changes.</div></td>
         <td class="num market">₹70,000</td>
         <td class="num"><div class="amt">₹20,000</div></td>
       </tr>
       <tr>
-        <td><div class="t">WhatsApp automation</div><div class="d">Direct Meta Cloud API integration, automatic confirmations and cancellations.</div></td>
+        <td><div class="t">WhatsApp automation<span class="seepage">Details &rarr; p.5</span></div><div class="d">Direct Meta Cloud API integration. Automatic confirmations, cancellations, reminders before every visit, one-tap broadcasts, and an in-chat bot for view, cancel, reschedule and pay.</div></td>
         <td class="num market">₹90,000</td>
         <td class="num"><div class="amt">₹15,000</div></td>
       </tr>
       <tr>
-        <td><div class="t">Patient self-service</div><div class="d">Patients look up, cancel, or reschedule by phone number, no call needed.</div></td>
+        <td><div class="t">Patient self-service</div><div class="d">Patients look up, cancel, reschedule, or pay by phone number, verified with a one-time code. Refunds happen automatically.</div></td>
         <td class="num market">₹20,000</td>
         <td class="num"><div class="amt">₹5,000</div></td>
       </tr>
       <tr>
-        <td><div class="t">Security hardening</div><div class="d">Access control, login protection, full audit pass, this month.</div></td>
+        <td><div class="t">Security hardening</div><div class="d">Access control, login protection, a full audit pass, and the codebase moved to a private repository.</div></td>
         <td class="num market">₹25,000</td>
         <td class="num"><div class="amt free">Complimentary</div></td>
       </tr>
-      <tr>
-        <td><div class="t">Documentation</div><div class="d">The clinic handbook, kept current as things change.</div></td>
-        <td class="num market">₹8,000</td>
-        <td class="num"><div class="amt free">Complimentary</div></td>
-      </tr>
     </table>
+    <p style="font-size: 9.5px; color: var(--muted); margin: -4px 0 8px;">Website, admin and WhatsApp each get a full feature-by-feature breakdown on their own page, pages 3&ndash;5.</p>
 
     <div class="totals">
       <div class="totals-box">
-        <div class="totals-row"><span>Typical agency rate</span><span>₹3,03,000</span></div>
-        <div class="totals-row discount"><span>Founding-build adjustment</span><span>&minus; ₹2,28,000</span></div>
+        <div class="totals-row"><span>Typical agency rate</span><span>₹2,95,000</span></div>
+        <div class="totals-row discount"><span>Discount applied</span><span>&minus; ₹2,20,000</span></div>
         <div class="totals-row due"><span>Priced at</span><span class="amt">₹75,000</span></div>
         <div class="pointer">Two ways to pay this on page 2 →</div>
       </div>
     </div>
 
-    <div class="quote-box"><b>Why the rate is what it is</b>Ramachandra Ortho Care is made.'s first clinic built ground up, direct Meta WhatsApp integration and all, and that reference is worth more right now than a full market quote. The number above is real, not symbolic. It's just intentionally under what the same build would cost from an agency.</div>
+    <div class="quote-box"><b>Why the rate is what it is</b>Every item above is priced against what an outside agency would actually charge for it, then discounted well below that. The number is real, not symbolic. It's just intentionally under market.</div>
   </div>
 
   <div style="padding: 0 18mm 10mm;">
     <div class="foot">
       <span>Ramachandra Ortho Care · Invoice RC-2026-01</span>
-      <span>Page 1 of 2</span>
+      <span>Page 1 of 5</span>
     </div>
   </div>
 </div>
@@ -253,7 +255,7 @@
           <div class="tag">Visakhapatnam</div>
         </div>
       </div>
-      <div class="hero-doctype">Invoice RC-2026-01<br/>4 September 2026</div>
+      <div class="hero-doctype">Invoice RC-2026-01<br/>6 September 2026</div>
     </div>
     <div class="eyebrow">Two ways to pay</div>
     <h1>Pick whichever is easier on the clinic's cash flow.</h1>
@@ -314,14 +316,216 @@
 
     <div class="terms">
       <div class="t">Notes</div>
-      <div class="d">No due date and no interest either way. On Option A, this invoice is paid whenever suits you. On Option B, the first ₹45,000 covers the build to date and the ₹2,500 monthly starts whenever you're ready. Switching from A to B later, or the other way round, is fine, just say so. <b>Bank details / UPI:</b> to be added.</div>
+      <div class="d">No due date and no interest either way. On Option A, this invoice is paid whenever suits you. On Option B, the first ₹45,000 covers the build to date and the ₹2,500 monthly starts whenever you're ready. Switching from A to B later, or the other way round, is fine, just say so.</div>
     </div>
   </div>
 
   <div style="padding: 0 18mm 10mm;">
     <div class="foot">
       <span>Ramachandra Ortho Care · Invoice RC-2026-01</span>
-      <span>rcorthocare.made-by-ac.com · Prepared by Asrith Cheepurupalli · made. · Page 2 of 2</span>
+      <span>rcorthocare.made-by-ac.com · Prepared by Asrith Cheepurupalli · made. · Page 2 of 5</span>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="hero">
+    <div class="hero-top">
+      <div class="brandmark">
+        <span class="dot">🦴</span>
+        <div>
+          <div class="name">Ramachandra Ortho Care</div>
+          <div class="tag">Visakhapatnam</div>
+        </div>
+      </div>
+      <div class="hero-doctype">Invoice RC-2026-01<br/>6 September 2026</div>
+    </div>
+    <div class="eyebrow">Item breakdown &middot; patient website</div>
+    <h1>Where the ₹90,000 agency rate actually comes from.</h1>
+    <p class="sub">Six features, each priced against what an outside agency would charge for it on its own, then discounted to the ₹35,000 on page 1.</p>
+  </div>
+
+  <div class="body">
+    <div class="section-label">Feature breakdown</div>
+    <table class="items">
+      <tr>
+        <th style="width:52%">Feature</th>
+        <th class="num" style="width:22%">Agency rate</th>
+        <th class="num" style="width:26%">This build</th>
+      </tr>
+      <tr>
+        <td><div class="t">Live slot booking, no double-bookings</div><div class="d">Availability updates the moment a slot is taken, so two patients can never land on the same appointment.</div></td>
+        <td class="num market">₹30,000</td>
+        <td class="num"><div class="amt">₹15,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Booking flow, confirmation &amp; token</div><div class="d">The form, validation, and the token number every patient gets to hold their place in the queue.</div></td>
+        <td class="num market">₹20,000</td>
+        <td class="num"><div class="amt">₹12,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Three-language interface</div><div class="d">The whole site, not just labels, works fully in English, Telugu and Hindi.</div></td>
+        <td class="num market">₹15,000</td>
+        <td class="num"><div class="amt">₹5,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Installable on any phone</div><div class="d">Add-to-home-screen support, so it opens and feels like an app without an app store.</div></td>
+        <td class="num market">₹12,000</td>
+        <td class="num"><div class="amt">₹3,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Search &amp; social previews</div><div class="d">Proper link previews and search listing, so the site looks right wherever it's shared.</div></td>
+        <td class="num market">₹8,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Reviews wall</div><div class="d">Patient reviews on the homepage, laid out to read well on a phone too.</div></td>
+        <td class="num market">₹5,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+    </table>
+
+    <div class="subtotal-note"><span>Adds up to <b>₹90,000</b> agency rate, matching page 1</span><span class="amt">₹35,000</span></div>
+  </div>
+
+  <div style="padding: 0 18mm 10mm;">
+    <div class="foot">
+      <span>Ramachandra Ortho Care · Invoice RC-2026-01</span>
+      <span>Page 3 of 5</span>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="hero">
+    <div class="hero-top">
+      <div class="brandmark">
+        <span class="dot">🦴</span>
+        <div>
+          <div class="name">Ramachandra Ortho Care</div>
+          <div class="tag">Visakhapatnam</div>
+        </div>
+      </div>
+      <div class="hero-doctype">Invoice RC-2026-01<br/>6 September 2026</div>
+    </div>
+    <div class="eyebrow">Item breakdown &middot; admin dashboard</div>
+    <h1>Where the ₹70,000 agency rate actually comes from.</h1>
+    <p class="sub">Five features, each priced against what an outside agency would charge for it on its own, then discounted to the ₹20,000 on page 1.</p>
+  </div>
+
+  <div class="body">
+    <div class="section-label">Feature breakdown</div>
+    <table class="items">
+      <tr>
+        <th style="width:52%">Feature</th>
+        <th class="num" style="width:22%">Agency rate</th>
+        <th class="num" style="width:26%">This build</th>
+      </tr>
+      <tr>
+        <td><div class="t">Live queue</div><div class="d">The queue updates on its own the moment a patient books, arrives, or is marked done, no manual refresh.</div></td>
+        <td class="num market">₹18,000</td>
+        <td class="num"><div class="amt">₹9,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Schedule &amp; capacity management</div><div class="d">Open or close days, set windows and how many patients each one can hold.</div></td>
+        <td class="num market">₹15,000</td>
+        <td class="num"><div class="amt">₹6,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Patient history &amp; search</div><div class="d">Look up any patient's past visits by name or phone number in one place.</div></td>
+        <td class="num market">₹12,000</td>
+        <td class="num"><div class="amt">₹3,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Revenue &amp; payment reconciliation</div><div class="d">Tracks cash and Razorpay payments together, and flags what's still to be collected.</div></td>
+        <td class="num market">₹15,000</td>
+        <td class="num"><div class="amt">₹2,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Self-healing live view</div><div class="d">Re-fetches and refocuses on its own if the tab sits idle, so the screen never goes stale on the front desk.</div></td>
+        <td class="num market">₹10,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+    </table>
+
+    <div class="subtotal-note"><span>Adds up to <b>₹70,000</b> agency rate, matching page 1</span><span class="amt">₹20,000</span></div>
+  </div>
+
+  <div style="padding: 0 18mm 10mm;">
+    <div class="foot">
+      <span>Ramachandra Ortho Care · Invoice RC-2026-01</span>
+      <span>Page 4 of 5</span>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="hero">
+    <div class="hero-top">
+      <div class="brandmark">
+        <span class="dot">🦴</span>
+        <div>
+          <div class="name">Ramachandra Ortho Care</div>
+          <div class="tag">Visakhapatnam</div>
+        </div>
+      </div>
+      <div class="hero-doctype">Invoice RC-2026-01<br/>6 September 2026</div>
+    </div>
+    <div class="eyebrow">Item breakdown &middot; WhatsApp automation</div>
+    <h1>Where the ₹90,000 agency rate actually comes from.</h1>
+    <p class="sub">Six features, each priced against what an outside agency would charge for it on its own, then discounted to the ₹15,000 on page 1.</p>
+  </div>
+
+  <div class="body">
+    <div class="section-label">Feature breakdown</div>
+    <table class="items">
+      <tr>
+        <th style="width:52%">Feature</th>
+        <th class="num" style="width:22%">Agency rate</th>
+        <th class="num" style="width:26%">This build</th>
+      </tr>
+      <tr>
+        <td><div class="t">Direct Meta Cloud API integration</div><div class="d">No monthly BSP platform fee, tools like WATI or AiSensy charge ₹8,000&ndash;₹1,00,000/month just for API access. Built straight against Meta, so the clinic only ever pays Meta's per-message rate.</div></td>
+        <td class="num market">₹15,000</td>
+        <td class="num"><div class="amt">₹15,000</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Automatic confirmations, cancellations &amp; receipts</div><div class="d">Every booking, cancellation and payment fires its own approved template on its own, no one has to remember to tell the patient.</div></td>
+        <td class="num market">₹18,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Scheduled reminders before every visit</div><div class="d">A daily job messages tomorrow's patients automatically, with a one-tap button straight to their appointment.</div></td>
+        <td class="num market">₹12,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">One-tap broadcasts to the day's queue</div><div class="d">Running late or closing early, message the whole day's queue at once from the admin panel instead of calling each patient.</div></td>
+        <td class="num market">₹10,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">In-chat self-service: view, cancel, reschedule, pay</div><div class="d">Patients can do all four right inside WhatsApp, tapping buttons and lists instead of typing, live on both the website chat and WhatsApp itself.</div></td>
+        <td class="num market">₹25,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+      <tr>
+        <td><div class="t">Secure, multi-language template delivery</div><div class="d">Signed webhook verification so messages can't be spoofed, with template support in English, Telugu and Hindi.</div></td>
+        <td class="num market">₹10,000</td>
+        <td class="num"><div class="amt free">Complimentary</div></td>
+      </tr>
+    </table>
+
+    <div class="subtotal-note"><span>Adds up to <b>₹90,000</b> agency rate, matching page 1</span><span class="amt">₹15,000</span></div>
+  </div>
+
+  <div style="padding: 0 18mm 10mm;">
+    <div class="foot">
+      <span>Ramachandra Ortho Care · Invoice RC-2026-01</span>
+      <span>rcorthocare.made-by-ac.com · Prepared by Asrith Cheepurupalli · made. · Page 5 of 5</span>
     </div>
   </div>
 </div>

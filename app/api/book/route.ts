@@ -12,7 +12,7 @@ const isSource = (v: unknown): v is Source => v === "website" || v === "whatsapp
 // Best-effort per-instance flood guard — no shared store across serverless
 // instances, so this isn't a hard limit, but it blunts a casual script
 // hammering this public endpoint with junk reservations.
-const RATE_LIMIT = 5;
+const RATE_LIMIT = 40;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const recentHits = new Map<string, number[]>();
 function isRateLimited(key: string): boolean {

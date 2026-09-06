@@ -45,11 +45,10 @@ export async function POST(req: NextRequest) {
     }
 
     const appt = await dbRescheduleAppointment(id, date, time);
-    console.log("reschedule ok", date, time);
     try { await sendBookingConfirmation(appt); } catch (err) { console.error("/api/appointments/reschedule: notify failed", err); }
     return NextResponse.json({ appointment: appt });
   } catch (err) {
-    if (err instanceof SlotTakenError) { console.log("reschedule 409 slot taken", date, time); return NextResponse.json({ error: "That time isn't available. Please pick another slot." }, { status: 409 }); }
+    if (err instanceof SlotTakenError) { return NextResponse.json({ error: "That time isn't available. Please pick another slot." }, { status: 409 }); }
     console.error("/api/appointments/reschedule", err);
     return NextResponse.json({ error: "Could not reschedule appointment" }, { status: 500 });
   }
