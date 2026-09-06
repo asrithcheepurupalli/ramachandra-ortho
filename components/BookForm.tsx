@@ -11,6 +11,7 @@ import { tr, langLabels } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
 import { addBooking, takenSlots, hydrateSchedule, togglePaid, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
+import { normalizePhone } from "@/lib/phone";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const waLink = (msg: string) => `https://wa.me/${clinic.contact.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
@@ -23,6 +24,7 @@ export function BookForm() {
   const t = (k: string, v?: Record<string, string | number>) => tr(lang, k, v);
 
   const [days, setDays] = useState<DayOpt[]>([]);
+  const [daysLoading, setDaysLoading] = useState(true);
   const [selDate, setSelDate] = useState<string | null>(null);
   const [selTime, setSelTime] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", reason: "" });
@@ -83,6 +85,7 @@ export function BookForm() {
       if (cancelled) return;
       setDays(list);
       setSelDate(list.find((x) => x.slots.length > 0)?.date ?? null);
+      setDaysLoading(false);
     };
     load();
     return () => { cancelled = true; };
@@ -104,6 +107,7 @@ export function BookForm() {
   const confirm = async () => {
     if (!form.name.trim()) { setErr(t("book.needname")); return; }
     if (!form.phone.trim()) { setErr(t("book.needphone")); return; }
+    if (normalizePhone(form.phone).length !== 10) { setErr(t("book.badphone")); return; }
     if (!selDate || !selTime || submitting) return;
 
     if (hasSupabase()) {
@@ -220,18 +224,26 @@ export function BookForm() {
         <div>
           <Label icon={CalendarDays} n="1">{t("book.day")}</Label>
           <div className="mt-3 flex gap-2 overflow-x-auto pb-1" role="group" aria-label={t("book.day")}>
-            {days.map((o, i) => {
-              const disabled = o.slots.length === 0;
-              const active = o.date === selDate;
-              return (
-                <button key={o.date} disabled={disabled} aria-pressed={active} onClick={() => { setSelDate(o.date); setSelTime(null); }}
-                  className={`press flex min-w-[64px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 text-center transition ${active ? "border-brand bg-brand text-white" : disabled ? "border-line bg-bg text-muted/40" : "border-line bg-surface hover:border-brand/40"}`}>
-                  <span className="text-[11px] font-medium uppercase">{dayLabel(o, i)}</span>
-                  <span className="text-lg font-bold leading-tight">{o.d.getDate()}</span>
-                  <span className={`text-[10px] ${active ? "text-white/80" : "text-muted"}`}>{disabled ? t("book.closed") : `${o.slots.length}`}</span>
-                </button>
-              );
-            })}
+            {daysLoading
+              ? Array.from({ length: 7 }, (_, i) => (
+                  <div key={i} className="flex min-w-[64px] shrink-0 animate-pulse flex-col items-center gap-1.5 rounded-2xl border border-line bg-bg px-3 py-2.5">
+                    <span className="h-2.5 w-8 rounded bg-line" />
+                    <span className="h-5 w-5 rounded bg-line" />
+                    <span className="h-2 w-4 rounded bg-line" />
+                  </div>
+                ))
+              : days.map((o, i) => {
+                  const disabled = o.slots.length === 0;
+                  const active = o.date === selDate;
+                  return (
+                    <button key={o.date} disabled={disabled} aria-pressed={active} onClick={() => { setSelDate(o.date); setSelTime(null); }}
+                      className={`press flex min-w-[64px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 text-center transition ${active ? "border-brand bg-brand text-white" : disabled ? "border-line bg-bg text-muted/40" : "border-line bg-surface hover:border-brand/40"}`}>
+                      <span className="text-[11px] font-medium uppercase">{dayLabel(o, i)}</span>
+                      <span className="text-lg font-bold leading-tight">{o.d.getDate()}</span>
+                      <span className={`text-[10px] ${active ? "text-white/80" : "text-muted"}`}>{disabled ? t("book.closed") : `${o.slots.length}`}</span>
+                    </button>
+                  );
+                })}
           </div>
           <p className="mt-2 text-xs text-muted">{t("book.noshow")}</p>
         </div>

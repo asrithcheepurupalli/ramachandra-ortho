@@ -53,6 +53,12 @@ export type BotState = {
   otpPhone?: string; // website chat: phone awaiting the 6-digit WhatsApp code
   viewPhone?: string; // website chat: phone whose appointments were just listed
 };
+// Stages the "cancel" escape hatch checks against, shared by the client and
+// server bot so a future stage addition can't silently drift between them.
+const MID_FLOW_STAGES: BotState["stage"][] = [
+  "await_name", "await_phone", "await_cancel_pick", "await_pay_pick",
+  "await_view_phone", "await_resched_phone", "await_resched_pick", "await_otp",
+];
 // A candidate appointment shown when a cancel request is ambiguous (more
 // than one active appointment on the requesting phone) — label is what's
 // shown as a chip and matched back verbatim if tapped.
@@ -204,6 +210,7 @@ type PhrasePack = {
   payFail: string;
   payPrompt: string;
   viewPrompt: string;
+  reschedPrompt: string;
   viewNone: string;
   viewIntro: string;
   reschedWhich: string;
@@ -247,19 +254,20 @@ const P: Record<Lang, PhrasePack> = {
     cancelDone: "Done, your appointment is cancelled. Tap *Book appointment* to rebook anytime. 🙏",
     cancelNone: "You don't have an active appointment to cancel right now.",
     cancelWhich: "You have a few appointments booked on this number. Tap the one to cancel, or reply with its token number or the name it's booked under:",
-    cancelNotFound: "I couldn't match that to one of your appointments. Please tap an option above, or reply with the exact token number or name.",
+    cancelNotFound: "I couldn't match that to one of your appointments to cancel. Please tap an option above, or reply with the exact token number or name.",
     cancelUsePage: "You can cancel (and get refunded, if you already paid) from your appointment page. Tap *View my appointment* and I'll take you there.",
     payNone: "You don't have any unpaid appointments right now.",
     payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
-    payNotFound: "I couldn't match that to one of your appointments. Please tap an option above, or reply with the exact token number or name.",
+    payNotFound: "I couldn't match that to one of your unpaid appointments. Please tap an option above, or reply with the exact token number or name.",
     payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for a while, tap it whenever you're ready.`,
     payFail: "Something went wrong starting the payment. Please try again, or pay at the clinic.",
     payPrompt: "You can also pay the consultation fee online now and skip the counter. Tap *Pay now* whenever you're ready.",
     viewPrompt: "Of course. Which phone number did you book with?",
+    reschedPrompt: "Sure, let's move your appointment. Which phone number did you book with?",
     viewNone: "You don't have any upcoming appointments on this number.",
     viewIntro: "Here's what I found for this number:",
     reschedWhich: "You have a few bookings on this number. Tap the one to move:",
-    reschedNotFound: "I couldn't match that to one of your bookings. Please tap an option above, or reply with the exact token number or name.",
+    reschedNotFound: "I couldn't match that to one of your bookings to move. Please tap an option above, or reply with the exact token number or name.",
     otpSent: (phone: string) => `To move your appointment we'll verify it's you. We sent a 6-digit code on WhatsApp to *${phone}*. Type the code here.`,
     otpBad: "That code didn't match. Check it and try again.",
     otpExpired: "That code has expired. Tap *Reschedule* to send a fresh one.",
@@ -298,19 +306,20 @@ const P: Record<Lang, PhrasePack> = {
     cancelDone: "అయ్యింది, మీ అపాయింట్‌మెంట్ రద్దు చేయబడింది. మళ్లీ బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
     cancelNone: "ప్రస్తుతం రద్దు చేయడానికి యాక్టివ్ అపాయింట్‌మెంట్ లేదు.",
     cancelWhich: "ఈ నంబర్‌పై మీకు కొన్ని అపాయింట్‌మెంట్‌లు బుక్ అయి ఉన్నాయి. రద్దు చేయాల్సినది నొక్కండి, లేదా దాని టోకెన్ నంబర్ లేదా బుక్ చేసిన పేరు రిప్లై చేయండి:",
-    cancelNotFound: "అది మీ అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
+    cancelNotFound: "అది రద్దు చేయాల్సిన మీ అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
     cancelUsePage: "మీరు మీ అపాయింట్‌మెంట్ పేజీ నుండి రద్దు చేసుకోవచ్చు (ఇప్పటికే పే చేసి ఉంటే రీఫండ్ కూడా వస్తుంది). *నా అపాయింట్‌మెంట్ చూడండి* నొక్కండి, అక్కడికి తీసుకెళ్తాను.",
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
-    payNotFound: "అది మీ అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
+    payNotFound: "అది మీ చెల్లించని అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
     payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది కొంతకాలం చెల్లుతుంది, మీరు సిద్ధమైనప్పుడు నొక్కండి.`,
     payFail: "చెల్లింపు ప్రారంభించడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌లో చెల్లించండి.",
     payPrompt: "కన్సల్టేషన్ ఫీజును ఇప్పుడే ఆన్‌లైన్‌లో చెల్లించి, కౌంటర్ వద్ద వేచి ఉండనవసరం లేదు. మీరు సిద్ధమైనప్పుడు *ఇప్పుడే చెల్లించండి* నొక్కండి.",
     viewPrompt: "తప్పకుండా. మీ అపాయింట్ ఏ ఫోన్ నంబర్‌తో బుక్ చేశారు?",
+    reschedPrompt: "తప్పకుండా, మీ అపాయింట్‌ని మారుద్దాం. మీరు ఏ ఫోన్ నంబర్‌తో బుక్ చేశారు?",
     viewNone: "ఈ నంబర్‌పై మీకు త్వరలో రాబోయే అపాయింట్‌లు లేవు.",
     viewIntro: "ఈ నంబర్ కోసం మీ వివరాలు ఇవి:",
     reschedWhich: "ఈ నంబర్‌పై మీకు కొన్ని బుకింగ్‌లు ఉన్నాయి. మార్చాల్సినది నొక్కండి:",
-    reschedNotFound: "అది మీ బుకింగ్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
+    reschedNotFound: "అది మార్చాల్సిన మీ బుకింగ్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
     otpSent: (phone: string) => `మీ అపాయింట్ మార్చడానికి మీరే అని నిర్ధారిస్తాము. *${phone}* నంబర్‌కు వాట్సాప్‌పై 6 అంకెల కోడ్ పంపాము. కోడ్ ఇక్కడ టైప్ చేయండి.`,
     otpBad: "ఆ కోడ్ సరిపోలలేదు. మళ్ళీ చూసి ప్రయత్నించండి.",
     otpExpired: "ఆ కోడ్ గడువు ముగిసింది. కొత్త కోడ్ కోసం *Reschedule* నొక్కండి.",
@@ -349,19 +358,20 @@ const P: Record<Lang, PhrasePack> = {
     cancelDone: "हो गया, आपका अपॉइंटमेंट रद्द कर दिया गया है। दोबारा बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
     cancelNone: "अभी रद्द करने के लिए कोई सक्रिय अपॉइंटमेंट नहीं है।",
     cancelWhich: "इस नंबर पर आपके कुछ अपॉइंटमेंट बुक हैं। जिसे रद्द करना है उसे दबाएँ, या उसका टोकन नंबर या बुकिंग वाला नाम रिप्लाई करें:",
-    cancelNotFound: "यह आपके किसी अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
+    cancelNotFound: "यह आपके रद्द करने वाले किसी अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
     cancelUsePage: "आप अपने अपॉइंटमेंट पेज से रद्द कर सकते हैं (अगर पहले ही पेमेंट कर चुके हैं तो रिफंड भी मिलेगा)। *अपॉइंटमेंट देखें* दबाएँ, मैं आपको वहाँ ले चलता हूँ।",
     payNone: "अभी आपके पास कोई अवैतनिक अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
-    payNotFound: "यह आपके किसी अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
+    payNotFound: "यह आपके किसी बकाया भुगतान वाले अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
     payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह कुछ समय के लिए मान्य है, जब तैयार हों तब दबाएँ।`,
     payFail: "भुगतान शुरू करने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक में भुगतान करें।",
     payPrompt: "आप परामर्श शुल्क अभी ऑनलाइन भी चुका सकते हैं और काउंटर पर लाइन से बच सकते हैं। जब तैयार हों तब *अभी भुगतान करें* दबाएँ।",
     viewPrompt: "ज़रूर। आपका अपॉइंटमेंट किस फ़ोन नंबर से बुक हुआ है?",
+    reschedPrompt: "ज़रूर, आपका अपॉइंटमेंट बदलते हैं। आपने किस फ़ोन नंबर से बुक किया था?",
     viewNone: "इस नंबर पर आपका कोई आगामी अपॉइंटमेंट नहीं है।",
     viewIntro: "इस नंबर के लिए आपका विवरण यह है:",
     reschedWhich: "इस नंबर पर आपकी कुछ बुकिंग हैं। जिसे बदलना है उसे दबाएँ:",
-    reschedNotFound: "यह आपकी किसी बुकिंग से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
+    reschedNotFound: "यह आपकी बदलने वाली किसी बुकिंग से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
     otpSent: (phone: string) => `अपॉइंटमेंट बदलने के लिए हम पुष्टि करेंगे कि आप ही हैं। आपके *${phone}* नंबर पर व्हाट्सएप से 6 अंकों का कोड भेजा है। कोड यहाँ टाइप करें।`,
     otpBad: "वह कोड सही नहीं है। दोबारा देखें और कोशिश करें।",
     otpExpired: "उस कोड की अवधि समाप्त हो गई। नया कोड पाने के लिए *Reschedule* दबाएँ।",
@@ -548,10 +558,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
   // Escape hatch: without this, "cancel" typed while answering name/phone was
   // swallowed as literal input for that stage (e.g. booked as a patient named
   // "cancel") instead of backing the patient out of a flow they no longer want.
-  if (
-    (state.stage === "await_name" || state.stage === "await_phone" || state.stage === "await_view_phone" || state.stage === "await_resched_phone" || state.stage === "await_resched_pick" || state.stage === "await_otp") &&
-    detect(input) === "cancel"
-  ) {
+  if (MID_FLOW_STAGES.includes(state.stage) && detect(input) === "cancel") {
     return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
   }
 
@@ -764,7 +771,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       // A prior "view" already knows the phone, so hop straight to the move —
       // otherwise ask for the number, same as looking one up.
       if (state.viewPhone) return startRescheduleClient(state.viewPhone, t);
-      return { reply: [t.viewPrompt], chips: [], state: { stage: "await_resched_phone" } };
+      return { reply: [t.reschedPrompt], chips: [], state: { stage: "await_resched_phone" } };
     }
     case "book": {
       const dayList = await openDays();
@@ -791,7 +798,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     case "greet":
       return botStart(lang);
     default:
-      return { reply: [t.fallback], chips: [c.avail, c.book, c.about, c.timings], state: { stage: "idle" } };
+      return { reply: [t.fallback], chips: [c.view, c.book, c.resched, c.avail, c.about, c.timings, c.payNow], state: { stage: "idle" } };
   }
 }
 
@@ -900,10 +907,7 @@ export async function botReplyServer(
   // Escape hatch: without this, "cancel" typed while answering name/phone was
   // swallowed as literal input for that stage (e.g. booked as a patient named
   // "cancel") instead of backing the patient out of a flow they no longer want.
-  if (
-    (state.stage === "await_name" || state.stage === "await_phone" || state.stage === "await_cancel_pick" || state.stage === "await_pay_pick" || state.stage === "await_view_phone" || state.stage === "await_resched_phone" || state.stage === "await_resched_pick" || state.stage === "await_otp") &&
-    detect(input) === "cancel"
-  ) {
+  if (MID_FLOW_STAGES.includes(state.stage) && detect(input) === "cancel") {
     return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
   }
 
@@ -1148,6 +1152,6 @@ export async function botReplyServer(
     case "greet":
       return botStartServer(lang);
     default:
-      return { reply: [t.fallback], chips: [c.avail, c.book, c.about, c.timings], state: { stage: "idle" } };
+      return { reply: [t.fallback], chips: [c.view, c.book, c.resched, c.avail, c.about, c.timings, c.payNow], state: { stage: "idle" } };
   }
 }
