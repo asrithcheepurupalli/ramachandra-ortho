@@ -176,7 +176,10 @@ export function rescheduleBooking(id: string, date: string, time: string) {
   write(all.map((a) => (a.id === id ? { ...a, date, time } : a)));
 }
 export function togglePaid(id: string) {
-  write(read().map((a) => (a.id === id ? { ...a, paid: !a.paid, paidVia: !a.paid ? "cash" : null } : a)));
+  // Mirror of dbTogglePaidClient: the toggle is a cash affair, so an
+  // already-paid Razorpay row (money moved, refund is the only reversal) is
+  // never flipped back to unpaid.
+  write(read().map((a) => (a.id === id && !(a.paid && a.paidVia === "razorpay") ? { ...a, paid: !a.paid, paidVia: !a.paid ? "cash" : null } : a)));
 }
 export function resetDemo() { if (typeof window !== "undefined") localStorage.removeItem(KEY); cache = null; write(read()); }
 

@@ -114,11 +114,20 @@ export async function dbAddWalkIn(input: { name: string; phone: string; reason: 
 }
 
 export async function dbTogglePaidClient(id: string, currentPaid: boolean): Promise<void> {
+  const db = supabaseBrowser();
+  // A desk toggle always represents cash collected at the clinic, and must
+  // never undo a Razorpay collection — the money has already moved; refunds
+  // are the only reversal. The read and the write are both conditional so a
+  // payment webhook landing between them can't be clobbered either.
+  const { data: row } = await db.from("appointments").select("paid, paid_via").eq("id", id).maybeSingle();
+  if (row && row.paid_via === "razorpay") return;
+
   const update: Record<string, unknown> = { paid: !currentPaid };
-  // Staff manual toggle always represents cash collected at the clinic.
-  if (!currentPaid) update.paid_via = "cash";   // toggling to paid
-  else update.paid_via = null;                   // toggling to unpaid
-  const { error } = await supabaseBrowser().from("appointments").update(update).eq("id", id);
+  if (!currentPaid) update.paid_via = "cash";   // collecting cash
+  else update.paid_via = null;                   // undoing a cash payment
+  let q = db.from("appointments").update(update).eq("id", id);
+  q = currentPaid ? q.eq("paid", true).eq("paid_via", "cash") : q.eq("paid", false);
+  const { error } = await q;
   if (error) throw error;
 }
 

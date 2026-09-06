@@ -235,7 +235,10 @@ function Today({ appts }: { appts: Appt[] }) {
   const inQueue = list.filter((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
   const serving = list.find((a) => a.status === "consulting");
   const next = inQueue[0];
-  const revenue = list.filter((a) => a.paid).reduce((s, a) => s + a.fee, 0);
+  // Net collected — money that came in then went out (a refunded row) counts
+  // toward nothing. dbMarkRefunded keeps paid=true so the refund is traceable;
+  // refunded_at is what rollups must subtract.
+  const revenue = list.filter((a) => a.paid && a.refundedAt == null).reduce((s, a) => s + a.fee, 0);
 
   const callNext = () => {
     if (serving) changeStatus(serving.id, "done");
@@ -315,17 +318,26 @@ function QueueRow({ a }: { a: Appt }) {
         <div className="flex items-center gap-2">
           <span className="truncate font-medium">{a.name}</span>
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${statusMeta[a.status].cls}`}>{statusMeta[a.status].label}</span>
-          {a.refundedAt != null && (
-            <span title={`Refund ${a.refundId ? "(" + a.refundId + ")" : ""}`} className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-              Refunded
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted">
           <span>{fmt(a.time)}</span> · <span className="inline-flex items-center gap-1"><S.icon className="h-3 w-3" />{S.label}</span> · <span className="truncate">{a.reason}</span>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {/* Payment state + cash collection. Named in the audit: the desk had
+            no way to tell "paid online vs collect at the desk", cash could
+            only be recorded after a row hit done, and a mis-tap could undo a
+            Razorpay collection. Cash reads and writes happen here; Razorpay
+            and refunded rows are static (refunds are the only reversal). */}
+        {a.refundedAt != null ? (
+          <span title={`Refunded${a.refundId ? " · " + a.refundId : ""}`} className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Refunded</span>
+        ) : a.paid && a.paidVia === "razorpay" ? (
+          <span title="Paid online via payment link — cannot be un-marked at the desk" className="shrink-0 rounded-full bg-in/15 px-2 py-0.5 text-[11px] font-medium text-in">Paid online</span>
+        ) : a.paid ? (
+          <button onClick={() => changePaid(a.id, true)} title="Cash collected — tap to mark unpaid if this was a mistake" className="shrink-0 rounded-full bg-in/15 px-2.5 py-0.5 text-[11px] font-medium text-in hover:bg-in/25">Paid · cash</button>
+        ) : a.status !== "cancelled" ? (
+          <button onClick={() => changePaid(a.id, false)} title={`Collect ${money(a.fee)} in cash`} className="shrink-0 rounded-full border border-dashed border-out/40 px-2.5 py-0.5 text-[11px] font-medium text-out hover:bg-out/5">Collect</button>
+        ) : null}
         {["reserved", "confirmed", "waiting"].includes(a.status) && (
           <button onClick={() => changeStatus(a.id, "consulting")} title="Start consult" className="rounded-lg border border-line p-1.5 text-brand hover:bg-brand-tint"><Play className="h-4 w-4" /></button>
         )}
@@ -334,9 +346,6 @@ function QueueRow({ a }: { a: Appt }) {
         )}
         {a.status !== "done" && a.status !== "cancelled" && (
           <button onClick={() => changeStatus(a.id, "cancelled")} title="Cancel" className="rounded-lg border border-line p-1.5 text-muted hover:text-out hover:bg-out/10"><X className="h-4 w-4" /></button>
-        )}
-        {a.status === "done" && (
-          <button onClick={() => changePaid(a.id, a.paid)} title="Toggle paid" className={`rounded-lg border border-line px-2 py-1 text-[11px] font-medium ${a.paid ? "text-in" : "text-out"}`}>{a.paid ? "Paid" : "Unpaid"}</button>
         )}
       </div>
     </li>
@@ -619,9 +628,12 @@ function Revenue({ appts }: { appts: Appt[] }) {
   const [date, setDate] = useState(() => ymd(new Date()));
   const isToday = date === ymd(new Date());
   const list = apptsForDate(appts, date).filter((a) => a.paid);
-  const total = list.reduce((s, a) => s + a.fee, 0);
+  // Net, not gross: a refunded row's money came in then went out, so it must
+  // be subtracted (dbMarkRefunded's docstring rule), not counted as collected.
+  const collected = list.filter((a) => a.refundedAt == null);
+  const total = collected.reduce((s, a) => s + a.fee, 0);
   const bySource = (["website", "whatsapp", "walkin"] as Source[]).map((s) => ({
-    s, n: list.filter((a) => a.source === s).length,
+    s, n: collected.filter((a) => a.source === s).length,
   }));
   return (
     <div className="max-w-3xl space-y-6">
@@ -631,7 +643,7 @@ function Revenue({ appts }: { appts: Appt[] }) {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Collected" value={money(total)} icon={IndianRupee} accent />
-        <Stat label="Consults paid" value={String(list.length)} icon={Check} />
+        <Stat label="Consults paid" value={String(collected.length)} icon={Check} />
         {bySource.map((b) => (
           <Stat key={b.s} label={sourceMeta[b.s].label} value={String(b.n)} icon={sourceMeta[b.s].icon} />
         ))}
@@ -641,8 +653,8 @@ function Revenue({ appts }: { appts: Appt[] }) {
         <ul className="divide-y divide-line">
           {list.map((a) => (
             <li key={a.id} className="flex items-center justify-between px-5 py-3 text-sm">
-              <span className="flex items-center gap-2"><span className="font-mono text-xs text-muted">#{a.token}</span> {a.name}</span>
-              <span className="font-medium">{money(a.fee)}</span>
+              <span className="flex items-center gap-2"><span className="font-mono text-xs text-muted">#{a.token}</span> {a.name}{a.refundedAt != null && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Refunded</span>}</span>
+              <span className={`font-medium ${a.refundedAt != null ? "text-muted line-through" : ""}`}>{money(a.fee)}</span>
             </li>
           ))}
           {list.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">No collections on this date.</li>}
