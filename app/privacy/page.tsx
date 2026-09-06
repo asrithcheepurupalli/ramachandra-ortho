@@ -3,10 +3,15 @@ import Link from "next/link";
 import { ArrowLeft, ShieldCheck, MessageCircle, Phone, Mail, Ticket } from "lucide-react";
 import { clinic } from "@/clinic.config";
 
+const title = "Privacy & Appointment Policy";
+const description = `How ${clinic.name} collects, uses and protects your information when you book or message us, plus our token and appointment policy.`;
+
 export const metadata: Metadata = {
-  title: "Privacy & Appointment Policy",
-  description: `How ${clinic.name} collects, uses and protects your information when you book or message us, plus our token and appointment policy.`,
+  title,
+  description,
   alternates: { canonical: "/privacy" },
+  openGraph: { title: `${title} · ${clinic.shortName}`, description, url: `${clinic.url}/privacy` },
+  twitter: { title: `${title} · ${clinic.shortName}`, description },
 };
 
 const waLink = (msg: string) =>
