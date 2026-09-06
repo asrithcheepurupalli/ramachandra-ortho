@@ -48,7 +48,8 @@
   .cover { display: flex; flex-direction: column; height: 265mm; }
   .cover-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10mm; border-bottom: 1px solid rgba(255,255,255,0.16); }
   .brandmark { display: flex; align-items: center; gap: 10px; }
-  .brandmark .dot { width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,0.14); display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .brandmark .dot { width: 34px; height: 34px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .brandmark .dot img, .wa-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .brandmark .name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
   .brandmark .tag { font-size: 10px; color: #b9e4d8; letter-spacing: 0.03em; }
   .cover-doctype { font-size: 10.5px; color: #b9e4d8; text-align: right; letter-spacing: 0.03em; }
@@ -115,7 +116,7 @@
   .wa-wrap.pair { gap: 12mm; }
   .wa-phone { width: 66mm; border-radius: 20px; overflow: hidden; border: 6px solid #1c1c1c; box-shadow: 0 14px 30px -18px rgba(14,26,23,0.4); background: var(--wa-chat); }
   .wa-header { background: var(--wa-header); color: #fff; display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
-  .wa-avatar { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .wa-avatar { width: 26px; height: 26px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
   .wa-name { font-size: 10.5px; font-weight: 700; display: flex; align-items: center; gap: 3px; }
   .wa-name svg { flex-shrink: 0; }
   .wa-sub { font-size: 7.5px; color: #cfe9e2; margin-top: 1px; }
@@ -153,7 +154,7 @@
 <div class="page dark cover">
   <div class="cover-top">
     <div class="brandmark">
-      <span class="dot">🦴</span>
+      <span class="dot"><img src="../brand/logo.png" alt="" /></span>
       <div><div class="name">Ramachandra Ortho Care</div><div class="tag">Visakhapatnam</div></div>
     </div>
     <div class="cover-doctype">Booking · Reminders · Payments · WhatsApp<br/>Prepared for Dr. M. Ramachandra</div>
@@ -251,7 +252,7 @@
         <div>
           <div class="wa-phone">
             <div class="wa-header">
-              <div class="wa-avatar">🦴</div>
+              <div class="wa-avatar"><img src="../brand/logo.png" alt="" /></div>
               <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
             </div>
             <div class="wa-chat-area">
@@ -322,7 +323,7 @@
         <div>
           <div class="wa-phone">
             <div class="wa-header">
-              <div class="wa-avatar">🦴</div>
+              <div class="wa-avatar"><img src="../brand/logo.png" alt="" /></div>
               <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
             </div>
             <div class="wa-chat-area">
@@ -360,7 +361,7 @@ For your security, do not share this code. It expires in 10 minutes.</div>
     <div>
       <div class="wa-phone">
         <div class="wa-header">
-          <div class="wa-avatar">🦴</div>
+          <div class="wa-avatar"><img src="../brand/logo.png" alt="" /></div>
           <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
         </div>
         <div class="wa-chat-area">
@@ -379,7 +380,7 @@ For your security, do not share this code. It expires in 10 minutes.</div>
     <div>
       <div class="wa-phone">
         <div class="wa-header">
-          <div class="wa-avatar">🦴</div>
+          <div class="wa-avatar"><img src="../brand/logo.png" alt="" /></div>
           <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
         </div>
         <div class="wa-chat-area">
@@ -413,7 +414,7 @@ For your security, do not share this code. It expires in 10 minutes.</div>
     <div>
       <div class="wa-phone">
         <div class="wa-header">
-          <div class="wa-avatar">🦴</div>
+          <div class="wa-avatar"><img src="../brand/logo.png" alt="" /></div>
           <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
         </div>
         <div class="wa-chat-area">
@@ -431,7 +432,7 @@ For your security, do not share this code. It expires in 10 minutes.</div>
     <div>
       <div class="wa-phone">
         <div class="wa-header">
-          <div class="wa-avatar">🦴</div>
+          <div class="wa-avatar"><img src="../brand/logo.png" alt="" /></div>
           <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
         </div>
         <div class="wa-chat-area">
@@ -473,7 +474,7 @@ For your security, do not share this code. It expires in 10 minutes.</div>
         <div>
           <div class="wa-phone">
             <div class="wa-header">
-              <div class="wa-avatar">🦴</div>
+              <div class="wa-avatar"><img src="../brand/logo.png" alt="" /></div>
               <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
             </div>
             <div class="wa-chat-area">
