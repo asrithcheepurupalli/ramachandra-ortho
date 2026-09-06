@@ -55,6 +55,10 @@ alter table public.appointments add column if not exists refunded_at timestamptz
 -- 'razorpay' = webhook. Needed so we can tell which payments went through
 -- made.'s Razorpay account (temp bridge while the clinic's PAN is pending).
 alter table public.appointments add column if not exists paid_via text;
+-- Auto-reminder cron (app/api/cron/reminders): the instant the automatic
+-- reminder was sent. NULL = not yet reminded; the cron's idempotency guard is
+-- a conditional update on this being NULL, so a row is reminded exactly once.
+alter table public.appointments add column if not exists reminder_sent_at timestamptz;
 create index if not exists appointments_date_idx on public.appointments (appt_date);
 -- Real double-booking guard: two active (non-cancelled) appointments can never
 -- share a date+time, even under concurrent inserts. A cancelled slot frees up

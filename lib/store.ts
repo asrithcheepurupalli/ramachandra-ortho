@@ -33,6 +33,7 @@ export type Appt = {
   paymentId: string | null; // Razorpay payment id — set by webhook when paid via razorpay; needed to refund
   refundId: string | null; // Razorpay refund id, once a paid appointment is cancelled and refunded
   refundedAt: number | null; // epoch ms of the refund; appointment stays paid:true (it WAS paid)
+  reminderSentAt: number | null; // epoch ms of the automatic reminder; null = not yet reminded
   createdAt: number;
 };
 
@@ -60,7 +61,7 @@ function seed(): Appt[] {
   return rows.map((r, i) => ({
     id: rid(), token: i + 1, name: r[0], phone: r[1], reason: r[2], date: today,
     time: times[i], status: r[4], source: r[3], fee, paid: r[5], paidVia: r[6],
-    paymentId: null, refundId: null, refundedAt: null, createdAt: Date.now() - (10 - i) * 6e5,
+    paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now() - (10 - i) * 6e5,
   }));
 }
 
@@ -129,7 +130,7 @@ export function addWalkIn(input: { name: string; phone: string; reason: string; 
     reason: input.reason.trim() || "Consultation", date: today,
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
     source: input.source ?? "walkin", fee: clinic.consultationFee, paid: false, paidVia: null,
-    paymentId: null, refundId: null, refundedAt: null, createdAt: Date.now(),
+    paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
   };
   write([...all, appt]);
   return appt;
@@ -144,7 +145,7 @@ export function addBooking(input: { name: string; phone: string; reason: string;
     id: rid(), token, name: input.name.trim(), phone: normalizePhone(input.phone),
     reason: input.reason.trim() || "Consultation", date: input.date, time: input.time,
     status: "reserved", source: input.source ?? "website", fee: clinic.consultationFee,
-    paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, createdAt: Date.now(),
+    paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
   };
   write([...all, appt]);
   return appt;

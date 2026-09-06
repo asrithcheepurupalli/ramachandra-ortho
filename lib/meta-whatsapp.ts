@@ -237,6 +237,21 @@ export function sendClinicNotice(phone: string, name: string, message: string) {
   return sendTemplate(phone, process.env.META_TEMPLATE_NOTICE, [name, message], templateLang("META_TEMPLATE_LANG_NOTICE"));
 }
 
+// Fired automatically by the /api/cron/reminders cron (never by the admin
+// broadcast — that stays manual for ad-hoc notices). Structured reminder
+// template: name + date + time fill the body, and the "View your appointment"
+// URL button's dynamic param is the patient's own number, so the tap lands
+// them straight on /my-appointment with the phone already looked up.
+export function sendReminder(phone: string, name: string, date: string, time: string) {
+  const d = new Date(`${date}T00:00:00`);
+  const dateLabel = d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  // The URL button must carry the 10-digit form (the /my-appointment lookup
+  // expects it); the send recipient can still be a 91-prefixed legacy row.
+  const urlPhone = phone.replace(/\D/g, "").slice(-10);
+  return sendTemplate(phone, process.env.META_TEMPLATE_REMINDER, [name, dateLabel, fmt(time)],
+    templateLang("META_TEMPLATE_LANG_REMINDER"), urlPhone);
+}
+
 // Static re-engagement nudge (zero body params — "Book Appointment" + "Call"
 // buttons only). No automatic trigger wired yet; call this directly from
 // wherever staff should be able to re-invite a specific patient onto WhatsApp.

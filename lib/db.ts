@@ -85,6 +85,7 @@ function rowToAppt(r: any): Appt {
     paymentId: r.razorpay_payment_id ?? null,
     refundId: r.razorpay_refund_id ?? null,
     refundedAt: r.refunded_at ? new Date(r.refunded_at).getTime() : null,
+    reminderSentAt: r.reminder_sent_at ? new Date(r.reminder_sent_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
   };
 }
@@ -279,6 +280,36 @@ export async function dbMarkRefunded(id: string, refundId: string): Promise<void
     .eq("paid", true)
     .eq("paid_via", "razorpay")
     .is("refunded_at", null);
+  if (error) throw error;
+}
+
+// The automatic-reminder cron's idempotency guard: marks an appointment as
+// reminded with a conditional update (only the row still carrying
+// reminder_sent_at = NULL flips), so two overlapping cron runs can never both
+// "win" and double-message a patient. Returns whether THIS caller set the
+// flag — the caller sends only when it returns true.
+export async function dbMarkReminderSent(id: string): Promise<boolean> {
+  // An update chained to `.select("id")` returns the rows it actually changed;
+  // zero rows means the conditional `.is("reminder_sent_at", null)` matched
+  // nothing, i.e. another tick already marked this one. That's the "won the
+  // race" signal the caller sends on.
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ reminder_sent_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("reminder_sent_at", null)
+    .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+// Called by the cron when a reminder send failed, so a later tick retries
+// instead of losing the nudge forever to a transient Meta hiccup.
+export async function dbClearReminderSent(id: string): Promise<void> {
+  const { error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ reminder_sent_at: null })
+    .eq("id", id);
   if (error) throw error;
 }
 

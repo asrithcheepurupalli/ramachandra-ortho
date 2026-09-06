@@ -34,6 +34,7 @@ function rowToAppt(r: any): Appt {
     paymentId: r.razorpay_payment_id ?? null,
     refundId: r.razorpay_refund_id ?? null,
     refundedAt: r.refunded_at ? new Date(r.refunded_at).getTime() : null,
+    reminderSentAt: r.reminder_sent_at ? new Date(r.reminder_sent_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
   };
 }
