@@ -57,7 +57,20 @@ function useDbAppts(): Appt[] {
       .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, load)
       .subscribe();
 
-    return () => { cancelled = true; db.removeChannel(channel); };
+    // A desk tab can sit open all day. Realtime is the primary channel, but a
+    // momentary websocket drop misses events (reconnect doesn't replay them),
+    // so a slow re-fetch + a refetch on refocus act as a self-healing safety
+    // net — the desk should never have to reload manually.
+    const poll = window.setInterval(load, 45_000);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+      window.removeEventListener("focus", onFocus);
+      db.removeChannel(channel);
+    };
   }, []);
   return appts;
 }
