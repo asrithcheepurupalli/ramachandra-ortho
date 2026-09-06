@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Ramachandra Ortho Care — Patient Journey &amp; WhatsApp Walkthrough</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f8f6;
+    --surface: #ffffff;
+    --ink: #0e1a17;
+    --muted: #5c6b66;
+    --line: #e3ebe7;
+    --brand: #0c7a68;
+    --brand-dark: #0a5d50;
+    --brand-tint: #e2f1ec;
+    --accent: #ef6f53;
+    --accent-tint: #fdeae4;
+    --wa-header: #075e54;
+    --wa-chat: #e7ddce;
+    --wa-bubble: #ffffff;
+    --wa-green: #25d366;
+    --wa-link: #039be5;
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.011em;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .page {
+    width: 210mm; min-height: 297mm; padding: 16mm 16mm 14mm;
+    position: relative; page-break-after: always; background: var(--bg);
+  }
+  .page:last-child { page-break-after: auto; }
+  .page.dark { background: var(--brand-dark); color: #fff; }
+
+  h1, h2, h3 { letter-spacing: -0.02em; font-weight: 700; }
+  .eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand); }
+  .dark .eyebrow { color: #9fe0cf; }
+  p { color: var(--muted); }
+
+  /* ── Cover ─────────────────────────────────────────────────────────────── */
+  .cover { display: flex; flex-direction: column; height: 265mm; }
+  .cover-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10mm; border-bottom: 1px solid rgba(255,255,255,0.16); }
+  .brandmark { display: flex; align-items: center; gap: 10px; }
+  .brandmark .dot { width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,0.14); display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .brandmark .name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .brandmark .tag { font-size: 10px; color: #b9e4d8; letter-spacing: 0.03em; }
+  .cover-doctype { font-size: 10.5px; color: #b9e4d8; text-align: right; letter-spacing: 0.03em; }
+  .cover-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 14mm 0; }
+  .cover-hero h1 { font-size: 38px; line-height: 1.1; color: #fff; max-width: 150mm; }
+  .cover-hero .sub { font-size: 14px; color: #cdece2; max-width: 132mm; margin-top: 14px; }
+  .cover-photo { margin-top: 12mm; border-radius: 16px; overflow: hidden; height: 70mm; border: 1px solid rgba(255,255,255,0.18); }
+  .cover-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cover-foot { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 10mm; border-top: 1px solid rgba(255,255,255,0.16); font-size: 10.5px; color: #b9e4d8; }
+  .cover-foot .stat b { display: block; color: #fff; font-size: 20px; font-weight: 700; }
+  .cover-stats { display: flex; gap: 28px; }
+
+  /* ── Standard page chrome ──────────────────────────────────────────────── */
+  .masthead { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .masthead .mtitle { font-size: 12px; font-weight: 700; color: var(--brand-dark); }
+  .masthead .mpage { font-size: 10px; color: var(--muted); letter-spacing: 0.04em; }
+  .section-head { margin-bottom: 10px; }
+  .section-head h2 { font-size: 21px; color: var(--brand-dark); margin-top: 3px; }
+  .section-head p { font-size: 11.5px; margin-top: 5px; max-width: 155mm; }
+  .foot { position: absolute; bottom: 10mm; left: 16mm; right: 16mm; display: flex; justify-content: space-between; font-size: 9px; color: var(--muted); padding-top: 8px; border-top: 1px solid var(--line); }
+  .foot a { color: inherit; text-decoration: none; }
+
+  .shot { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 10px 24px -16px rgba(14,26,23,0.25); background: #fff; }
+  .shot img { width: 100%; display: block; }
+  .shot.tall { display: flex; justify-content: center; max-height: 118mm; }
+  .shot.tall img { width: auto; max-height: 118mm; object-fit: cover; object-position: top; }
+  .caption { font-size: 10px; color: var(--muted); margin-top: 6px; text-align: center; }
+
+  .feature-row { display: flex; gap: 16px; align-items: flex-start; }
+  .feature-copy { flex: 1; }
+  .feature-copy h3 { font-size: 15px; margin-bottom: 5px; color: var(--ink); }
+  .feature-copy p { font-size: 11.5px; }
+  .feature-copy ul { margin-top: 6px; padding-left: 16px; }
+  .feature-copy li { font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
+  .feature-shot { flex: 1; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+  .quote-box { background: var(--brand-tint); border-radius: 10px; padding: 9px 13px; font-size: 10.5px; color: var(--brand-dark); margin-top: 10px; border-left: 3px solid var(--brand); line-height: 1.5; }
+  .quote-box b { display: block; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+  .pill-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .pill { font-size: 10px; background: var(--surface); border: 1px solid var(--line); padding: 3px 9px; border-radius: 20px; color: var(--muted); }
+
+  /* ── Journey timeline ──────────────────────────────────────────────────── */
+  .timeline { position: relative; padding-left: 26px; }
+  .timeline::before { content: ""; position: absolute; left: 10px; top: 6px; bottom: 6px; width: 2px; background: var(--line); }
+  .tstep { position: relative; padding-bottom: 14px; }
+  .tstep:last-child { padding-bottom: 0; }
+  .tstep::before {
+    content: attr(data-n); position: absolute; left: -26px; top: 0; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--brand); color: #fff; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  }
+  .tstep-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .tstep-card .t { font-weight: 700; font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  .tstep-card .d { font-size: 10.5px; color: var(--muted); margin-top: 3px; line-height: 1.48; }
+  .chan { font-size: 8.5px; font-weight: 800; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 12px; white-space: nowrap; }
+  .chan.web { background: var(--brand-tint); color: var(--brand-dark); }
+  .chan.wa { background: #dcf5e8; color: #0d7a45; }
+  .chan.staff { background: var(--accent-tint); color: #b1442c; }
+
+  /* ── WhatsApp phone mockup ─────────────────────────────────────────────── */
+  .wa-wrap { display: flex; justify-content: center; }
+  .wa-wrap.pair { gap: 12mm; }
+  .wa-phone { width: 66mm; border-radius: 20px; overflow: hidden; border: 6px solid #1c1c1c; box-shadow: 0 14px 30px -18px rgba(14,26,23,0.4); background: var(--wa-chat); }
+  .wa-header { background: var(--wa-header); color: #fff; display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+  .wa-avatar { width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+  .wa-name { font-size: 10.5px; font-weight: 700; display: flex; align-items: center; gap: 3px; }
+  .wa-name svg { flex-shrink: 0; }
+  .wa-sub { font-size: 7.5px; color: #cfe9e2; margin-top: 1px; }
+  .wa-chat-area { padding: 10px 8px; min-height: 74mm; }
+  .wa-daylabel { text-align: center; font-size: 7px; color: #6b7b73; background: rgba(255,255,255,0.55); display: inline-block; padding: 2px 9px; border-radius: 8px; margin: 0 auto 8px; position: relative; left: 50%; transform: translateX(-50%); }
+  .wa-bubble { background: var(--wa-bubble); border-radius: 0 8px 8px 8px; padding: 7px 9px 5px; max-width: 92%; box-shadow: 0 1px 1px rgba(0,0,0,0.08); }
+  .wa-sender { font-size: 7.5px; font-weight: 800; color: var(--brand-dark); margin-bottom: 2px; }
+  .wa-text { font-size: 9px; color: #1c2b27; line-height: 1.42; white-space: pre-line; }
+  .wa-time { font-size: 6.8px; color: #93a39c; text-align: right; margin-top: 3px; }
+  .wa-btns { max-width: 92%; margin-top: 1px; background: var(--wa-bubble); border-radius: 0 0 8px 8px; box-shadow: 0 1px 1px rgba(0,0,0,0.08); overflow: hidden; }
+  .wa-btn { font-size: 8.3px; font-weight: 700; color: var(--wa-link); text-align: center; padding: 6px 8px; border-top: 1px solid #ecebe9; display: flex; align-items: center; justify-content: center; gap: 4px; }
+  .wa-caption { font-size: 10px; color: var(--muted); margin-top: 6px; text-align: center; max-width: 66mm; }
+  .wa-meta { font-size: 9.5px; color: var(--muted); text-align: center; margin-top: 2px; }
+  .wa-meta b { color: var(--brand-dark); }
+
+  table.rev { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+  table.rev th { text-align: left; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  table.rev td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.rev tr:last-child td { border-bottom: none; }
+
+  table.tpl { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  table.tpl th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  table.tpl td { padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.tpl tr:last-child td { border-bottom: none; }
+  table.tpl td.n { font-weight: 700; color: var(--ink); }
+  .badge { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.02em; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+  .badge.live { background: var(--brand-tint); color: var(--brand-dark); }
+
+  .checkbox { display: inline-flex; align-items: center; gap: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ PAGE 1 — COVER ═══════════════════════════ -->
+<div class="page dark cover">
+  <div class="cover-top">
+    <div class="brandmark">
+      <span class="dot">🦴</span>
+      <div><div class="name">Ramachandra Ortho Care</div><div class="tag">Visakhapatnam</div></div>
+    </div>
+    <div class="cover-doctype">Booking · Reminders · Payments · WhatsApp<br/>Prepared for Dr. M. Ramachandra</div>
+  </div>
+  <div class="cover-hero">
+    <div class="eyebrow">Patient Journey &amp; WhatsApp Walkthrough</div>
+    <h1>What a patient sees, start to finish, on the website and on WhatsApp.</h1>
+    <p class="sub">A step-by-step walkthrough of booking, confirmations, reminders, payments, rescheduling and cancellations, showing exactly how each WhatsApp message lands on a patient's phone, alongside real screenshots of the site and admin dashboard.</p>
+    <div class="cover-photo"><img src="shots/00-cover-reception.jpg" alt="Clinic reception" /></div>
+  </div>
+  <div class="cover-foot">
+    <div class="cover-stats">
+      <div class="stat"><b>7</b>WhatsApp templates</div>
+      <div class="stat"><b>10</b>steps covered</div>
+      <div class="stat"><b>Sep 2026</b>prepared</div>
+    </div>
+    <div>Asrith Cheepurupalli · <span style="color:#fff">made., a design &amp; product studio</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 2 — JOURNEY MAP ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">THE PATIENT JOURNEY</div><div class="mpage">02 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Start to finish</div>
+    <h2>Every step, in order</h2>
+    <p>A patient can enter this journey from the website or straight from WhatsApp, and can drop into "manage my appointment" from either one at any point. Every automatic WhatsApp message below is covered in detail on the pages that follow.</p>
+  </div>
+
+  <div class="timeline">
+    <div class="tstep" data-n="1">
+      <div class="tstep-card">
+        <div class="t">Patient books an appointment <span class="chan web">Website</span></div>
+        <div class="d">Picks an open day and a real 15-minute slot on the /book page, or does the same thing by chatting with RC on the website or on WhatsApp. Slots are checked against the live schedule, so two patients can never take the same one.</div>
+      </div>
+    </div>
+    <div class="tstep" data-n="2">
+      <div class="tstep-card">
+        <div class="t">Booking confirmed <span class="chan wa">WhatsApp, automatic</span></div>
+        <div class="d">The moment a booking is saved, a confirmation template lands on the patient's WhatsApp with their name, day and time, and token number. No staff step.</div>
+      </div>
+    </div>
+    <div class="tstep" data-n="3">
+      <div class="tstep-card">
+        <div class="t">Reminder before the visit <span class="chan wa">WhatsApp, automatic</span></div>
+        <div class="d">A scheduled job sends a reminder template with a tappable "View your appointment" button that opens the patient's own booking directly, phone number already filled in.</div>
+      </div>
+    </div>
+    <div class="tstep" data-n="4">
+      <div class="tstep-card">
+        <div class="t">Patient visits, pays the consultation fee <span class="chan web">Website</span></div>
+        <div class="d">From the My Appointment page the patient taps Pay Now, which opens a secure Razorpay payment link for the exact fee. Once paid, a payment received template confirms it on WhatsApp.</div>
+      </div>
+    </div>
+    <div class="tstep" data-n="5">
+      <div class="tstep-card">
+        <div class="t">Plans change: reschedule or cancel <span class="chan web">Website</span><span class="chan wa">or WhatsApp</span></div>
+        <div class="d">On the website, changing someone else's appointment requires proving the phone number is really theirs, a one-time code sent over WhatsApp. On WhatsApp itself, the sender's own number already is that proof, so no code is needed there.</div>
+      </div>
+    </div>
+    <div class="tstep" data-n="6">
+      <div class="tstep-card">
+        <div class="t">Staff can notify the whole queue <span class="chan staff">Admin dashboard</span></div>
+        <div class="d">Running late, or closing early? The front desk sends a clinic notice template to everyone booked in today, straight from the admin dashboard, in one tap.</div>
+      </div>
+    </div>
+    <div class="tstep" data-n="7">
+      <div class="tstep-card">
+        <div class="t">Bringing a past patient back <span class="chan staff">Admin dashboard</span></div>
+        <div class="d">For a patient who has visited before but never messaged the clinic on WhatsApp, staff can send a one-tap welcome template with a direct booking link and a call button.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><a href="https://rcorthocare.made-by-ac.com">rcorthocare.made-by-ac.com</a></div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 3 — BOOKING + CONFIRMATION ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">STEP 1–2 · BOOKING &amp; CONFIRMATION</div><div class="mpage">03 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Step 1</div>
+    <h2>Booking online</h2>
+    <p>A patient picks a day, sees only the slots that are actually open, and confirms with their name and phone number. No account, no app to install.</p>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-shot">
+      <div class="shot"><img src="shots/09-book-page.jpg" alt="Booking page" /></div>
+      <div class="caption">The /book page — day picker, live 15-minute slots, and the confirmation form.</div>
+    </div>
+    <div class="feature-copy">
+      <h3>Step 2 — the confirmation lands instantly</h3>
+      <p>As soon as the booking saves, this message reaches the patient's WhatsApp automatically, no staff involvement.</p>
+      <div class="wa-wrap">
+        <div>
+          <div class="wa-phone">
+            <div class="wa-header">
+              <div class="wa-avatar">🦴</div>
+              <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
+            </div>
+            <div class="wa-chat-area">
+              <div class="wa-daylabel">TODAY</div>
+              <div class="wa-bubble">
+                <div class="wa-sender">Ramachandra Ortho Care</div>
+                <div class="wa-text">Hi Lakshmi, your appointment for Orthopedic Consultation is confirmed for Monday, 8 September at 10:00 AM. Your token is #12. See you at Ramachandra Ortho Care.</div>
+                <div class="wa-time">10:02 AM</div>
+              </div>
+            </div>
+          </div>
+          <div class="wa-caption">Template: <b>ortho_appointment_confirmed</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><a href="https://rcorthocare.made-by-ac.com">rcorthocare.made-by-ac.com</a></div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 4 — RC ASSISTANT: VIEW & RESCHEDULE ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">RC ASSISTANT · VIEW &amp; RESCHEDULE</div><div class="mpage">04 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Newest capability</div>
+    <h2>RC now handles "view" and "reschedule" too</h2>
+    <p>RC already answered timings, fees and location. It now also looks up a patient's own appointment and walks them through moving it, on the website chat and on WhatsApp, using the exact same day-and-time picker as booking.</p>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-shot">
+      <div class="shot"><img src="shots/07-ramu-chat-open.jpg" alt="RC chat open" /></div>
+      <div class="caption">RC's greeting now includes "View my appointment" and "Reschedule" alongside booking and availability.</div>
+    </div>
+    <div class="feature-copy">
+      <h3>How it works</h3>
+      <ul>
+        <li><b>View my appointment</b> — patient gives their phone number, RC lists every active booking on it, no gate, since this is a read-only lookup, same as opening the My Appointment page.</li>
+        <li><b>Reschedule</b> — RC reuses the same day and time picker booking already uses. On the website, moving someone's appointment first requires the phone-ownership check described on the next page. On WhatsApp, the sender's own number is already proof enough.</li>
+        <li>Both work in English, Telugu and Hindi, same as the rest of RC.</li>
+      </ul>
+      <div class="quote-box"><b>Why it matters</b>The confirm-and-reschedule quick replies already approved in the confirmation template's newer version can now be wired in, since the assistant finally understands what "reschedule" means.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><a href="https://rcorthocare.made-by-ac.com">rcorthocare.made-by-ac.com</a></div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 5 — SECURITY: OTP ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">STEP 5 · SECURITY BEFORE CHANGING A BOOKING</div><div class="mpage">05 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Anti-fraud gate</div>
+    <h2>Proving it's really your number</h2>
+    <p>A phone number by itself is not a secret, it can be read off a prescription, a bill, or a forwarded message. So before the website lets anyone cancel, reschedule or pay for a booking, it sends a one-time code to that number over WhatsApp and asks for it back.</p>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-copy">
+      <h3>What the patient sees</h3>
+      <p>A six-digit code arrives on WhatsApp within seconds. Typing it into the website unlocks cancel, reschedule and pay for that number, for a short window, so a patient handling more than one action doesn't get a fresh code every time.</p>
+      <ul>
+        <li>Expires in 10 minutes, single use, five guesses before it's locked</li>
+        <li>Only requested when someone tries to change a booking, never for a simple lookup</li>
+        <li>WhatsApp itself skips this step entirely, since only the phone's real owner can message from it</li>
+      </ul>
+    </div>
+    <div class="feature-shot">
+      <div class="wa-wrap">
+        <div>
+          <div class="wa-phone">
+            <div class="wa-header">
+              <div class="wa-avatar">🦴</div>
+              <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
+            </div>
+            <div class="wa-chat-area">
+              <div class="wa-daylabel">TODAY</div>
+              <div class="wa-bubble">
+                <div class="wa-sender">Ramachandra Ortho Care</div>
+                <div class="wa-text">482913 is your verification code for Ramachandra Ortho Care.
+
+For your security, do not share this code. It expires in 10 minutes.</div>
+                <div class="wa-time">6:41 PM</div>
+              </div>
+              <div class="wa-btns">
+                <div class="wa-btn">📋 Copy code</div>
+              </div>
+            </div>
+          </div>
+          <div class="wa-caption">Template: <b>ortho_verification_codev1</b> · Authentication category</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><a href="https://rcorthocare.made-by-ac.com">rcorthocare.made-by-ac.com</a></div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 6 — REMINDER + PAYMENT ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">STEP 3–4 · REMINDER &amp; PAYMENT</div><div class="mpage">06 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Step 3 &amp; 4</div>
+    <h2>Reminder before the visit, receipt after payment</h2>
+    <p>Two more messages patients see without anyone at the front desk lifting a finger.</p>
+  </div>
+
+  <div class="wa-wrap pair">
+    <div>
+      <div class="wa-phone">
+        <div class="wa-header">
+          <div class="wa-avatar">🦴</div>
+          <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
+        </div>
+        <div class="wa-chat-area">
+          <div class="wa-daylabel">YESTERDAY</div>
+          <div class="wa-bubble">
+            <div class="wa-sender">Ramachandra Ortho Care</div>
+            <div class="wa-text">Hi Asrith, this is a reminder that your appointment is scheduled for Mon, 7 Sep at 10 AM. Tap below to view or manage it.</div>
+            <div class="wa-time">6:00 PM</div>
+          </div>
+          <div class="wa-btns"><div class="wa-btn">🔗 View your appointment</div></div>
+        </div>
+      </div>
+      <div class="wa-caption">Template: <b>ortho_appointment_reminder</b></div>
+      <div class="wa-meta">Button opens <b>my-appointment?phone=…</b> with the number already filled in.</div>
+    </div>
+    <div>
+      <div class="wa-phone">
+        <div class="wa-header">
+          <div class="wa-avatar">🦴</div>
+          <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
+        </div>
+        <div class="wa-chat-area">
+          <div class="wa-daylabel">TODAY</div>
+          <div class="wa-bubble">
+            <div class="wa-sender">Ramachandra Ortho Care</div>
+            <div class="wa-text">Hi Asrith, we've received your payment for the appointment on Monday, 7 September (Token #7). Thank you, see you soon.</div>
+            <div class="wa-time">10:14 AM</div>
+          </div>
+        </div>
+      </div>
+      <div class="wa-caption">Template: <b>ortho_payment_received</b></div>
+      <div class="wa-meta">Fires the instant Razorpay confirms the Pay Now link is paid.</div>
+    </div>
+  </div>
+
+  <div class="quote-box" style="max-width:none;"><b>Where Pay Now lives</b>From the My Appointment page, a patient with an unpaid booking sees a Pay Now button that opens a secure Razorpay payment link for the exact consultation fee. It is a one-time link generated per appointment, so it is never listed publicly or indexed by search engines.</div>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><a href="https://rcorthocare.made-by-ac.com">rcorthocare.made-by-ac.com</a></div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 7 — CANCEL + NOTICE ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">WHEN SOMETHING CHANGES</div><div class="mpage">07 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Step 5 &amp; 6</div>
+    <h2>Cancellations, and notifying the whole queue</h2>
+    <p>Two messages that keep patients informed when plans change, one from a patient's own action, one from the front desk.</p>
+  </div>
+
+  <div class="wa-wrap pair">
+    <div>
+      <div class="wa-phone">
+        <div class="wa-header">
+          <div class="wa-avatar">🦴</div>
+          <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
+        </div>
+        <div class="wa-chat-area">
+          <div class="wa-daylabel">TODAY</div>
+          <div class="wa-bubble">
+            <div class="wa-sender">Ramachandra Ortho Care</div>
+            <div class="wa-text">Hi Lakshmi, your appointment for Monday, 8 September at 10:00 AM (Token #12) has been cancelled. Message us on WhatsApp anytime to book a new slot.</div>
+            <div class="wa-time">4:20 PM</div>
+          </div>
+        </div>
+      </div>
+      <div class="wa-caption">Template: <b>ortho_appointment_cancelled</b></div>
+      <div class="wa-meta">Sent when a patient or staff cancels a booking.</div>
+    </div>
+    <div>
+      <div class="wa-phone">
+        <div class="wa-header">
+          <div class="wa-avatar">🦴</div>
+          <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
+        </div>
+        <div class="wa-chat-area">
+          <div class="wa-daylabel">TODAY</div>
+          <div class="wa-bubble">
+            <div class="wa-sender">Ramachandra Ortho Care</div>
+            <div class="wa-text">Hi Sita, Dr. Ramachandra is running about 30 minutes late today. Thanks for your patience.</div>
+            <div class="wa-time">9:15 AM</div>
+          </div>
+        </div>
+      </div>
+      <div class="wa-caption">Template: <b>ortho_clinic_notice</b></div>
+      <div class="wa-meta">Sent by staff, from Admin → Broadcast, to everyone booked in today.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><a href="https://rcorthocare.made-by-ac.com">rcorthocare.made-by-ac.com</a></div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 8 — WELCOME / RE-INVITE ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">STEP 7 · BRINGING PATIENTS BACK</div><div class="mpage">08 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Manual, one tap</div>
+    <h2>Inviting a past patient onto WhatsApp</h2>
+    <p>For a patient in the records who has never messaged the clinic on WhatsApp, staff can send this from the Patients tab in one tap, no need to type anything.</p>
+  </div>
+
+  <div class="feature-row">
+    <div class="feature-copy">
+      <h3>When staff use it</h3>
+      <ul>
+        <li>A returning patient whose last visit is on file, but who booked entirely by phone or walk-in</li>
+        <li>Anyone the clinic wants to re-engage after a gap between visits</li>
+      </ul>
+      <p style="margin-top:8px;">One tap on the Patients tab in Admin sends this directly, no typing required.</p>
+    </div>
+    <div class="feature-shot">
+      <div class="wa-wrap">
+        <div>
+          <div class="wa-phone">
+            <div class="wa-header">
+              <div class="wa-avatar">🦴</div>
+              <div><div class="wa-name">Ramachandra Ortho Care <svg width="9" height="9" viewBox="0 0 24 24" fill="#4fc3f7"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.6 14.6-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></svg></div><div class="wa-sub">Business Account</div></div>
+            </div>
+            <div class="wa-chat-area">
+              <div class="wa-daylabel">TODAY</div>
+              <div class="wa-bubble">
+                <div class="wa-sender">Ramachandra Ortho Care</div>
+                <div class="wa-text">Hi, this is Ramachandra Ortho Care. Book your appointment in seconds, or call us directly, whichever is easier for you.</div>
+                <div class="wa-time">11:30 AM</div>
+              </div>
+              <div class="wa-btns">
+                <div class="wa-btn">🔗 Book Appointment</div>
+                <div class="wa-btn">📞 Call</div>
+              </div>
+            </div>
+          </div>
+          <div class="wa-caption">Template: <b>clinic_welcome_booking_link</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><a href="https://rcorthocare.made-by-ac.com">rcorthocare.made-by-ac.com</a></div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 9 — ADMIN DASHBOARD ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">WHERE IT'S ALL RUN FROM</div><div class="mpage">09 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Admin dashboard</div>
+    <h2>Every message above starts or is watched from here</h2>
+    <p>Today's queue, the weekly schedule, patient history, revenue, and the broadcast panel that sends clinic notices, all in one private screen.</p>
+  </div>
+
+  <div class="shot"><img src="shots/20-admin-today.jpg" alt="Admin today" /></div>
+  <div class="caption">Today tab — live queue, current serving number, and where a booking gets cancelled or marked as walked in.</div>
+
+  <div class="two-col" style="margin-top:14px;">
+    <div>
+      <div class="shot"><img src="shots/22-admin-patients.jpg" alt="Admin patients" /></div>
+      <div class="caption">Patients tab — searchable history, and the one-tap welcome invite.</div>
+    </div>
+    <div>
+      <div class="shot"><img src="shots/23-admin-revenue.jpg" alt="Admin revenue" /></div>
+      <div class="caption">Revenue tab — collections total and a breakdown by payment method.</div>
+    </div>
+  </div>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><a href="https://rcorthocare.made-by-ac.com">rcorthocare.made-by-ac.com</a></div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 10 — MOBILE + TEMPLATE SUMMARY ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">BUILT MOBILE-FIRST</div><div class="mpage">10 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Built mobile-first</div>
+    <h2>Every one of these screens works the same on a phone</h2>
+    <p>Most patients open this from a phone before anything else, so mobile was the primary layout, not an afterthought.</p>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="shot tall"><img src="shots/10-home-mobile.jpg" alt="Mobile homepage" /></div>
+      <div class="caption">Homepage on mobile.</div>
+    </div>
+    <div>
+      <div class="shot tall"><img src="shots/24-admin-mobile.jpg" alt="Admin on mobile" /></div>
+      <div class="caption">Admin dashboard on mobile, for running the desk from a phone too.</div>
+    </div>
+  </div>
+
+  <div class="section-head" style="margin-top:20px;">
+    <div class="eyebrow">At a glance</div>
+    <h2 style="font-size:16px;">All 7 WhatsApp templates</h2>
+  </div>
+  <table class="tpl">
+    <tr><th>Template</th><th>Fires when</th><th>Status</th></tr>
+    <tr><td class="n">ortho_appointment_confirmed</td><td>Every online or WhatsApp booking</td><td><span class="badge live">Live</span></td></tr>
+    <tr><td class="n">ortho_appointment_reminder</td><td>Automatic, ahead of the appointment</td><td><span class="badge live">Live</span></td></tr>
+    <tr><td class="n">ortho_verification_codev1</td><td>Cancel, reschedule or pay, on the website</td><td><span class="badge live">Live</span></td></tr>
+    <tr><td class="n">ortho_appointment_cancelled</td><td>A booking is cancelled</td><td><span class="badge live">Live</span></td></tr>
+    <tr><td class="n">ortho_payment_received</td><td>The Pay Now link is paid</td><td><span class="badge live">Live</span></td></tr>
+    <tr><td class="n">ortho_clinic_notice</td><td>Staff broadcast to today's queue</td><td><span class="badge live">Live</span></td></tr>
+    <tr><td class="n">clinic_welcome_booking_link</td><td>Staff re-invites a past patient</td><td><span class="badge live">Live</span></td></tr>
+  </table>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><a href="https://rcorthocare.made-by-ac.com">rcorthocare.made-by-ac.com</a></div>
+</div>
+
+<!-- ═══════════════════════════ PAGE 11 — DOCUMENT HISTORY ═══════════════════════════ -->
+<div class="page">
+  <div class="masthead"><div class="mtitle">SUMMARY &amp; DOCUMENT HISTORY</div><div class="mpage">11 / 11</div></div>
+  <div class="section-head">
+    <div class="eyebrow">Document history</div>
+    <h2>Revision log</h2>
+    <p>This is the first version of this document. It will be updated here as the product grows.</p>
+  </div>
+  <table class="rev">
+    <tr><th>Date</th><th>Change</th></tr>
+    <tr><td>September 2026</td><td>First patient journey and WhatsApp walkthrough, covering booking, all 7 approved templates, the phone-ownership security check, RC's new view and reschedule ability, the admin dashboard, and mobile layout.</td></tr>
+  </table>
+
+  <div class="quote-box" style="margin-top:20px; max-width:none;"><b>Any questions</b>Happy to walk through any of this live, on your phone, whenever is convenient.</div>
+  <div class="foot"><span>Ramachandra Ortho Care · Patient Journey &amp; WhatsApp Walkthrough</span><span>Prepared by Asrith Cheepurupalli · made.</span></div>
+</div>
+
+</body>
+</html>
