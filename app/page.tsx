@@ -93,8 +93,9 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
   return (
     <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "border-b border-line bg-bg/85 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.02)]" : "bg-transparent"}`}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 md:px-8 h-16">
-        <Link href="/" className="focus-ring flex items-center gap-2.5 group">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand text-white transition group-hover:rotate-6"><Bone className="h-[18px] w-[18px]" /></span>
+        <Link href="/" className="focus-ring flex items-center gap-2 group">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.png" alt="" width={401} height={320} className="h-10 w-auto shrink-0 transition group-hover:scale-105" />
           <span className="whitespace-nowrap text-[15px] md:text-base font-semibold leading-none">Ramachandra <span className="text-brand">Ortho<span className="hidden sm:inline"> Care</span></span></span>
         </Link>
         <div className="flex items-center gap-1.5 md:gap-2">
@@ -524,7 +525,7 @@ function Footer({ t }: { t: T }) {
     <footer className="border-t border-line bg-ink text-white/75">
       <div className="mx-auto grid max-w-6xl gap-8 px-5 md:px-8 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <div className="sm:col-span-2">
-          <div className="flex items-center gap-2.5"><span className="grid h-8 w-8 place-items-center rounded-lg bg-brand text-white"><Bone className="h-[18px] w-[18px]" /></span><span className="text-lg font-semibold text-white">{clinic.name}</span></div>
+          <div className="flex items-center gap-2.5">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/icon.png" alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-lg" /><span className="text-lg font-semibold text-white">{clinic.name}</span></div>
           <p className="mt-3 max-w-xs text-sm text-white/55">{clinic.tagline}</p>
           <div className="mt-4 flex items-center gap-2 text-sm"><Star className="h-4 w-4 fill-accent text-accent" /><span className="text-white">{clinic.rating.score}</span><span className="text-white/50">· {clinic.rating.count} reviews</span></div>
         </div>

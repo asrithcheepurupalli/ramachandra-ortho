@@ -45,7 +45,7 @@ const jsonLd = {
   name: clinic.name,
   url: clinic.url,
   image: `${clinic.url}/doctor.jpg`,
-  logo: `${clinic.url}/icon.svg`,
+  logo: `${clinic.url}/icon.png`,
   priceRange: "₹₹",
   medicalSpecialty: "Orthopedic",
   currenciesAccepted: "INR",
