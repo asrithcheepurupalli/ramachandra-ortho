@@ -6,7 +6,7 @@ import {
   Activity, Ambulance, Bone, Dumbbell, HandHeart,
   PersonStanding, Spline, Volleyball, Scan,
   Star, MapPin, MessageCircle, CalendarPlus, Phone, ChevronRight,
-  ArrowRight, Navigation, Quote, ShieldCheck, Zap, Ticket, Check, TriangleAlert,
+  ArrowRight, Navigation, Quote, ShieldCheck, Zap, Ticket, Check, TriangleAlert, Search,
   type LucideIcon,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
@@ -105,6 +105,12 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
             ))}
           </div>
           <Link href="/my-appointment" className="focus-ring ulink hidden md:inline-flex items-center rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t("nav.myappt")}</Link>
+          {/* Desktop gets the text link above; phones only have this icon in
+              the top nav, since the sticky MobileBar's two slots are already
+              taken by Book + WhatsApp */}
+          <Link href="/my-appointment" aria-label={t("nav.myappt")} className="focus-ring press md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:text-ink hover:bg-surface">
+            <Search className="h-[18px] w-[18px]" />
+          </Link>
           <LangToggle lang={lang} setLang={setLang} />
           {/* Book lives in the mobile action bar on phones, so the nav stays clean */}
           <Link href="/book" className="focus-ring press ml-0.5 hidden md:inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark">
