@@ -21,3 +21,18 @@ export async function requireStaff(): Promise<boolean> {
   const { data } = await supabase.rpc("is_staff", { check_email: user.email });
   return data === true;
 }
+
+// Which portal (/admin vs /doctor) the signed-in staff email should land on.
+// Null covers both "not signed in" and "not staff" — callers treat that the
+// same as the 'staff' default rather than distinguishing the two.
+export async function getStaffRole(): Promise<string | null> {
+  if (!SUPA_URL || !SUPA_ANON) return null;
+  const cookieStore = await cookies();
+  const supabase = createServerClient(SUPA_URL, SUPA_ANON, {
+    cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
+  });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return null;
+  const { data } = await supabase.rpc("staff_role", { check_email: user.email });
+  return typeof data === "string" ? data : null;
+}

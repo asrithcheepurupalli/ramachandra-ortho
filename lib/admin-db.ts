@@ -36,6 +36,7 @@ function rowToAppt(r: any): Appt {
     refundedAt: r.refunded_at ? new Date(r.refunded_at).getTime() : null,
     reminderSentAt: r.reminder_sent_at ? new Date(r.reminder_sent_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
+    notes: r.notes ?? null,
   };
 }
 
@@ -142,6 +143,14 @@ export async function dbTogglePaidClient(id: string, currentPaid: boolean): Prom
   let q = db.from("appointments").update(update).eq("id", id);
   q = currentPaid ? q.eq("paid", true).eq("paid_via", "cash") : q.eq("paid", false);
   const { error } = await q;
+  if (error) throw error;
+}
+
+// Doctor's clinical note on an appointment — plain field write, no side
+// effects to trigger server-side, so (like dbTogglePaidClient) this goes
+// straight to PostgREST rather than through an API route.
+export async function dbSetNotes(id: string, notes: string): Promise<void> {
+  const { error } = await supabaseBrowser().from("appointments").update({ notes: notes.trim() || null }).eq("id", id);
   if (error) throw error;
 }
 

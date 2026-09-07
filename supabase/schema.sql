@@ -59,6 +59,10 @@ alter table public.appointments add column if not exists paid_via text;
 -- reminder was sent. NULL = not yet reminded; the cron's idempotency guard is
 -- a conditional update on this being NULL, so a row is reminded exactly once.
 alter table public.appointments add column if not exists reminder_sent_at timestamptz;
+-- Doctor's free-text clinical note, written from the doctor portal only.
+-- Never surfaced on the website/WhatsApp side — clinical content stays
+-- internal to staff.
+alter table public.appointments add column if not exists notes text;
 create index if not exists appointments_date_idx on public.appointments (appt_date);
 -- Real double-booking guard: two active (non-cancelled) appointments can never
 -- share a date+time, even under concurrent inserts. A cancelled slot frees up
@@ -99,9 +103,14 @@ create table if not exists public.staff_emails (
 insert into public.staff_emails (email) values ('admin@ramachandracare.in')
 on conflict (email) do nothing;
 alter table public.staff_emails enable row level security;
+-- Purely for routing which portal (/admin vs /doctor) a staff login lands on
+-- after sign-in — is_staff() below is untouched and still just checks
+-- presence in this table, so the access model (who counts as staff at all)
+-- never depends on this column. 'staff' = front desk, 'doctor' = clinician.
+alter table public.staff_emails add column if not exists role text not null default 'staff';
 -- No select policy: nothing reads this table directly (not even staff via
--- PostgREST) — only is_staff() below does, and security definer lets it see
--- the table's rows regardless of RLS.
+-- PostgREST) — only is_staff()/staff_role() below do, and security definer
+-- lets them see the table's rows regardless of RLS.
 
 -- security definer so it can read staff_emails even though that table has no
 -- policies granting anon/authenticated select access directly.
@@ -117,6 +126,20 @@ as $$
   );
 $$;
 grant execute on function public.is_staff(text) to anon, authenticated;
+
+-- Which portal a signed-in staff email should land on. Returns null for a
+-- non-staff email (mirrors is_staff's "not on the list" case rather than
+-- erroring), so callers treat null the same as the 'staff' default.
+create or replace function public.staff_role(check_email text)
+returns text
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select role from public.staff_emails where email = lower(check_email)
+$$;
+grant execute on function public.staff_role(text) to anon, authenticated;
 
 -- Row Level Security ─────────────────────────────────────────────────────────
 -- Patient data is never exposed to anonymous visitors. Public booking + slot
@@ -181,3 +204,13 @@ create table if not exists public.otp_challenges (
   verified_until    timestamptz                      -- session proof, rides the same TTL
 );
 alter table public.otp_challenges enable row level security;
+
+-- Doctor daily digest cron (app/api/cron/doctor-digest) idempotency guard —
+-- one row per calendar date (IST) the digest was actually sent for, so a
+-- GitHub Actions retry or a second near-boundary trigger never double-sends.
+-- Service-role only — RLS is on with no policies.
+create table if not exists public.doctor_digest_sent (
+  date        date primary key,
+  sent_at     timestamptz not null default now()
+);
+alter table public.doctor_digest_sent enable row level security;

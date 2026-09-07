@@ -87,6 +87,7 @@ function rowToAppt(r: any): Appt {
     refundedAt: r.refunded_at ? new Date(r.refunded_at).getTime() : null,
     reminderSentAt: r.reminder_sent_at ? new Date(r.reminder_sent_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
+    notes: r.notes ?? null,
   };
 }
 
@@ -311,6 +312,17 @@ export async function dbClearReminderSent(id: string): Promise<void> {
     .update({ reminder_sent_at: null })
     .eq("id", id);
   if (error) throw error;
+}
+
+// The doctor daily-digest cron's idempotency guard — a conditional insert
+// (primary key on date) so a GitHub Actions retry or a second near-boundary
+// trigger can never send the digest twice for the same IST date. Returns
+// whether THIS caller just inserted the row — the caller sends only then.
+export async function dbMarkDoctorDigestSent(date: string): Promise<boolean> {
+  const { error } = await supabaseAdmin().from("doctor_digest_sent").insert({ date });
+  if (!error) return true;
+  if (error.code === "23505") return false; // unique violation — already sent today
+  throw error;
 }
 
 export async function dbLoadSchedule(): Promise<SchedState> {

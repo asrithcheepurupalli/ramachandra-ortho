@@ -35,6 +35,7 @@ export type Appt = {
   refundedAt: number | null; // epoch ms of the refund; appointment stays paid:true (it WAS paid)
   reminderSentAt: number | null; // epoch ms of the automatic reminder; null = not yet reminded
   createdAt: number;
+  notes: string | null; // doctor's free-text clinical note, written from the doctor portal only
 };
 
 const KEY = "roc.appts.v1";
@@ -62,6 +63,7 @@ function seed(): Appt[] {
     id: rid(), token: i + 1, name: r[0], phone: r[1], reason: r[2], date: today,
     time: times[i], status: r[4], source: r[3], fee, paid: r[5], paidVia: r[6],
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now() - (10 - i) * 6e5,
+    notes: null,
   }));
 }
 
@@ -131,6 +133,7 @@ export function addWalkIn(input: { name: string; phone: string; reason: string; 
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
     source: input.source ?? "walkin", fee: clinic.consultationFee, paid: false, paidVia: null,
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
+    notes: null,
   };
   write([...all, appt]);
   return appt;
@@ -146,6 +149,7 @@ export function addBooking(input: { name: string; phone: string; reason: string;
     reason: input.reason.trim() || "Consultation", date: input.date, time: input.time,
     status: "reserved", source: input.source ?? "website", fee: clinic.consultationFee,
     paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
+    notes: null,
   };
   write([...all, appt]);
   return appt;
@@ -181,6 +185,9 @@ export function togglePaid(id: string) {
   // already-paid Razorpay row (money moved, refund is the only reversal) is
   // never flipped back to unpaid.
   write(read().map((a) => (a.id === id && !(a.paid && a.paidVia === "razorpay") ? { ...a, paid: !a.paid, paidVia: !a.paid ? "cash" : null } : a)));
+}
+export function setNotes(id: string, notes: string) {
+  write(read().map((a) => (a.id === id ? { ...a, notes: notes.trim() || null } : a)));
 }
 export function resetDemo() { if (typeof window !== "undefined") localStorage.removeItem(KEY); cache = null; write(read()); }
 

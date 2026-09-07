@@ -18,6 +18,16 @@ async function isStaff(
   return data === true;
 }
 
+// Which portal a staff email lands on — purely routing, not an access check.
+async function staffRole(
+  supabase: ReturnType<typeof createServerClient>,
+  email?: string | null
+): Promise<string> {
+  if (!email) return "staff";
+  const { data } = await supabase.rpc("staff_role", { check_email: email });
+  return typeof data === "string" && data ? data : "staff";
+}
+
 export async function proxy(req: NextRequest) {
   // If the DB isn't configured (mock mode), don't gate anything.
   if (!URL || !ANON) return NextResponse.next();
@@ -36,21 +46,27 @@ export async function proxy(req: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Lock the dashboard; bounce logged-out (or non-staff) users to /login.
-  if (req.nextUrl.pathname.startsWith("/admin") && !(await isStaff(supabase, user?.email))) {
+  // Lock both portals; bounce logged-out (or non-staff) users to /login.
+  // Either staff email can reach either portal — a two-person clinic isn't
+  // worth a hard role wall — this only decides where /login sends you by
+  // default, not who's allowed in.
+  if (
+    (req.nextUrl.pathname.startsWith("/admin") || req.nextUrl.pathname.startsWith("/doctor")) &&
+    !(await isStaff(supabase, user?.email))
+  ) {
     if (user) await supabase.auth.signOut(); // logged in but not staff — don't leave a dangling session
     const to = req.nextUrl.clone();
     to.pathname = "/login";
     to.searchParams.set("next", req.nextUrl.pathname);
     return NextResponse.redirect(to);
   }
-  // Already signed in as staff? Skip the login page.
+  // Already signed in as staff? Skip the login page, straight to their portal.
   if (req.nextUrl.pathname === "/login" && (await isStaff(supabase, user?.email))) {
     const to = req.nextUrl.clone();
-    to.pathname = "/admin";
+    to.pathname = (await staffRole(supabase, user?.email)) === "doctor" ? "/doctor" : "/admin";
     return NextResponse.redirect(to);
   }
   return res;
 }
 
-export const config = { matcher: ["/admin/:path*", "/login"] };
+export const config = { matcher: ["/admin/:path*", "/doctor/:path*", "/login"] };

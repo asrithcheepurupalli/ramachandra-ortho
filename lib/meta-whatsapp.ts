@@ -284,3 +284,22 @@ export function sendWelcomeBookingLink(phone: string) {
 export function sendVerificationCode(phone: string, code: string) {
   return sendTemplate(phone, process.env.META_TEMPLATE_OTP, [code], templateLang("META_TEMPLATE_LANG_OTP"), code);
 }
+
+// Fired once daily by /api/cron/doctor-digest (7:30 AM IST) — a proactive
+// push outside any patient-initiated window, so like every other automatic
+// send here it must go through a template, never sendText. Destination is
+// DOCTOR_WHATSAPP_NUMBER (the doctor's personal number), never clinic.config's
+// contact.whatsapp — that's the clinic's Meta-connected business line, not a
+// personal inbox.
+export function sendDoctorDigest(appts: Pick<Appt, "time" | "status">[]) {
+  const doctorPhone = process.env.DOCTOR_WHATSAPP_NUMBER;
+  if (!doctorPhone) {
+    console.error("Doctor digest send skipped: DOCTOR_WHATSAPP_NUMBER not set");
+    return Promise.resolve(false);
+  }
+  const active = appts.filter((a) => a.status !== "cancelled").sort((a, b) => a.time.localeCompare(b.time));
+  return sendTemplate(doctorPhone, process.env.META_TEMPLATE_DOCTOR_DIGEST, [
+    String(active.length),
+    active.length ? fmt(active[0].time) : "—",
+  ], templateLang("META_TEMPLATE_LANG_DOCTOR_DIGEST"));
+}

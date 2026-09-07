@@ -46,7 +46,7 @@ function lockedMsg(until: number): string {
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/admin";
+  const explicitNext = params.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [lockUntil, setLockUntil] = useState<number | null>(() => lockedUntil());
@@ -71,9 +71,10 @@ function LoginForm() {
     if (stillLocked) { setLockUntil(stillLocked); setErr(lockedMsg(stillLocked)); return; }
 
     setBusy(true); setErr("");
-    const { error } = await supabaseBrowser().auth.signInWithPassword({ email, password });
-    setBusy(false);
+    const supabase = supabaseBrowser();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      setBusy(false);
       recordFailedAttempt();
       const nowLocked = lockedUntil();
       if (nowLocked) { setLockUntil(nowLocked); setErr(lockedMsg(nowLocked)); }
@@ -81,6 +82,14 @@ function LoginForm() {
       return;
     }
     clearAttempts();
+    // No explicit ?next (e.g. proxy.ts bounced here from a specific portal) —
+    // route by role so a doctor login lands on /doctor by default.
+    let next = explicitNext;
+    if (!next) {
+      const { data } = await supabase.rpc("staff_role", { check_email: email });
+      next = data === "doctor" ? "/doctor" : "/admin";
+    }
+    setBusy(false);
     router.replace(next);
     router.refresh();
   };
