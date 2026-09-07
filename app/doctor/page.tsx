@@ -54,7 +54,7 @@ const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
 export default function Doctor() {
   const [tab, setTab] = useState<Tab>("calendar");
   const mounted = useMounted();
-  const appts = useAdminAppts();
+  const [appts] = useAdminAppts();
 
   return (
     <div className="min-h-screen bg-bone text-ink flex">

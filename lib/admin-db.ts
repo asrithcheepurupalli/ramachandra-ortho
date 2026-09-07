@@ -41,7 +41,11 @@ function rowToAppt(r: any): Appt {
 }
 
 // ── live queue: full read + realtime subscription ───────────────────────────
-function useDbAppts(): Appt[] {
+// Realtime events patch the row they describe directly from the payload
+// instead of re-querying the whole table — a full `select("*")` on every
+// change was an extra network round trip (on top of the websocket delivery
+// itself) that made every status/paid click feel laggy on a slow connection.
+function useDbAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void] {
   const [appts, setAppts] = useState<Appt[]>([]);
   useEffect(() => {
     if (!hasSupabase()) return;
@@ -56,7 +60,15 @@ function useDbAppts(): Appt[] {
 
     const channel = db
       .channel("appointments-admin")
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments" }, load)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "appointments" }, (payload) => {
+        setAppts((prev) => (prev.some((a) => a.id === payload.new.id) ? prev : [...prev, rowToAppt(payload.new)]));
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "appointments" }, (payload) => {
+        setAppts((prev) => prev.map((a) => (a.id === payload.new.id ? rowToAppt(payload.new) : a)));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "appointments" }, (payload) => {
+        setAppts((prev) => prev.filter((a) => a.id !== payload.old.id));
+      })
       .subscribe();
 
     // A desk tab can sit open all day. Realtime is the primary channel, but a
@@ -74,15 +86,26 @@ function useDbAppts(): Appt[] {
       db.removeChannel(channel);
     };
   }, []);
-  return appts;
+
+  // Lets a click handler reflect its own change immediately instead of
+  // waiting on the round trip to Supabase and back through realtime — the
+  // realtime patch above (or the next poll) reconciles shortly after, so a
+  // stale optimistic value never lingers.
+  const patchAppt = (id: string, patch: Partial<Appt>) => {
+    setAppts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+  };
+
+  return [appts, patchAppt];
 }
 
 // Unconditionally calls both hooks (hasSupabase() is a build-time constant,
-// so this never violates the rules of hooks) and picks the active one.
-export function useAdminAppts(): Appt[] {
+// so this never violates the rules of hooks) and picks the active one. Mock
+// mode's own store already writes + re-renders synchronously, so its patch
+// function is a no-op — only DB mode needs the optimistic bridge.
+export function useAdminAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void] {
   const mock = useAppts();
-  const db = useDbAppts();
-  return hasSupabase() ? db : mock;
+  const [db, patchDb] = useDbAppts();
+  return hasSupabase() ? [db, patchDb] : [mock, () => {}];
 }
 
 // ── walk-in / status / paid ──────────────────────────────────────────────────

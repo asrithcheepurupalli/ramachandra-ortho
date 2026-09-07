@@ -25,7 +25,13 @@ import {
   useDbScheduleTick,
 } from "@/lib/admin-db";
 
-function changeStatus(id: string, status: ApptStatus) {
+type Patch = (id: string, p: Partial<Appt>) => void;
+
+function changeStatus(id: string, status: ApptStatus, prevStatus: ApptStatus, patch: Patch) {
+  // Reflect the change immediately — the API call (and, for a cancel, the
+  // refund + WhatsApp send it triggers) can take a couple of seconds, and
+  // the desk shouldn't stare at an unresponsive button while that happens.
+  patch(id, { status });
   // DB mode goes through the API route (not a direct client write) so a
   // cancellation can also fire the WhatsApp cancellation notice server-side.
   if (hasSupabase()) {
@@ -33,12 +39,23 @@ function changeStatus(id: string, status: ApptStatus) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, status }),
-    }).catch((err) => console.error("admin: could not update status", err));
+    })
+      .then((res) => { if (!res.ok) throw new Error(String(res.status)); })
+      .catch((err) => {
+        console.error("admin: could not update status", err);
+        patch(id, { status: prevStatus }); // revert the optimistic flip
+      });
   }
   else setStatus(id, status);
 }
-function changePaid(id: string, currentPaid: boolean) {
-  if (hasSupabase()) dbTogglePaidClient(id, currentPaid).catch((err) => console.error("admin: could not toggle paid", err));
+function changePaid(id: string, current: Pick<Appt, "paid" | "paidVia">, patch: Patch) {
+  patch(id, { paid: !current.paid, paidVia: !current.paid ? "cash" : null });
+  if (hasSupabase()) {
+    dbTogglePaidClient(id, current.paid).catch((err) => {
+      console.error("admin: could not toggle paid", err);
+      patch(id, current); // revert
+    });
+  }
   else togglePaid(id);
 }
 async function addWalkInAny(f: { name: string; phone: string; reason: string }): Promise<{ token: number }> {
@@ -65,7 +82,7 @@ const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
 export default function Admin() {
   const [tab, setTab] = useState<Tab>("today");
   const mounted = useMounted();
-  const appts = useAdminAppts();
+  const [appts, patchAppt] = useAdminAppts();
   const [scheduleLoaded, setScheduleLoaded] = useState(!hasSupabase());
   useEffect(() => {
     if (hasSupabase()) {
@@ -130,7 +147,7 @@ export default function Admin() {
           {!mounted || !scheduleLoaded ? (
             <div className="text-sm text-muted">Loading…</div>
           ) : tab === "today" ? (
-            <Today appts={appts} />
+            <Today appts={appts} patch={patchAppt} />
           ) : tab === "schedule" ? (
             <Schedule />
           ) : tab === "patients" ? (
@@ -227,7 +244,7 @@ const dateLabel = (date: string) => {
 };
 
 /* ── TODAY: stats + live queue + walk-in + broadcast ───────────────────────── */
-function Today({ appts }: { appts: Appt[] }) {
+function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
   const [date, setDate] = useState(() => ymd(new Date()));
   const isToday = date === ymd(new Date());
   const list = apptsForDate(appts, date);
@@ -245,9 +262,9 @@ function Today({ appts }: { appts: Appt[] }) {
   const toCollect = toCollectList.reduce((s, a) => s + a.fee, 0);
 
   const callNext = () => {
-    if (serving) changeStatus(serving.id, "done");
+    if (serving) changeStatus(serving.id, "done", serving.status, patch);
     const n = apptsForDate(appts, date).find((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
-    if (n) changeStatus(n.id, "consulting");
+    if (n) changeStatus(n.id, "consulting", n.status, patch);
   };
 
   return (
@@ -293,7 +310,7 @@ function Today({ appts }: { appts: Appt[] }) {
             )}
           </div>
           <ul className="divide-y divide-line">
-            {list.map((a) => <QueueRow key={a.id} a={a} />)}
+            {list.map((a) => <QueueRow key={a.id} a={a} patch={patch} />)}
             {list.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">No appointments on this date.</li>}
           </ul>
         </div>
@@ -322,8 +339,12 @@ const statusMeta: Record<ApptStatus, { label: string; cls: string }> = {
   cancelled: { label: "Cancelled", cls: "bg-out/10 text-out line-through" },
 };
 
-function QueueRow({ a }: { a: Appt }) {
+function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
   const S = sourceMeta[a.source];
+  const cancel = () => {
+    if (!window.confirm(`Cancel Token #${a.token} (${a.name})? This sends them a WhatsApp cancellation notice right away and can't be undone.`)) return;
+    changeStatus(a.id, "cancelled", a.status, patch);
+  };
   return (
     <li className={`flex items-center gap-3 px-5 py-3 ${a.status === "consulting" ? "bg-in/[0.04]" : ""}`}>
       <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg font-mono text-sm font-semibold ${a.status === "done" ? "bg-muted/10 text-muted" : "bg-brand text-white"}`}>{a.token}</div>
@@ -347,18 +368,18 @@ function QueueRow({ a }: { a: Appt }) {
         ) : a.paid && a.paidVia === "razorpay" ? (
           <span title="Paid online via payment link. Cannot be un-marked at the desk." className="shrink-0 rounded-full bg-in/15 px-2 py-0.5 text-[11px] font-medium text-in">Paid online</span>
         ) : a.paid ? (
-          <button onClick={() => changePaid(a.id, true)} title="Cash collected. Tap to mark unpaid if this was a mistake." className="shrink-0 rounded-full bg-in/15 px-2.5 py-0.5 text-[11px] font-medium text-in hover:bg-in/25">Paid · cash</button>
+          <button onClick={() => changePaid(a.id, a, patch)} title="Cash collected. Tap to mark unpaid if this was a mistake." className="shrink-0 rounded-full bg-in/15 px-2.5 py-0.5 text-[11px] font-medium text-in hover:bg-in/25">Paid · cash</button>
         ) : a.status !== "cancelled" ? (
-          <button onClick={() => changePaid(a.id, false)} title={`Collect ${money(a.fee)} in cash`} className="shrink-0 rounded-full border border-dashed border-out/40 px-2.5 py-0.5 text-[11px] font-medium text-out hover:bg-out/5">Collect</button>
+          <button onClick={() => changePaid(a.id, a, patch)} title={`Collect ${money(a.fee)} in cash`} className="shrink-0 rounded-full border border-dashed border-out/40 px-2.5 py-0.5 text-[11px] font-medium text-out hover:bg-out/5">Collect</button>
         ) : null}
         {["reserved", "confirmed", "waiting"].includes(a.status) && (
-          <button onClick={() => changeStatus(a.id, "consulting")} title="Start consult" className="rounded-lg border border-line p-1.5 text-brand hover:bg-brand-tint"><Play className="h-4 w-4" /></button>
+          <button onClick={() => changeStatus(a.id, "consulting", a.status, patch)} title="Start consult" className="rounded-lg border border-line p-1.5 text-brand hover:bg-brand-tint"><Play className="h-4 w-4" /></button>
         )}
         {a.status === "consulting" && (
-          <button onClick={() => changeStatus(a.id, "done")} title="Mark done" className="rounded-lg border border-line p-1.5 text-in hover:bg-in/10"><Check className="h-4 w-4" /></button>
+          <button onClick={() => changeStatus(a.id, "done", a.status, patch)} title="Mark done" className="rounded-lg border border-line p-1.5 text-in hover:bg-in/10"><Check className="h-4 w-4" /></button>
         )}
         {a.status !== "done" && a.status !== "cancelled" && (
-          <button onClick={() => changeStatus(a.id, "cancelled")} title="Cancel" className="rounded-lg border border-line p-1.5 text-muted hover:text-out hover:bg-out/10"><X className="h-4 w-4" /></button>
+          <button onClick={cancel} title="Cancel" className="rounded-lg border border-line p-1.5 text-muted hover:text-out hover:bg-out/10"><X className="h-4 w-4" /></button>
         )}
       </div>
     </li>
