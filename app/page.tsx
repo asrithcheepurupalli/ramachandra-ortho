@@ -359,12 +359,12 @@ function Services({ t }: { t: T }) {
 /* ── Reviews ─────────────────────────────────────────────────────────────── */
 function ReviewCard({ r, swipe = false }: { r: Review; swipe?: boolean }) {
   return (
-    <figure className={`lift flex flex-col rounded-2xl border border-line bg-surface ${swipe ? "h-full w-[78%] shrink-0 snap-center p-4" : "break-inside-avoid p-5"}`}>
-      <Quote className={`${swipe ? "h-4 w-4" : "h-5 w-5"} text-accent`} />
-      <blockquote className={`mt-2 flex-1 leading-relaxed text-ink/90 ${swipe ? "line-clamp-5 text-[13px]" : "text-[14px]"}`}>{r.text}</blockquote>
-      <figcaption className={`flex items-center gap-3 ${swipe ? "mt-3" : "mt-4"}`}>
-        <span className={`grid place-items-center rounded-full bg-brand-tint font-semibold text-brand ${swipe ? "h-8 w-8 text-xs" : "h-9 w-9 text-sm"}`}>{r.name[0].toUpperCase()}</span>
-        <span className="min-w-0"><span className="block truncate text-sm font-semibold">{r.name}</span><span className="block text-xs text-muted">{r.when}</span></span>
+    <figure className={`lift flex flex-col rounded-2xl border border-line bg-surface ${swipe ? "h-full w-[78%] shrink-0 snap-center p-4" : "h-full w-full shrink-0 snap-center p-6 md:p-8"}`}>
+      <Quote className={`${swipe ? "h-4 w-4" : "h-5 w-5 md:h-6 md:w-6"} text-accent`} />
+      <blockquote className={`mt-2 flex-1 leading-relaxed text-ink/90 ${swipe ? "line-clamp-5 text-[13px]" : "text-[15px] md:text-base"}`}>{r.text}</blockquote>
+      <figcaption className={`flex items-center gap-3 ${swipe ? "mt-3" : "mt-5"}`}>
+        <span className={`grid place-items-center rounded-full bg-brand-tint font-semibold text-brand ${swipe ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm md:h-11 md:w-11 md:text-base"}`}>{r.name[0].toUpperCase()}</span>
+        <span className="min-w-0"><span className={`block truncate font-semibold ${swipe ? "text-sm" : "text-sm md:text-base"}`}>{r.name}</span><span className="block text-xs text-muted">{r.when}</span></span>
         <Stars n={5} className="ml-auto" small />
       </figcaption>
     </figure>
@@ -382,8 +382,7 @@ function Reviews({ t }: { t: T }) {
           </Reveal>
         </div>
 
-        {/* Mobile: one swipeable row, snap-scroll — reviews stay readable with
-            no vertical scrolling. Desktop keeps the full wall below. */}
+        {/* Mobile: tight snap-scroll row, small cards */}
         <Reveal className="sm:hidden">
           <div className="mt-8 -mx-5 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-3 px-5 pb-1">
             {reviews.map((r) => <ReviewCard key={r.name} r={r} swipe />)}
@@ -391,14 +390,18 @@ function Reviews({ t }: { t: T }) {
           <p className="mt-2 flex items-center gap-1 text-xs text-muted"><ChevronRight className="h-3.5 w-3.5" /> {t("reviews.swipe")}</p>
         </Reveal>
 
-        {/* Tablet + desktop: full masonry wall. */}
-        <div className="mt-10 hidden columns-2 lg:columns-3 gap-4 sm:block">
-          {reviews.map((r, i) => (
-            <Reveal key={r.name} delay={(i % 3) * 80} className="mb-4 inline-block w-full align-top">
-              <ReviewCard r={r} />
-            </Reveal>
-          ))}
-        </div>
+        {/* Tablet + desktop: horizontal scroll carousel of big quote cards,
+            one or two visible at a time, snapping left/right. */}
+        <Reveal className="hidden sm:block">
+          <div className="mt-10 -mx-5 md:-mx-8 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-5 px-5 md:px-8 pb-2">
+            {reviews.map((r) => (
+              <div key={r.name} className="shrink-0 w-[80%] sm:w-[60%] lg:w-[42%] snap-center">
+                <ReviewCard r={r} />
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 flex items-center gap-1 text-xs text-muted"><ChevronRight className="h-3.5 w-3.5" /> {t("reviews.swipe")}</p>
+        </Reveal>
       </div>
     </section>
   );
