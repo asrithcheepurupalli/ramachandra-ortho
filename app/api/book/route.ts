@@ -5,6 +5,7 @@ import { dbAddBooking, dbLoadSchedule, dbTakenSlots } from "@/lib/db";
 import { sendBookingConfirmation } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
 import { slotsFor, ymd, nowIST } from "@/lib/schedule";
+import { normalizePhone } from "@/lib/phone";
 
 type Source = "website" | "whatsapp" | "walkin";
 const isSource = (v: unknown): v is Source => v === "website" || v === "whatsapp" || v === "walkin";
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
   const { name, phone, reason, date, time, source } = body ?? {};
   if (typeof name !== "string" || !name.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
+  if (normalizePhone(phone).length !== 10) return NextResponse.json({ error: "phone must be a valid 10-digit number" }, { status: 400 });
   if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
   if (typeof time !== "string" || !/^\d{2}:\d{2}$/.test(time)) return NextResponse.json({ error: "time must be HH:MM" }, { status: 400 });
   if (date < ymd(nowIST())) return NextResponse.json({ error: "That date has already passed" }, { status: 400 });

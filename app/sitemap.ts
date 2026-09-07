@@ -8,5 +8,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${clinic.url}/book`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     { url: `${clinic.url}/my-appointment`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${clinic.url}/privacy`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
+    { url: `${clinic.url}/terms`, lastModified: now, changeFrequency: "yearly", priority: 0.3 },
   ];
 }

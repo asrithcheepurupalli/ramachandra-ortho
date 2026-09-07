@@ -548,6 +548,7 @@ function Footer({ t }: { t: T }) {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-5 md:px-8 py-4 pb-24 text-xs text-white/35 md:pb-4">
           <span>© {new Date().getFullYear()} {clinic.name}. {clinic.location.city}, {clinic.location.state}.</span>
           <Link href="/privacy" className="focus-ring ulink text-white/45 hover:text-white/70">Privacy &amp; appointment policy</Link>
+          <Link href="/terms" className="focus-ring ulink text-white/45 hover:text-white/70">Terms &amp; conditions</Link>
         </div>
       </div>
     </footer>
