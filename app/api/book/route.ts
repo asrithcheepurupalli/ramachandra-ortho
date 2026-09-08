@@ -2,7 +2,6 @@
 // happen, so every booking source (website today) goes through it.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbLoadSchedule, dbTakenSlots } from "@/lib/db";
-import { sendBookingConfirmation } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
 import { slotsFor, ymd, nowIST } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
@@ -61,7 +60,10 @@ export async function POST(req: NextRequest) {
       time,
       source: isSource(source) ? source : "website",
     });
-    await sendBookingConfirmation(appt);
+    // No confirmation template here. A new booking sits in payment_pending for
+    // the payment window, so nothing may say "confirmed" yet — the number arrives
+    // on the screen with the pay banner, and the real confirmation goes out as
+    // META_TEMPLATE_PAID once the Razorpay webhook flips it to reserved.
     return NextResponse.json({ appointment: appt }, { status: 201 });
   } catch (err) {
     if (err instanceof SlotTakenError) {

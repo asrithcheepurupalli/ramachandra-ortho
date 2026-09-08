@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, MessageCircle, CalendarDays, Clock, User,
@@ -15,6 +15,14 @@ import { normalizePhone } from "@/lib/phone";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const waLink = (msg: string) => `https://wa.me/${clinic.contact.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
+
+// Progress persistence. sessionStorage keeps an in-progress booking (stage,
+// picked day/time, entered details) alive across refresh and back-navigation
+// within the tab. localStorage holds the last unpaid payment_pending hold so a
+// returning patient can jump straight back to paying and confirming it.
+const SESSION_KEY = "ortho_book_session";
+const RESUME_KEY = "ortho_resume_payment";
+const PAY_WINDOW_MS = 30 * 60 * 1000;
 
 // slots = still bookable, taken = already booked (rendered greyed out, not hidden)
 type DayOpt = { date: string; d: Date; slots: string[]; taken: string[]; closingSoon?: boolean };
@@ -43,6 +51,69 @@ export function BookForm() {
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupErr, setLookupErr] = useState("");
   const [matched, setMatched] = useState<{ name: string; phone: string; patientCode: string; fee: number } | null>(null);
+
+  // Last unpaid hold, shown as the resume-payment banner on a returning visit.
+  const [resume, setResume] = useState<Appt | null>(null);
+  // Marks that we restored from sessionStorage, so the day-load effect below
+  // leaves a restored selDate alone instead of defaulting it to the first open day.
+  const didRestoreRef = useRef(false);
+
+  // Restore an in-progress booking from the tab's session storage.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (!saved) return;
+      const s = JSON.parse(saved);
+      if (s.lang) setLang(s.lang);
+      if (s.stage === "patient" || s.stage === "book") setStage(s.stage);
+      if (s.people === "new" || s.people === "returning") setPeople(s.people);
+      if (s.matched && typeof s.matched === "object") setMatched(s.matched);
+      if (typeof s.lookupQ === "string") setLookupQ(s.lookupQ);
+      if (s.form && typeof s.form === "object") setForm(s.form);
+      if (typeof s.selDate === "string") setSelDate(s.selDate);
+      if (typeof s.selTime === "string") setSelTime(s.selTime);
+      didRestoreRef.current = true;
+    } catch { /* corrupt session — start fresh */ }
+  }, []);
+
+  // A previous visit's abandoned payment_pending hold (or none if it expired
+  // while away — the 30-min window has passed, so the row is cancelled anyway).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(RESUME_KEY);
+      if (!raw) return;
+      const r = JSON.parse(raw) as Appt;
+      if (Date.now() - (r.createdAt ?? 0) > PAY_WINDOW_MS) { localStorage.removeItem(RESUME_KEY); return; }
+      setResume(r);
+    } catch { localStorage.removeItem(RESUME_KEY); }
+  }, []);
+
+  // Save in-progress progress on every change — but never once a booking lands
+  // on the confirmation screen. That state is owned by the localStorage resume
+  // entry instead, so a finished flow can't resurrect as a half-filled form.
+  useEffect(() => {
+    if (booked) return;
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ lang, stage, people, matched, lookupQ, form, selDate, selTime }));
+    } catch { /* storage full / private mode — resume degrades to nothing */ }
+  }, [lang, stage, people, matched, lookupQ, form, selDate, selTime, booked]);
+
+  // A booking landing on the confirmation screen unpaid is a resume candidate:
+  // remember it so a patient who abandons the tab can come back and pay. A
+  // paid or absent booking drops it (clearResume handles the paid paths).
+  useEffect(() => {
+    if (booked && stage === "done" && !booked.paid) {
+      try { localStorage.setItem(RESUME_KEY, JSON.stringify(booked)); } catch {}
+    }
+  }, [booked, stage]);
+
+  const clearResume = () => { try { localStorage.removeItem(RESUME_KEY); } catch {} };
+  const resumePay = () => {
+    if (!resume) return;
+    setBooked(resume);
+    setStage("done");
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  };
 
   // Returning patient found: prefill the details and lock the name (the record
   // is the source of truth). Phone is left editable in case a patient now uses
@@ -131,7 +202,9 @@ export function BookForm() {
       }
       if (cancelled) return;
       setDays(list);
-      setSelDate(list.find((x) => x.slots.length > 0)?.date ?? null);
+      if (!didRestoreRef.current) {
+        setSelDate(list.find((x) => x.slots.length > 0)?.date ?? null);
+      }
       setDaysLoading(false);
     };
     load();
@@ -200,11 +273,31 @@ export function BookForm() {
             body: JSON.stringify({ id: booked.id, phone: booked.phone }),
           });
           const data = await res.json();
-          if (!res.ok) { setPayErr(data.error ?? t("myappt.payerror")); setPayBusy(false); return; }
+          if (!res.ok) {
+            if (res.status === 400) {
+              // /api/payments/link only returns 400 for an already-paid row —
+              // the webhook beat us to it. This is really a confirm, not an
+              // error: mirror the paid state and drop the resume entry so we
+              // never ask for money again.
+              clearResume();
+              setBooked({ ...booked, paid: true, status: "reserved" });
+            } else if (res.status === 404) {
+              // Hold expired (the payment-timeout cron cancelled it) — nothing
+              // left to pay.
+              clearResume();
+              setPayErr(data.error ?? t("myappt.payerror"));
+            } else {
+              setPayErr(data.error ?? t("myappt.payerror"));
+            }
+            setPayBusy(false);
+            return;
+          }
           window.location.href = data.url as string;
         } else {
           togglePaid(booked.id);
-          setBooked({ ...booked, paid: true });
+          // Mirror what the DB webhook does — the paid hold becomes reserved.
+          clearResume();
+          setBooked({ ...booked, paid: true, status: "reserved" });
           setPayBusy(false);
         }
       } catch {
@@ -230,22 +323,37 @@ export function BookForm() {
             {booked.patientCode && <Row icon={BadgeCheck} v={`${t("book.patient.code")}: ${booked.patientCode}`} />}
           </dl>
           {booked.patientCode && <p className="mt-3 rounded-xl bg-brand-tint px-3 py-2 text-xs text-brand">{t("book.patient.saveid", { code: booked.patientCode })}</p>}
-          <p className="mt-5 text-sm leading-relaxed text-muted">{t("book.done.msg")}</p>
-          <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>
+          {!booked.paid ? (
+            <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
+              <p className="text-sm font-semibold text-out">{t("book.done.payRequired")}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">
+                {t("book.done.deadline", { time: new Date((booked.paymentDeadlineAt ?? booked.createdAt + 30 * 60_000)).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) })}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-5 text-sm leading-relaxed text-muted">{t("book.done.msg")}</p>
+          )}
+          {/* The carry-over-to-next-day line is about confirmed no-shows; an
+              unpaid booking is cancelled outright instead, so it would read as
+              a contradiction here. Show it only once payment confirmed the slot. */}
+          {booked.paid && <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>}
           {payErr && <p role="alert" className="mt-3 text-sm text-out">{payErr}</p>}
           <div className="mt-6 flex flex-col gap-2">
             {!booked.paid && (
-              <button onClick={doPay} disabled={payBusy} className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition disabled:opacity-60">
+              <button onClick={doPay} disabled={payBusy} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
                 <Wallet className="h-4 w-4 shrink-0" /> {t("book.done.paynow")}
               </button>
             )}
-            <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
-            <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full border border-line px-3 py-3 text-center text-sm font-semibold text-ink">{t("book.done.view")}</Link>
+            <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition hover:bg-brand-tint"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
+            {/* My Appointment won't show a payment_pending row (it's not real
+                until paid), so the "View appointment" link would dead-end on
+                the empty state. Offer it only once payment confirmed the slot. */}
+            {booked.paid && <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full border border-line px-3 py-3 text-center text-sm font-semibold text-ink">{t("book.done.view")}</Link>}
             {/* Stacked full-width, not a flex-1 side-by-side row. Telugu/Hindi
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}
             <div className="grid grid-cols-1 gap-2">
-              <button onClick={() => { setBooked(null); setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", reason: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
+              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", reason: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
               <Link href="/" className="press w-full rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
             </div>
           </div>
@@ -269,6 +377,24 @@ export function BookForm() {
 
         <h1 className="mt-6 text-3xl font-semibold tracking-tight">{t("book.title")}</h1>
         <p className="mt-2 text-[15px] text-muted">{t("book.patient.sub")}</p>
+
+        {resume && (
+          <button onClick={resumePay} className="press mt-5 w-full rounded-3xl border border-accent/40 bg-accent-tint p-5 text-left transition hover:border-accent/60">
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent/15 text-out"><Wallet className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-out">{t("book.resume.title")}</div>
+                <div className="mt-0.5 text-xs leading-relaxed text-muted">
+                  {t("book.resume.detail", {
+                    date: new Date(`${resume.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
+                    time: fmt(resume.time),
+                  })}
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+            </div>
+          </button>
+        )}
 
         {people === "returning" ? (
           <div className="mt-7 rounded-3xl border border-line bg-surface p-5 md:p-6">

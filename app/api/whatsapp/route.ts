@@ -4,7 +4,7 @@
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
-import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, type Backend, type ServerBotState } from "@/lib/bot";
+import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPayPrompt, flowPayNowLabel, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
 
@@ -110,11 +110,20 @@ export async function POST(req: NextRequest) {
           time: parsed.time,
           source: "whatsapp",
         });
-        await sendBookingConfirmation(appt);
+        // No confirmation template until payment lands. The slot is held 30
+        // minutes as payment_pending, so all we send now is the mandatory pay
+        // prompt with a REAL Pay now button (same interactive-reply path the
+        // conversational bot chips use), letting the patient tap rather than
+        // type. The real "appointment confirmed" template (META_TEMPLATE_PAID)
+        // fires from the Razorpay webhook once payment completes.
+        try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); }
       } catch (err) {
         await sendText(from, err instanceof SlotTakenError ? flowSlotTakenMsg(lang) : flowBookFailMsg(lang));
       }
-      await dbSaveWaSession(from, lang, state, wamid);
+      // Clear lastChips: the follow-up carries no chips, so a stale numeric
+      // reply ("1") must not resolve against a menu from before the Flow.
+      const flowState: WaState = { ...state, lastChips: [] };
+      await dbSaveWaSession(from, lang, flowState, wamid);
       return new NextResponse("OK", { status: 200 });
     }
 

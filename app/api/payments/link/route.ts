@@ -4,7 +4,7 @@
 // appointments AND have verified itself with a one-time SIM code before a
 // link is produced.
 import { NextResponse, type NextRequest } from "next/server";
-import { dbGetOrCreatePaymentLink } from "@/lib/db";
+import { dbGetOrCreatePaymentLink, dbApptStatus } from "@/lib/db";
 import { otpVerified, otpEnabled } from "@/lib/otp";
 
 const RATE_LIMIT = 8;
@@ -29,7 +29,12 @@ export async function POST(req: NextRequest) {
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
 
   try {
-    if (otpEnabled() && !(await otpVerified(phone.trim()))) {
+    // A fresh booking (payment_pending) skips the OTP gate: it was created
+    // moments ago through the ungated booking flow, so gating the payment step
+    // would dead-end a patient mid-checkout. The gate still applies to paying
+    // a legacy unpaid appointment from My Appointment.
+    const status = await dbApptStatus(id);
+    if (otpEnabled() && status !== "payment_pending" && !(await otpVerified(phone.trim()))) {
       return NextResponse.json({ error: "Verify your number to continue", otpRequired: true }, { status: 401 });
     }
     const url = await dbGetOrCreatePaymentLink(id, phone.trim());

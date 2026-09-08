@@ -43,6 +43,7 @@ const statusMeta: Record<ApptStatus, { label: string; cls: string }> = {
   consulting: { label: "In consult", cls: "bg-in/15 text-in" },
   done: { label: "Done", cls: "bg-muted/15 text-muted" },
   cancelled: { label: "Cancelled", cls: "bg-out/10 text-out line-through" },
+  payment_pending: { label: "Awaiting payment", cls: "bg-accent-tint text-accent" },
 };
 
 const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
@@ -139,7 +140,7 @@ function DoctorCalendar({ appts }: { appts: Appt[] }) {
   const countsByDate = useMemo(() => {
     const m = new Map<string, number>();
     for (const a of appts) {
-      if (a.status === "cancelled") continue;
+      if (a.status === "cancelled" || a.status === "payment_pending") continue;
       m.set(a.date, (m.get(a.date) ?? 0) + 1);
     }
     return m;
@@ -157,7 +158,10 @@ function DoctorCalendar({ appts }: { appts: Appt[] }) {
     setSelected(todayStr);
   };
   const monthLabel = new Date(year, month, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-  const dayList = apptsForDate(appts, selected);
+  // payment_pending rows are online bookings still awaiting payment — not yet
+  // real to the doctor, so hide them until the webhook confirms and flips the
+  // status to reserved.
+  const dayList = apptsForDate(appts, selected).filter((a) => a.status !== "payment_pending");
 
   return (
     <div className="max-w-3xl space-y-6">

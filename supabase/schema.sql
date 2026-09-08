@@ -49,7 +49,7 @@ create table if not exists public.appointments (
   reason      text not null default 'Consultation',
   appt_date   date not null,
   appt_time   text not null,                 -- "HH:MM"
-  status      text not null default 'reserved',  -- reserved|confirmed|waiting|consulting|done|cancelled
+  status      text not null default 'reserved',  -- reserved|confirmed|waiting|consulting|done|cancelled|payment_pending
   source      text not null default 'website',   -- website|whatsapp|walkin
   fee         int  not null,
   paid        boolean not null default false,
@@ -86,6 +86,12 @@ alter table public.appointments add column if not exists notes text;
 -- stable + unique per patient, so a copy on each appointment is safe and lets
 -- queue/patients views show it without a join.
 alter table public.appointments add column if not exists patient_code text;
+-- Mandatory online payment (2026-09-08): new bookings start as payment_pending
+-- (slot held, invisible to queues/admin/doctor). The Razorpay payment_link.paid
+-- webhook flips the row to reserved atomically. A cron running every 5 minutes
+-- cancels stale payment_pending rows older than 30 minutes, freeing their slot.
+-- No ALTER needed beyond the status comment above — payment_pending is just a
+-- text value in the existing status column; this block is for readability only.
 create index if not exists appointments_date_idx on public.appointments (appt_date);
 -- Real double-booking guard: two active (non-cancelled) appointments can never
 -- share a date+time, even under concurrent inserts. A cancelled slot frees up

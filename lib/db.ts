@@ -42,6 +42,20 @@ export async function dbApptsForDate(date: string): Promise<Appt[]> {
 // remembered booking id, since a phone can have more than one appointment
 // on file (e.g. family members sharing a number) and a stale id would
 // cancel the wrong one.
+// The status of one appointment, or null when it doesn't exist. Used by the
+// payment-link route to exempt fresh (payment_pending) bookings from the OTP
+// gate — those were just created through the ungated booking flow, so gating
+// their payment step adds nothing but a dead end for a patient mid-checkout.
+export async function dbApptStatus(id: string): Promise<ApptStatus | null> {
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .select("status")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.status as ApptStatus) ?? null;
+}
+
 export async function dbGetAppt(id: string): Promise<Appt | null> {
   const { data, error } = await supabaseAdmin()
     .from("appointments")
@@ -56,12 +70,16 @@ export async function dbGetAppt(id: string): Promise<Appt | null> {
 // WhatsApp booking can carry the sender's 91-country-code id verbatim, while
 // the patient types only the local 10 digits on the website, so a naive
 // `.eq("phone", ...)` against either form silently misses the other.
-export async function dbActiveAppointmentsByPhone(phone: string): Promise<Appt[]> {
+export async function dbActiveAppointmentsByPhone(phone: string, includePending = false): Promise<Appt[]> {
+  const statuses = ["reserved", "confirmed", "waiting", "consulting"];
+  // payment_pending rows are excluded everywhere except the payment-link
+  // lookup, which needs to find a just-booked appointment before it's paid.
+  if (includePending) statuses.push("payment_pending");
   const { data, error } = await supabaseAdmin()
     .from("appointments")
     .select("*")
     .in("phone", phoneMatchVariants(phone))
-    .in("status", ["reserved", "confirmed", "waiting", "consulting"])
+    .in("status", statuses)
     .order("appt_date", { ascending: true })
     .order("appt_time", { ascending: true });
   if (error) throw error;
@@ -139,6 +157,7 @@ function rowToAppt(r: any): Appt {
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
     patientCode: r.patient_code ?? null,
+    paymentDeadlineAt: null, // server-side: expiry is enforced by the payment-timeout cron against created_at
   };
 }
 
@@ -196,11 +215,13 @@ export async function dbAddBooking(input: {
     }
   }
 
-  // A partial unique index on (appt_date, appt_time) where status <> 'cancelled'
-  // is the real guard against two patients landing the same slot in a race;
-  // the per-day token sequence can also collide under concurrent inserts, so
-  // both are retried a few times (with a freshly recomputed token) before
-  // giving up.
+  // Bookings start payment_pending (not reserved): the slot is held + the
+  // Razorpay link has a reference_id, but nothing shows in any queue until
+  // the webhook flips it to reserved. The partial unique index on (appt_date,
+  // appt_time) where status <> 'cancelled' is the real guard against two
+  // patients landing the same slot in a race; the per-day token sequence can
+  // also collide under concurrent inserts, so both are retried a few times
+  // (with a freshly recomputed token) before giving up.
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: dayAppts, error: dayErr } = await db
       .from("appointments")
@@ -220,7 +241,7 @@ export async function dbAddBooking(input: {
         reason: input.reason.trim() || "Consultation",
         appt_date: input.date,
         appt_time: input.time,
-        status: "reserved",
+        status: "payment_pending",
         source: input.source ?? "website",
         fee,
         paid: false,
@@ -296,7 +317,7 @@ export async function dbSetStatusReturning(id: string, status: ApptStatus): Prom
 // caller (/api/payments/link) maps that to a 502, distinct from the 404s it
 // already returns for a bad id/phone pair.
 export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promise<string> {
-  const owned = await dbActiveAppointmentsByPhone(phone);
+  const owned = await dbActiveAppointmentsByPhone(phone, true);
   const appt = owned.find((a) => a.id === id);
   if (!appt) throw new Error("not_found");
   if (appt.paid) throw new Error("already_paid");
@@ -324,15 +345,21 @@ export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promi
   return link.short_url;
 }
 
-// Called by the Razorpay webhook on payment_link.paid. Guards is("paid", false)
+// Called by the Razorpay webhook on payment_link.paid. Flipping paid also
+// promotes a payment_pending booking to reserved — that's the moment the
+// appointment becomes real and shows up in the queues. Guards is("paid", false)
 // so a duplicate webhook delivery (Razorpay retries on anything but a 2xx) is
-// a harmless no-op rather than a second WhatsApp confirmation.
+// a harmless no-op rather than a second WhatsApp confirmation, AND
+// is("status", "payment_pending") so a webhook that lands after the
+// payment-timeout cron cancelled the row can never resurrect it (the slot was
+// freed for someone else).
 export async function dbMarkPaidByPaymentLink(paymentLinkId: string, paymentId?: string): Promise<Appt | null> {
   const { data, error } = await supabaseAdmin()
     .from("appointments")
-    .update({ paid: true, paid_via: "razorpay", razorpay_payment_id: paymentId ?? null })
+    .update({ paid: true, paid_via: "razorpay", razorpay_payment_id: paymentId ?? null, status: "reserved" })
     .eq("razorpay_payment_link_id", paymentLinkId)
     .eq("paid", false)
+    .eq("status", "payment_pending")
     .select("*")
     .maybeSingle();
   if (error) throw error;

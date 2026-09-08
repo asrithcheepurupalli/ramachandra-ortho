@@ -247,7 +247,10 @@ const dateLabel = (date: string) => {
 function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
   const [date, setDate] = useState(() => ymd(new Date()));
   const isToday = date === ymd(new Date());
-  const list = apptsForDate(appts, date);
+  // payment_pending rows are online bookings still awaiting payment — not yet
+  // real to the desk. Hidden until the Razorpay webhook flips them to reserved
+  // (or the timeout cron cancels them), same as the doctor page.
+  const list = apptsForDate(appts, date).filter((a) => a.status !== "payment_pending");
   const active = list.filter((a) => a.status !== "cancelled");
   const inQueue = list.filter((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
   const serving = list.find((a) => a.status === "consulting");
@@ -256,9 +259,11 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
   // toward nothing. dbMarkRefunded keeps paid=true so the refund is traceable;
   // refunded_at is what rollups must subtract.
   const revenue = list.filter((a) => a.paid && a.refundedAt == null).reduce((s, a) => s + a.fee, 0);
-  // Cash still owed to the desk today: every non-cancelled unpaid row. The
-  // desk reconciles Collected + this against the fee box at close.
-  const toCollectList = list.filter((a) => a.status !== "cancelled" && !a.paid);
+  // Cash still owed to the desk today: every non-cancelled unpaid row. Row
+  // status payment_pending is excluded — that's an online booking awaiting
+  // payment, not cash owed at the counter. The desk reconciles Collected +
+  // this against the fee box at close.
+  const toCollectList = list.filter((a) => a.status !== "cancelled" && a.status !== "payment_pending" && !a.paid);
   const toCollect = toCollectList.reduce((s, a) => s + a.fee, 0);
 
   const callNext = () => {
@@ -337,6 +342,7 @@ const statusMeta: Record<ApptStatus, { label: string; cls: string }> = {
   consulting: { label: "In consult", cls: "bg-in/15 text-in" },
   done: { label: "Done", cls: "bg-muted/15 text-muted" },
   cancelled: { label: "Cancelled", cls: "bg-out/10 text-out line-through" },
+  payment_pending: { label: "Awaiting payment", cls: "bg-accent-tint text-accent" },
 };
 
 function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {

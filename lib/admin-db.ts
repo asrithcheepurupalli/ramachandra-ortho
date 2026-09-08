@@ -38,6 +38,7 @@ function rowToAppt(r: any): Appt {
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
     patientCode: r.patient_code ?? null,
+    paymentDeadlineAt: null,
   };
 }
 
@@ -175,12 +176,19 @@ export async function dbTogglePaidClient(id: string, currentPaid: boolean): Prom
   // never undo a Razorpay collection — the money has already moved; refunds
   // are the only reversal. The read and the write are both conditional so a
   // payment webhook landing between them can't be clobbered either.
-  const { data: row } = await db.from("appointments").select("paid, paid_via").eq("id", id).maybeSingle();
+  const { data: row } = await db.from("appointments").select("paid, paid_via, status").eq("id", id).maybeSingle();
   if (row && row.paid_via === "razorpay") return;
 
   const update: Record<string, unknown> = { paid: !currentPaid };
-  if (!currentPaid) update.paid_via = "cash";   // collecting cash
-  else update.paid_via = null;                   // undoing a cash payment
+  if (!currentPaid) {
+    update.paid_via = "cash";
+    // Cash-settling a payment_pending hold promotes it to reserved (mirrors
+    // the mock togglePaid) so the confirmed row appears in the queue — and so
+    // the payment-timeout cron can't later cancel a row the desk took cash for.
+    if (row?.status === "payment_pending") update.status = "reserved";
+  } else {
+    update.paid_via = null;                      // undoing a cash payment
+  }
   let q = db.from("appointments").update(update).eq("id", id);
   q = currentPaid ? q.eq("paid", true).eq("paid_via", "cash") : q.eq("paid", false);
   const { error } = await q;

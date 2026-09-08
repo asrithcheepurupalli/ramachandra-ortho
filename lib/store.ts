@@ -14,7 +14,8 @@ import { SlotTakenError, InvalidSlotError } from "@/lib/errors";
 import { normalizePhone, phoneMatchVariants } from "@/lib/phone";
 
 export type ApptStatus =
-  | "reserved" | "confirmed" | "waiting" | "consulting" | "done" | "cancelled";
+  | "reserved" | "confirmed" | "waiting" | "consulting" | "done" | "cancelled"
+  | "payment_pending"; // online booking awaiting Razorpay payment (not visible in queues until paid)
 export type Source = "website" | "whatsapp" | "walkin";
 
 export type Appt = {
@@ -37,6 +38,7 @@ export type Appt = {
   createdAt: number;
   notes: string | null; // doctor's free-text clinical note, written from the doctor portal only
   patientCode: string | null; // human-readable patient ID (ROC-####), null when not matched
+  paymentDeadlineAt: number | null; // epoch ms; 30 min window for payment_pending bookings, null for walk-ins / legacy
 };
 
 const KEY = "roc.appts.v1";
@@ -130,7 +132,7 @@ function seed(): Appt[] {
     id: rid(), token: i + 1, name: r[0], phone: r[1], reason: r[2], date: today,
     time: times[i], status: r[4], source: r[3], fee, paid: r[5], paidVia: r[6],
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now() - (10 - i) * 6e5,
-    notes: null, patientCode: codeFor(r[1], r[0]),
+    notes: null, patientCode: codeFor(r[1], r[0]), paymentDeadlineAt: null,
   }));
 }
 
@@ -163,12 +165,42 @@ function rescheduleNoShows(all: Appt[]): Appt[] {
   return result;
 }
 
+// ── payment timeout: payment_pending bookings older than 30 minutes are
+// cancelled automatically (mirrors the server cron /api/cron/payment-timeout).
+// Rows are set to "cancelled", never deleted, so admin history/revenue and
+// patient counts match what the server cron does to a real row.
+const PAYMENT_WINDOW_MS = 30 * 60_000;
+function expirePaymentPending(all: Appt[]): Appt[] {
+  const now = Date.now();
+  let changed = false;
+  const next = all.map((a): Appt => {
+    if (a.status !== "payment_pending") return a;
+    const deadline = a.paymentDeadlineAt ?? a.createdAt + PAYMENT_WINDOW_MS;
+    if (deadline > now) return a; // not yet expired
+    changed = true;
+    return { ...a, status: "cancelled" as Appt["status"] };
+  });
+  // Same reference when nothing expired, so useSyncExternalStore snapshot
+  // stays referentially stable and consumers don't re-render on every read.
+  return changed ? next : all;
+}
+
 // ── low-level persistence + subscription (for useSyncExternalStore) ─────────
 let cache: Appt[] | null = null;
 const listeners = new Set<() => void>();
 
 function read(): Appt[] {
-  if (cache) return cache;
+  if (cache) {
+    // Warm-cache path also sweeps expiry — a long-lived tab must free a dead
+    // hold the moment its deadline passes, not on the next cold load. Only
+    // writes back when something actually expired (length/reference replaced).
+    const expired = expirePaymentPending(cache);
+    if (expired !== cache) {
+      cache = expired;
+      try { localStorage.setItem(KEY, JSON.stringify(expired)); } catch {}
+    }
+    return cache;
+  }
   if (typeof window === "undefined") return [];
   let loaded: Appt[];
   try {
@@ -177,7 +209,7 @@ function read(): Appt[] {
   } catch {
     loaded = seed();
   }
-  cache = rescheduleNoShows(loaded);
+  cache = expirePaymentPending(rescheduleNoShows(loaded));
   try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch {}
   return cache;
 }
@@ -207,7 +239,7 @@ export function addWalkIn(input: { name: string; phone: string; reason: string; 
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
     source: input.source ?? "walkin", fee, paid: false, paidVia: null,
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
-    notes: null, patientCode,
+    notes: null, patientCode, paymentDeadlineAt: null,
   };
   write([...all, appt]);
   return appt;
@@ -226,9 +258,9 @@ export function addBooking(input: { name: string; phone: string; reason: string;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,
     reason: input.reason.trim() || "Consultation", date: input.date, time: input.time,
-    status: "reserved", source: input.source ?? "website", fee,
+    status: "payment_pending", source: input.source ?? "website", fee,
     paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
-    notes: null, patientCode,
+    notes: null, patientCode, paymentDeadlineAt: Date.now() + 30 * 60_000,
   };
   write([...all, appt]);
   return appt;
@@ -241,11 +273,14 @@ export function setStatus(id: string, status: ApptStatus) {
   write(read().map((a) => (a.id === id ? { ...a, status, paid: status === "done" ? true : a.paid, paidVia: status === "done" && !a.paid ? "cash" : a.paidVia } : a)));
 }
 // A patient's active (not cancelled/done) appointments, nearest first — mirrors
-// dbActiveAppointmentsByPhone for the mock/localStorage path.
-export function activeAppointmentsByPhone(phone: string): Appt[] {
+// dbActiveAppointmentsByPhone for the mock/localStorage path. includePending
+// adds payment_pending rows (the pay intent needs them; view/reschedule skip
+// them until payment confirms the booking).
+export function activeAppointmentsByPhone(phone: string, includePending = false): Appt[] {
   const variants = phoneMatchVariants(phone);
+  const statuses = includePending ? [...activeStatuses, "payment_pending"] : activeStatuses;
   return read()
-    .filter((a) => variants.includes(a.phone) && activeStatuses.includes(a.status))
+    .filter((a) => variants.includes(a.phone) && statuses.includes(a.status))
     .sort((a, b) => (a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date)));
 }
 export function rescheduleBooking(id: string, date: string, time: string) {
@@ -259,8 +294,18 @@ export function rescheduleBooking(id: string, date: string, time: string) {
 export function togglePaid(id: string) {
   // Mirror of dbTogglePaidClient: the toggle is a cash affair, so an
   // already-paid Razorpay row (money moved, refund is the only reversal) is
-  // never flipped back to unpaid.
-  write(read().map((a) => (a.id === id && !(a.paid && a.paidVia === "razorpay") ? { ...a, paid: !a.paid, paidVia: !a.paid ? "cash" : null } : a)));
+  // never flipped back to unpaid. When a payment_pending row gets paid (mock
+  // Razorpay path), also promote it to reserved so it appears in queues.
+  write(read().map((a) => {
+    if (a.id !== id || (a.paid && a.paidVia === "razorpay")) return a;
+    const newPaid = !a.paid;
+    return {
+      ...a,
+      paid: newPaid,
+      paidVia: newPaid ? "cash" : null,
+      status: newPaid && a.status === "payment_pending" ? "reserved" : a.status,
+    };
+  }));
 }
 export function setNotes(id: string, notes: string) {
   write(read().map((a) => (a.id === id ? { ...a, notes: notes.trim() || null } : a)));
@@ -278,6 +323,8 @@ export function apptsForDate(all: Appt[], date: string = ymd(new Date())) {
   return all.filter((a) => a.date === date).sort((a, b) => a.token - b.token);
 }
 export const activeStatuses: ApptStatus[] = ["reserved", "confirmed", "waiting", "consulting"];
+// payment_pending is deliberately excluded — the patient and admin don't see
+// the row until the Razorpay webhook flips it to reserved.
 
 // avoids SSR/CSR flash: only render store-driven UI after mount
 const emptySubscribe = () => () => {};

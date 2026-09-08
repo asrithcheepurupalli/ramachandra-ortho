@@ -27,6 +27,12 @@ export async function POST(req: NextRequest) {
     const appt = await dbMarkPaidByPaymentLink(paymentLinkId, paymentId);
     if (appt) {
       try { await sendPaymentReceived(appt); } catch (err) { console.error("payments/webhook: notify failed", err); }
+    } else {
+      // Money was captured at Razorpay but no payment_pending row matched.
+      // Either a duplicate delivery (already paid — harmless) or the clinic's
+      // payment-timeout cron cancelled the row before this webhook landed.
+      // Log loudly either way so the clinic can reconcile captured money.
+      console.error("payments/webhook: paid event matched no payment_pending row (duplicate or slot expired)", JSON.stringify({ paymentLinkId, paymentId }));
     }
   } catch (err) {
     console.error("/api/payments/webhook", err);

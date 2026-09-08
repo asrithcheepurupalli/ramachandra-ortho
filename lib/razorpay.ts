@@ -28,7 +28,7 @@ function normalizeIndianPhone(raw: string): string | null {
 // that as "couldn't start payment right now", never a thrown exception that
 // could take down a page render.
 export async function createPaymentLink(
-  appt: Pick<Appt, "id" | "name" | "phone" | "fee">
+  appt: Pick<Appt, "id" | "name" | "phone" | "fee" | "createdAt">
 ): Promise<{ id: string; short_url: string } | null> {
   const auth = authHeader();
   if (!auth) {
@@ -48,6 +48,13 @@ export async function createPaymentLink(
         currency: "INR",
         reference_id: appt.id,
         description: "Consultation fee",
+        // The slot is held for 30 minutes from BOOKING (the payment-timeout
+        // cron cancels the row at createdAt + 30m), so anchor the link expiry
+        // to that same moment — a link created when the patient taps "Pay now"
+        // late must not outlive the hold. Floor it 5 minutes out so a tap made
+        // right at the deadline still yields a live link, and an expired link
+        // on Razorpay's side (paid after cron) can never happen.
+        expire_by: Math.max(Math.floor(new Date(appt.createdAt).getTime() / 1000) + 1800, Math.floor(Date.now() / 1000) + 5 * 60),
         customer: { name: appt.name, ...(contact ? { contact } : {}) },
         notify: { sms: false, email: false },
         ...(siteUrl
