@@ -2,7 +2,7 @@
 // happen, so every booking source (website today) goes through it.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbLoadSchedule, dbTakenSlots } from "@/lib/db";
-import { SlotTakenError } from "@/lib/errors";
+import { SlotTakenError, PendingHoldError } from "@/lib/errors";
 import { slotsFor, ymd, nowIST } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
 
@@ -66,6 +66,12 @@ export async function POST(req: NextRequest) {
     // META_TEMPLATE_PAID once the Razorpay webhook flips it to reserved.
     return NextResponse.json({ appointment: appt }, { status: 201 });
   } catch (err) {
+    if (err instanceof PendingHoldError) {
+      return NextResponse.json({
+        error: "You already have a booking waiting for payment. Please complete that payment first to confirm your slot (an unpaid booking is released automatically after 30 minutes).",
+        code: "pending_hold",
+      }, { status: 409 });
+    }
     if (err instanceof SlotTakenError) {
       return NextResponse.json({ error: "That slot was just taken. Please pick another." }, { status: 409 });
     }

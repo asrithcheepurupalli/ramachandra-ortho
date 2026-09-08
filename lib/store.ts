@@ -10,7 +10,7 @@ import {
   isPastLeadTime,
   type WeeklyHours, type Exception, type Override,
 } from "@/lib/schedule";
-import { SlotTakenError, InvalidSlotError } from "@/lib/errors";
+import { SlotTakenError, InvalidSlotError, PendingHoldError } from "@/lib/errors";
 import { normalizePhone, phoneMatchVariants } from "@/lib/phone";
 
 export type ApptStatus =
@@ -251,6 +251,12 @@ export function addBooking(input: { name: string; phone: string; reason: string;
   const dayAppts = all.filter((a) => a.date === input.date);
   const token = (dayAppts.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
   const phone = normalizePhone(input.phone);
+  // Mirror dbAddBooking's pending-hold guard: a phone with an unpaid hold can't
+  // book a second slot (it would hold two slots and wrongly charge the
+  // returning fee against a first visit that was never paid).
+  if (phone && all.some((a) => a.phone === phone && a.status === "payment_pending")) {
+    throw new PendingHoldError();
+  }
   const reg = loadPatients();
   const existing = phone ? reg[phone] : undefined;
   const fee = existing ? clinic.returningFee : clinic.consultationFee;

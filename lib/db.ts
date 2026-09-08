@@ -12,7 +12,7 @@ import {
 } from "@/lib/schedule";
 import type { Appt, ApptStatus, Source } from "@/lib/store";
 import type { ServerBotState } from "@/lib/bot";
-import { SlotTakenError, InvalidSlotError } from "@/lib/errors";
+import { SlotTakenError, InvalidSlotError, PendingHoldError } from "@/lib/errors";
 import { createPaymentLink } from "@/lib/razorpay";
 import { normalizePhone, phoneMatchVariants } from "@/lib/phone";
 
@@ -184,6 +184,25 @@ export async function dbAddBooking(input: {
   const sched = await dbLoadSchedule();
   const openSlots = slotsFor(new Date(`${input.date}T00:00:00`), [], sched);
   if (!openSlots.includes(input.time)) throw new InvalidSlotError();
+
+  // A phone holding an unpaid booking can't book a second slot. The first
+  // booking sits in payment_pending (slot held, Razorpay link out) until the
+  // webhook reserves it or the 30-min payment-timeout cron frees it; allowing
+  // a second booking meanwhile would hold two slots for nothing and — because
+  // the patients upsert below already ran on the first attempt — would charge
+  // the returning fee (₹350) against a phone that never paid its first ₹400.
+  // Refuse until the hold is resolved. (The WhatsApp sender books under their
+  // own number by default, and the site submits the number on the form, so the
+  // phone here is the same one the hold sits under.)
+  if (phone) {
+    const { data: pending, error: pendErr } = await db
+      .from("appointments")
+      .select("id")
+      .eq("phone", phone)
+      .eq("status", "payment_pending");
+    if (pendErr) throw pendErr;
+    if ((pending ?? []).length > 0) throw new PendingHoldError();
+  }
 
   // Returning-patient fee: the patients table (deduped by phone) is the source
   // of truth. Query BEFORE the upsert so we know whether a phone already had a

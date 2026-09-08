@@ -14,6 +14,21 @@ export class SlotTakenError extends Error {
   }
 }
 
+// Thrown by dbAddBooking when the phone already holds a payment_pending
+// appointment. A patient who booked a slot but hasn't paid yet must not book a
+// second one: it would hold two slots while nothing is paid, and — because the
+// patients table is upserted on the first attempt regardless of payment — it
+// would charge the returning fee (₹350) against a phone that never paid its
+// first ₹400. The right move is to finish the existing hold (pay it, or let the
+// 30-minute payment-timeout cron release it). Standalone (not a SlotTakenError)
+// so each surface can phrase it as "finish your payment", not "pick a new slot".
+export class PendingHoldError extends Error {
+  constructor() {
+    super("pending_hold");
+    this.name = "PendingHoldError";
+  }
+}
+
 // A booking request for a date+time that was never bookable — outside clinic
 // hours, on a closed/exception day, or off the slot grid. Different cause
 // than SlotTakenError (no race; the slot just isn't open) but extends it so

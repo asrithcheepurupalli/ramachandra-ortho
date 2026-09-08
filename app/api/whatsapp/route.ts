@@ -4,9 +4,9 @@
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbTakenSlots, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
-import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPayPrompt, flowPayNowLabel, type Backend, type ServerBotState } from "@/lib/bot";
+import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowPayPrompt, flowPayNowLabel, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
-import { SlotTakenError } from "@/lib/errors";
+import { SlotTakenError, PendingHoldError } from "@/lib/errors";
 
 const backend: Backend = {
   addBooking: dbAddBooking,
@@ -117,7 +117,10 @@ export async function POST(req: NextRequest) {
         // fires from the Razorpay webhook once payment completes.
         try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); }
       } catch (err) {
-        try { await sendText(from, err instanceof SlotTakenError ? flowSlotTakenMsg(lang) : flowBookFailMsg(lang)); } catch (err2) { console.error("whatsapp flow: error reply failed", err2); }
+        try {
+          if (err instanceof PendingHoldError) await sendText(from, flowPendingHoldMsg(lang));
+          else await sendText(from, err instanceof SlotTakenError ? flowSlotTakenMsg(lang) : flowBookFailMsg(lang));
+        } catch (err2) { console.error("whatsapp flow: error reply failed", err2); }
       }
       // Reset the conversation to idle: if the patient had a chat booking in
       // progress (say, typing a name) when they submitted the Flow, the stage
