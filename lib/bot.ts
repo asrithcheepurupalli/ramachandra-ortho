@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { clinic, type Lang } from "@/clinic.config";
 import { statusAt, fmt, weekdayName, slotsFor, windowsFor, ymd, nowIST, BOOKING_LEAD_MIN, type SchedState, type Window } from "@/lib/schedule";
-import { addBooking, takenSlots, setStatus, activeAppointmentsByPhone, rescheduleBooking, type Source, type Appt, type ApptStatus } from "@/lib/store";
+import { addBooking, takenSlots, togglePaid, activeAppointmentsByPhone, rescheduleBooking, type Source, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 import { SlotTakenError } from "@/lib/errors";
 
@@ -60,7 +60,7 @@ export type BotState = {
 // Stages the "cancel" escape hatch checks against, shared by the client and
 // server bot so a future stage addition can't silently drift between them.
 const MID_FLOW_STAGES: BotState["stage"][] = [
-  "await_name", "await_phone", "await_pay_pick",
+  "await_name", "await_phone", "await_pay_pick", "await_pay_phone",
   "await_view_phone", "await_resched_phone", "await_resched_pick", "await_otp",
 ];
 // A candidate appointment shown when a cancel request is ambiguous (more
@@ -211,6 +211,7 @@ type PhrasePack = {
   payNotFound: string;
   payDone: (url: string) => string;
   payFail: string;
+  payMock: string;
   payPrompt: string;
   viewPrompt: string;
   reschedPrompt: string;
@@ -262,6 +263,7 @@ const P: Record<Lang, PhrasePack> = {
     payNotFound: "I couldn't match that to one of your unpaid appointments. Please tap an option above, or reply with the exact token number or name.",
     payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for 30 minutes. Please complete it before your slot is released.`,
     payFail: "Something went wrong starting the payment. Please try again, or call the clinic.",
+    payMock: "✅ Payment confirmed! Your appointment is now confirmed.",
     payPrompt: "To confirm your slot, please complete the consultation fee payment now. Tap *Pay now* to pay online.",
     viewPrompt: "Of course. Which phone number did you book with?",
     reschedPrompt: "Sure, let's move your appointment. Which phone number did you book with?",
@@ -312,6 +314,7 @@ const P: Record<Lang, PhrasePack> = {
     payNotFound: "అది మీ చెల్లించని అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
     payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది 30 నిమిషాలు చెల్లుతుంది. మీ స్లాట్ విడుదల అయ్యేలోపు చెల్లించండి.`,
     payFail: "చెల్లింపు ప్రారంభించడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
+    payMock: "✅ చెల్లింపు నిర్ధారించబడింది! మీ అపాయింట్‌మెంట్ ఇప్పుడు నిర్ధారించబడింది.",
     payPrompt: "మీ స్లాట్ నిర్ధారించడానికి, దయచేసి ఇప్పుడే కన్సల్టేషన్ ఫీజు చెల్లించండి. *ఇప్పుడే చెల్లించండి* నొక్కండి.",
     viewPrompt: "తప్పకుండా. మీ అపాయింట్ ఏ ఫోన్ నంబర్‌తో బుక్ చేశారు?",
     reschedPrompt: "తప్పకుండా, మీ అపాయింట్‌ని మారుద్దాం. మీరు ఏ ఫోన్ నంబర్‌తో బుక్ చేశారు?",
@@ -362,6 +365,7 @@ const P: Record<Lang, PhrasePack> = {
     payNotFound: "यह आपके किसी बकाया भुगतान वाले अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
     payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह 30 मिनट के लिए मान्य है। स्लॉट रिलीज़ होने से पहले भुगतान पूरा करें।`,
     payFail: "भुगतान शुरू करने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
+    payMock: "✅ भुगतान पुष्ट हुआ! आपका अपॉइंटमेंट अब पुष्ट है।",
     payPrompt: "अपना स्लॉट पुष्टि करने के लिए कृपया अभी परामर्श शुल्क का भुगतान करें। *अभी भुगतान करें* दबाएँ।",
     viewPrompt: "ज़रूर। आपका अपॉइंटमेंट किस फ़ोन नंबर से बुक हुआ है?",
     reschedPrompt: "ज़रूर, आपका अपॉइंटमेंट बदलते हैं। आपने किस फ़ोन नंबर से बुक किया था?",
@@ -477,6 +481,38 @@ async function lookupClient(phone: string, includePending = false): Promise<{ ap
     }
   }
   return { appts: activeAppointmentsByPhone(phone, includePending), otp: false };
+}
+
+// Create a payment link for one unpaid appointment. DB mode asks the live API
+// (which returns a real Razorpay URL); mock mode has no gateway, so it marks
+// the hold paid locally instead (the same toggle BookForm's mock pay uses) and
+// returns the sentinel "mock". Returns null when a link can't be produced.
+async function payClientLink(id: string, phone: string): Promise<string | "mock" | null> {
+  if (hasSupabase()) {
+    try {
+      const res = await fetch("/api/payments/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, phone }),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as { url?: unknown };
+      return typeof data.url === "string" && data.url ? data.url : null;
+    } catch {
+      return null;
+    }
+  }
+  togglePaid(id);
+  return "mock";
+}
+
+// Turn a payment-link attempt into its full reply. Mock mode returns the
+// sentinel "mock" (the hold was marked paid locally) so the message is a plain
+// confirmation rather than a made-up Razorpay URL; null is a real failure.
+function payOutcome(t: PhrasePack, c: PhrasePack["chips"], link: string | "mock" | null): BotOut {
+  if (link === null) return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+  if (link === "mock") return { reply: [t.payMock], chips: [c.avail, c.book], state: { stage: "idle" } };
+  return { reply: [t.payDone(link)], chips: [c.avail, c.book], state: { stage: "idle" } };
 }
 
 // Ask Meta to send the verification code over WhatsApp. Errors are collapsed
@@ -628,7 +664,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name } };
     }
     const appt = addBooking({ name, phone: "", reason: source === "website" ? "Booked via RC (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
-    return { reply: [t.confirm(appt.token, state.slot.label), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle" } };
+    // Carry viewPhone ("" in mock) so the Pay now chip that follows resolves
+    // the just-created payment_pending hold without re-asking for a number.
+    return { reply: [t.confirm(appt.token, state.slot.label), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: appt.phone } };
   }
 
   // completing a booking (DB mode): this input is the patient's phone number
@@ -663,7 +701,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       }
       if (!res.ok) throw new Error("booking failed");
       const { appointment: appt } = (await res.json()) as { appointment: Appt };
-      return { reply: [t.confirm(appt.token, state.slot.label), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle" } };
+      // Carry the just-entered phone into viewPhone so the Pay now chip that
+      // follows the confirmation resolves the unpaid hold without re-asking.
+      return { reply: [t.confirm(appt.token, state.slot.label), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: input.trim() } };
     } catch {
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
     }
@@ -733,6 +773,60 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     }
   }
 
+  // Pay intent stages short-circuit BEFORE any availability fetch: the day-scan
+  // below costs up to ~14 sequential round-trips in DB mode, and a pay-stage
+  // message must never be misread as a day/token chip.
+
+  // picking which appointment to pay for (multiple unpaid)
+  if (state.stage === "await_pay_pick" && state.payCandidates?.length) {
+    const raw = input.trim();
+    const picked =
+      state.payCandidates.find((cd) => cd.label === raw) ??
+      state.payCandidates.find((cd) => String(cd.token) === raw) ??
+      state.payCandidates.find((cd) => cd.name.toLowerCase().includes(raw.toLowerCase()));
+    if (!picked) {
+      // Keep the phone (and candidates) on a mismatch — dropping viewPhone
+      // would strand the flow forever, since every later pick then fails its
+      // guard.
+      return {
+        reply: [t.payNotFound],
+        chips: state.payCandidates.map((cd) => cd.label),
+        state: { stage: "await_pay_pick", payCandidates: state.payCandidates, viewPhone: state.viewPhone },
+      };
+    }
+    // viewPhone and payCandidates are always set together, so a picked-but-no-
+    // phone is state corruption — restart cleanly by asking again. (An empty
+    // string is valid: mock bookings carry phone "" and the pay flow uses it.)
+    if (state.viewPhone === undefined) {
+      return { reply: [t.viewPrompt], chips: [], state: { stage: "await_pay_phone" } };
+    }
+    const link = await payClientLink(picked.id, state.viewPhone);
+    return payOutcome(t, c, link);
+  }
+
+  // waiting for phone number to look up unpaid appointments
+  if (state.stage === "await_pay_phone") {
+    const digits = input.replace(/\D/g, "");
+    if (digits.length >= 10) {
+      const phone10 = digits.slice(-10);
+      const { appts } = await lookupClient(phone10, true);
+      const unpaid = appts.filter((a) => !a.paid);
+      if (!unpaid.length) return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
+      if (unpaid.length === 1) {
+        const link = await payClientLink(unpaid[0].id, phone10);
+        return payOutcome(t, c, link);
+      }
+      const candidates: PayCandidate[] = unpaid.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
+      return { reply: [t.payWhich], chips: candidates.map((cd) => cd.label), state: { stage: "await_pay_pick", payCandidates: candidates, viewPhone: phone10 } };
+    }
+    // Not a phone number. A real intent (book / view / reschedule) should fall
+    // through to the switch below instead of looping on the phone prompt
+    // forever; only genuinely junk input re-asks.
+    if (detect(input) === "fallback") {
+      return { reply: [t.badPhone], chips: [], state: { stage: "await_pay_phone" } };
+    }
+  }
+
   // tapped a day chip
   const days = await openDays();
   const pickedDay = days.find((d) => d.label === input);
@@ -752,72 +846,6 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
     }
     return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
-  }
-
-  // picking which appointment to pay for (multiple unpaid)
-  if (state.stage === "await_pay_pick" && state.payCandidates?.length) {
-    const raw = input.trim();
-    const picked =
-      state.payCandidates.find((cd) => cd.label === raw) ??
-      state.payCandidates.find((cd) => String(cd.token) === raw) ??
-      state.payCandidates.find((cd) => cd.name.toLowerCase().includes(raw.toLowerCase()));
-    if (picked && state.viewPhone) {
-      try {
-        if (hasSupabase()) {
-          const res = await fetch("/api/payments/link", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: picked.id, phone: state.viewPhone }),
-          });
-          if (!res.ok) throw new Error("payment link failed");
-          const { url } = await res.json();
-          return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle" } };
-        }
-        // Mock mode: no real payment gateway
-        return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
-      } catch {
-        return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
-      }
-    }
-    return {
-      reply: [t.payNotFound],
-      chips: state.payCandidates.map((cd) => cd.label),
-      state: { stage: "await_pay_pick", payCandidates: state.payCandidates },
-    };
-  }
-
-  // waiting for phone number to look up unpaid appointments
-  if (state.stage === "await_pay_phone") {
-    const digits = input.replace(/\D/g, "");
-    if (digits.length >= 10) {
-      const phone10 = digits.slice(-10);
-      const { appts } = await lookupClient(phone10, true);
-      const unpaid = appts.filter((a) => !a.paid);
-      if (!unpaid.length) {
-        return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
-      }
-      if (unpaid.length === 1) {
-        try {
-          if (hasSupabase()) {
-            const res = await fetch("/api/payments/link", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: unpaid[0].id, phone: phone10 }),
-            });
-            if (!res.ok) throw new Error("payment link failed");
-            const { url } = await res.json();
-            return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle", viewPhone: phone10 } };
-          }
-          // Mock mode: no real payment gateway
-          return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
-        } catch {
-          return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
-        }
-      }
-      const candidates: PayCandidate[] = unpaid.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
-      return { reply: [t.payWhich], chips: candidates.map((cd) => cd.label), state: { stage: "await_pay_pick", payCandidates: candidates, viewPhone: phone10 } };
-    }
-    return { reply: [t.viewPrompt], chips: [], state: { stage: "await_pay_phone" } };
   }
 
   switch (detect(input)) {
@@ -849,7 +877,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       // webhook confirms payment, and the whole point of the pay intent is to
       // collect that payment.
       const phone = state.viewPhone;
-      if (!phone) {
+      // Mock bookings carry phone "" — that "no phone" is the demo's contact,
+      // so "" is a valid lookup key here, not a missing prompt.
+      if (phone === undefined) {
         return { reply: [t.viewPrompt], chips: [], state: { stage: "await_pay_phone" } };
       }
       const { appts } = await lookupClient(phone, true);
@@ -858,22 +888,8 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
       }
       if (unpaid.length === 1) {
-        try {
-          if (hasSupabase()) {
-            const res = await fetch("/api/payments/link", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: unpaid[0].id, phone }),
-            });
-            if (!res.ok) throw new Error("payment link failed");
-            const { url } = await res.json();
-            return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle" } };
-          }
-          // Mock mode: no real payment gateway
-          return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
-        } catch {
-          return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
-        }
+        const link = await payClientLink(unpaid[0].id, phone);
+        return payOutcome(t, c, link);
       }
       const candidates: PayCandidate[] = unpaid.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
       return {
@@ -911,7 +927,6 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 export type Backend = {
   addBooking: (input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }) => Promise<Appt>;
   takenSlots: (date: string) => Promise<string[]>;
-  setStatus: (id: string, status: ApptStatus) => Promise<void>;
   // includePending adds payment_pending rows — the pay intent needs them, the
   // view/reschedule intents don't (an unpaid booking isn't confirmed yet).
   activeAppointmentsByPhone: (phone: string, includePending?: boolean) => Promise<Appt[]>;

@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
     }
     if (err instanceof Error && err.message === "already_paid") {
-      return NextResponse.json({ error: "This appointment is already paid" }, { status: 400 });
+      return NextResponse.json({ error: "This appointment is already paid", code: "already_paid" }, { status: 400 });
     }
     if (err instanceof Error && err.message === "razorpay_unavailable") {
       return NextResponse.json({ error: "Payments aren't available right now. Please try again shortly." }, { status: 502 });

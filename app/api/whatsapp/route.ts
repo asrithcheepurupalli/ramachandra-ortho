@@ -3,7 +3,7 @@
 // Always acks POST with 200 quickly; Meta retries (and can disable) a webhook
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
-import { dbAddBooking, dbTakenSlots, dbSetStatus, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
+import { dbAddBooking, dbTakenSlots, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
 import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPayPrompt, flowPayNowLabel, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { SlotTakenError } from "@/lib/errors";
@@ -11,7 +11,6 @@ import { SlotTakenError } from "@/lib/errors";
 const backend: Backend = {
   addBooking: dbAddBooking,
   takenSlots: dbTakenSlots,
-  setStatus: dbSetStatus,
   activeAppointmentsByPhone: dbActiveAppointmentsByPhone,
   createPaymentLink: dbGetOrCreatePaymentLink,
   // Move the booking AND re-confirm it over WhatsApp, matching what the site's
@@ -100,9 +99,9 @@ export async function POST(req: NextRequest) {
     // as a structured reply, not plain text,
     // so it's handled before the text/button/list extraction below.
     if (message.interactive?.type === "nfm_reply") {
-      const parsed = JSON.parse(message.interactive.nfm_reply.response_json);
       try {
-        const appt = await dbAddBooking({
+        const parsed = JSON.parse(message.interactive.nfm_reply.response_json);
+        await dbAddBooking({
           name: parsed.name,
           phone: parsed.phone || from,
           reason: parsed.reason,
@@ -118,11 +117,14 @@ export async function POST(req: NextRequest) {
         // fires from the Razorpay webhook once payment completes.
         try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); }
       } catch (err) {
-        await sendText(from, err instanceof SlotTakenError ? flowSlotTakenMsg(lang) : flowBookFailMsg(lang));
+        try { await sendText(from, err instanceof SlotTakenError ? flowSlotTakenMsg(lang) : flowBookFailMsg(lang)); } catch (err2) { console.error("whatsapp flow: error reply failed", err2); }
       }
-      // Clear lastChips: the follow-up carries no chips, so a stale numeric
-      // reply ("1") must not resolve against a menu from before the Flow.
-      const flowState: WaState = { ...state, lastChips: [] };
+      // Reset the conversation to idle: if the patient had a chat booking in
+      // progress (say, typing a name) when they submitted the Flow, the stage
+      // must not survive — their next tap ("Pay now" included) would otherwise
+      // be consumed as text in the abandoned flow. lastChips carries the real
+      // Pay now button so a numeric "1" reply still resolves to it.
+      const flowState: WaState = { stage: "idle", lastChips: [flowPayNowLabel(lang)] };
       await dbSaveWaSession(from, lang, flowState, wamid);
       return new NextResponse("OK", { status: 200 });
     }

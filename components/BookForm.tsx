@@ -64,15 +64,15 @@ export function BookForm() {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (!saved) return;
       const s = JSON.parse(saved);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating state from sessionStorage on mount
       if (s.lang) setLang(s.lang);
       if (s.stage === "patient" || s.stage === "book") setStage(s.stage);
       if (s.people === "new" || s.people === "returning") setPeople(s.people);
       if (s.matched && typeof s.matched === "object") setMatched(s.matched);
       if (typeof s.lookupQ === "string") setLookupQ(s.lookupQ);
       if (s.form && typeof s.form === "object") setForm(s.form);
-      if (typeof s.selDate === "string") setSelDate(s.selDate);
+      if (typeof s.selDate === "string") { setSelDate(s.selDate); didRestoreRef.current = true; }
       if (typeof s.selTime === "string") setSelTime(s.selTime);
-      didRestoreRef.current = true;
     } catch { /* corrupt session — start fresh */ }
   }, []);
 
@@ -82,9 +82,11 @@ export function BookForm() {
     try {
       const raw = localStorage.getItem(RESUME_KEY);
       if (!raw) return;
-      const r = JSON.parse(raw) as Appt;
+      const r = JSON.parse(raw) as Partial<Appt> & { id?: string; date?: string; time?: string };
+      if (!r.id || !r.date || !r.time) { localStorage.removeItem(RESUME_KEY); return; }
       if (Date.now() - (r.createdAt ?? 0) > PAY_WINDOW_MS) { localStorage.removeItem(RESUME_KEY); return; }
-      setResume(r);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating resume from localStorage on mount
+      setResume(r as Appt);
     } catch { localStorage.removeItem(RESUME_KEY); }
   }, []);
 
@@ -120,6 +122,7 @@ export function BookForm() {
   // a different number, but the fee is still decided server-side from the phone
   // that's actually on the booking.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- prefill from matched patient record
     if (matched) setForm((f) => ({ ...f, name: matched.name, phone: matched.phone }));
   }, [matched]);
 
@@ -274,11 +277,12 @@ export function BookForm() {
           });
           const data = await res.json();
           if (!res.ok) {
-            if (res.status === 400) {
-              // /api/payments/link only returns 400 for an already-paid row —
-              // the webhook beat us to it. This is really a confirm, not an
-              // error: mirror the paid state and drop the resume entry so we
-              // never ask for money again.
+            if (res.status === 400 && data?.code === "already_paid") {
+              // The webhook beat us to it — the row is already paid. This is
+              // really a confirm, not an error: mirror the paid state and drop
+              // the resume entry so we never ask for money again. (A 400 with a
+              // different code is a validation error, so only this branch
+              // confirms the booking.)
               clearResume();
               setBooked({ ...booked, paid: true, status: "reserved" });
             } else if (res.status === 404) {

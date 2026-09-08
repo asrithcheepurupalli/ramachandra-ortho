@@ -39,6 +39,21 @@ export async function createPaymentLink(
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   const contact = normalizeIndianPhone(appt.phone);
 
+  // The slot is held for 30 minutes from BOOKING (the payment-timeout cron
+  // cancels the row at createdAt + 30m), so the link must expire at that same
+  // moment — never later. A link that outlives the hold lets a patient pay
+  // after the cron freed the slot: money captured against a cancelled
+  // appointment, unrecordable and unrefundable. No artificial floor — a tap
+  // right at the deadline yields a link expiring at the deadline, which is
+  // correct, because the slot is freed then. If the hold has already elapsed
+  // there is nothing left to pay for, so bail rather than mint a link for a
+  // freed slot.
+  const holdDeadlineSec = Math.floor(new Date(appt.createdAt).getTime() / 1000) + 1800;
+  if (holdDeadlineSec <= Math.floor(Date.now() / 1000)) {
+    console.error("Razorpay payment link skipped: booking hold already expired");
+    return null;
+  }
+
   try {
     const res = await fetch(`${API_BASE}/payment_links`, {
       method: "POST",
@@ -48,13 +63,7 @@ export async function createPaymentLink(
         currency: "INR",
         reference_id: appt.id,
         description: "Consultation fee",
-        // The slot is held for 30 minutes from BOOKING (the payment-timeout
-        // cron cancels the row at createdAt + 30m), so anchor the link expiry
-        // to that same moment — a link created when the patient taps "Pay now"
-        // late must not outlive the hold. Floor it 5 minutes out so a tap made
-        // right at the deadline still yields a live link, and an expired link
-        // on Razorpay's side (paid after cron) can never happen.
-        expire_by: Math.max(Math.floor(new Date(appt.createdAt).getTime() / 1000) + 1800, Math.floor(Date.now() / 1000) + 5 * 60),
+        expire_by: holdDeadlineSec,
         customer: { name: appt.name, ...(contact ? { contact } : {}) },
         notify: { sms: false, email: false },
         ...(siteUrl

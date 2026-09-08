@@ -269,14 +269,22 @@ export async function dbRescheduleAppointment(id: string, date: string, time: st
   const openSlots = slotsFor(new Date(`${date}T00:00:00`), [], sched);
   if (!openSlots.includes(time)) throw new InvalidSlotError();
 
+  // Status guard on the write: only a real (paid) appointment may move. A
+  // payment_pending hold is never rescheduled (it isn't confirmed yet — both
+  // callers send the CONFIRM template after this, and confirming an unpaid
+  // booking would violate the payment-first rule), and a cancelled row is
+  // immutable. A guard that matches nothing is surfaced as not_found, distinct
+  // from a slot conflict below.
   const { data, error } = await supabaseAdmin()
     .from("appointments")
     .update({ appt_date: date, appt_time: time })
     .eq("id", id)
+    .in("status", ["reserved", "confirmed", "waiting", "consulting"])
     .select("*")
-    .single();
+    .maybeSingle();
 
-  if (!error) return rowToAppt(data);
+  if (!error && data) return rowToAppt(data);
+  if (!error) throw new Error("not_found"); // status guard blocked the move
   if (error.code !== "23505") throw error;
   if (error.message.includes("appointments_slot_idx")) throw new SlotTakenError();
   throw error;
@@ -347,19 +355,33 @@ export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promi
 
 // Called by the Razorpay webhook on payment_link.paid. Flipping paid also
 // promotes a payment_pending booking to reserved — that's the moment the
-// appointment becomes real and shows up in the queues. Guards is("paid", false)
-// so a duplicate webhook delivery (Razorpay retries on anything but a 2xx) is
-// a harmless no-op rather than a second WhatsApp confirmation, AND
-// is("status", "payment_pending") so a webhook that lands after the
-// payment-timeout cron cancelled the row can never resurrect it (the slot was
+// appointment becomes real and shows up in the queues. A legacy unpaid
+// appointment already sitting in reserved/confirmed/waiting keeps its status
+// and is only marked paid (money landed on a real slot, no state to move).
+// Guards is("paid", false) so a duplicate webhook delivery (Razorpay retries
+// on anything but a 2xx) is a harmless no-op rather than a second WhatsApp
+// confirmation, and excludes cancelled rows so a webhook that lands after the
+// payment-timeout cron cancelled the hold can never resurrect it (the slot was
 // freed for someone else).
 export async function dbMarkPaidByPaymentLink(paymentLinkId: string, paymentId?: string): Promise<Appt | null> {
-  const { data, error } = await supabaseAdmin()
+  const db = supabaseAdmin();
+  // Read the row first so a non-payment_pending status is preserved on the
+  // write rather than force-downgraded to reserved.
+  const { data: row, error: readErr } = await db
     .from("appointments")
-    .update({ paid: true, paid_via: "razorpay", razorpay_payment_id: paymentId ?? null, status: "reserved" })
+    .select("id, status")
     .eq("razorpay_payment_link_id", paymentLinkId)
+    .maybeSingle();
+  if (readErr) throw readErr;
+  if (!row || row.status === "cancelled") return null;
+
+  const status = row.status === "payment_pending" ? "reserved" : row.status;
+  const { data, error } = await db
+    .from("appointments")
+    .update({ paid: true, paid_via: "razorpay", razorpay_payment_id: paymentId ?? null, status })
+    .eq("id", row.id)
     .eq("paid", false)
-    .eq("status", "payment_pending")
+    .not("status", "eq", "cancelled") // race-guard against the timeout cron
     .select("*")
     .maybeSingle();
   if (error) throw error;

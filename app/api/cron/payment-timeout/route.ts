@@ -17,7 +17,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeEqual } from "@/lib/meta-whatsapp";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { hasSupabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +28,13 @@ export async function POST(req: NextRequest) {
   if (!secret || !auth || !safeEqual(secret.trim(), auth.trim())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!hasSupabase()) {
-    return NextResponse.json({ status: "mock-mode", reason: "no Supabase env on this deployment" });
+  // Gate on the SERVICE-ROLE key, not hasSupabase(): the writes below use
+  // supabaseAdmin(), and if the admin key is missing every write silently
+  // fails while hasSupabase() (URL + anon key) still reports ready — a green
+  // cron that never actually expires anything. Failing closed on the real key
+  // keeps the CI run honest.
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return NextResponse.json({ status: "mock-mode", reason: "no SUPABASE_SERVICE_ROLE_KEY on this deployment" });
   }
 
   const cutoff = new Date(Date.now() - PAYMENT_WINDOW_MS).toISOString();
@@ -48,7 +52,7 @@ export async function POST(req: NextRequest) {
 
   const cancelled: string[] = [];
   for (const row of stale ?? []) {
-    const { error: writeErr } = await supabaseAdmin()
+    const { data, error: writeErr } = await supabaseAdmin()
       .from("appointments")
       .update({ status: "cancelled" })
       .eq("id", row.id)
@@ -57,7 +61,11 @@ export async function POST(req: NextRequest) {
       .select("id");
     if (writeErr) {
       console.error(`/api/cron/payment-timeout: cancel ${row.id} failed`, writeErr);
-    } else {
+    } else if (data?.length) {
+      // A guard above can still win the race (the Razorpay webhook reserved the
+      // row between our read and this write), in which case the UPDATE matched
+      // zero rows and data is empty — that's not a cancellation, so don't report
+      // it as one.
       cancelled.push(row.id);
     }
   }
