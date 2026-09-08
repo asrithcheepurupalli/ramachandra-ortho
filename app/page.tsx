@@ -359,12 +359,12 @@ function Services({ t }: { t: T }) {
 /* ── Reviews ─────────────────────────────────────────────────────────────── */
 function ReviewCard({ r, swipe = false }: { r: Review; swipe?: boolean }) {
   return (
-    <figure className={`lift flex flex-col rounded-2xl border border-line bg-surface ${swipe ? "h-full w-[78%] shrink-0 snap-center p-4" : "h-full w-full shrink-0 snap-center p-6 md:p-8"}`}>
-      <Quote className={`${swipe ? "h-4 w-4" : "h-5 w-5 md:h-6 md:w-6"} text-accent`} />
-      <blockquote className={`mt-2 flex-1 leading-relaxed text-ink/90 ${swipe ? "line-clamp-5 text-[13px]" : "text-[15px] md:text-base"}`}>{r.text}</blockquote>
-      <figcaption className={`flex items-center gap-3 ${swipe ? "mt-3" : "mt-5"}`}>
-        <span className={`grid place-items-center rounded-full bg-brand-tint font-semibold text-brand ${swipe ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm md:h-11 md:w-11 md:text-base"}`}>{r.name[0].toUpperCase()}</span>
-        <span className="min-w-0"><span className={`block truncate font-semibold ${swipe ? "text-sm" : "text-sm md:text-base"}`}>{r.name}</span><span className="block text-xs text-muted">{r.when}</span></span>
+    <figure className={`lift flex flex-col rounded-2xl border border-line bg-surface ${swipe ? "h-full w-[78%] shrink-0 snap-center p-4" : "h-full w-full shrink-0 snap-center p-6 md:p-10 lg:p-14"}`}>
+      <Quote className={`${swipe ? "h-4 w-4" : "h-6 w-6 md:h-8 md:w-8 lg:h-10 lg:w-10"} text-accent`} />
+      <blockquote className={`mt-2 flex-1 leading-relaxed text-ink/90 ${swipe ? "line-clamp-5 text-[13px]" : "mt-4 text-[15px] md:text-lg lg:text-[1.4rem] lg:leading-[1.5]"}`}>{r.text}</blockquote>
+      <figcaption className={`flex items-center gap-3 ${swipe ? "mt-3" : "mt-5 md:mt-7"}`}>
+        <span className={`grid place-items-center rounded-full bg-brand-tint font-semibold text-brand ${swipe ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm md:h-12 md:w-12 md:text-lg"}`}>{r.name[0].toUpperCase()}</span>
+        <span className="min-w-0"><span className={`block truncate font-semibold ${swipe ? "text-sm" : "text-sm md:text-base lg:text-lg"}`}>{r.name}</span><span className="block text-xs text-muted lg:text-sm">{r.when}</span></span>
         <Stars n={5} className="ml-auto" small />
       </figcaption>
     </figure>
@@ -395,7 +395,7 @@ function Reviews({ t }: { t: T }) {
         <Reveal className="hidden sm:block">
           <div className="mt-10 -mx-5 md:-mx-8 overflow-x-auto no-scrollbar snap-x snap-mandatory flex gap-5 px-5 md:px-8 pb-2">
             {reviews.map((r) => (
-              <div key={r.name} className="shrink-0 w-[80%] sm:w-[60%] lg:w-[42%] snap-center">
+              <div key={r.name} className="shrink-0 w-[85%] sm:w-[72%] lg:w-[88%] snap-center">
                 <ReviewCard r={r} />
               </div>
             ))}
