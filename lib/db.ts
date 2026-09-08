@@ -27,6 +27,29 @@ export async function dbTakenSlots(date: string): Promise<string[]> {
   return (data ?? []).map((r) => r.appt_time as string);
 }
 
+// Batch: all taken slots in a contiguous date range (single query instead of
+// N queries when openDaysServer iterates the 14-day window). Returns a Map keyed
+// by YYYY-MM-DD so callers can look up in O(1). The route pre-fetches this for
+// the next 14 days and threads the map into botReplyServer → openDaysServer.
+export async function dbTakenSlotsRange(start: string, end: string): Promise<Map<string, string[]>> {
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .select("appt_date, appt_time")
+    .gte("appt_date", start)
+    .lte("appt_date", end)
+    .neq("status", "cancelled");
+  if (error) throw error;
+  const map = new Map<string, string[]>();
+  for (const r of data ?? []) {
+    const date = r.appt_date as string;
+    const time = r.appt_time as string;
+    const arr = map.get(date);
+    if (arr) arr.push(time);
+    else map.set(date, [time]);
+  }
+  return map;
+}
+
 // All appointments on a date (for the admin queue view and broadcast sends).
 export async function dbApptsForDate(date: string): Promise<Appt[]> {
   const { data, error } = await supabaseAdmin()

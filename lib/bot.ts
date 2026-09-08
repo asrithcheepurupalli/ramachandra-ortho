@@ -950,31 +950,42 @@ export type Backend = {
 };
 export type ServerBotState = BotState & { payCandidates?: PayCandidate[] };
 
-async function openDaysServer(backend: Backend, sched: SchedState): Promise<DayChip[]> {
+// takenByDate, when supplied, is a pre-fetched Map<YYYY-MM-DD, string[]> of the
+// already-taken times in the booking window (the route fetches it once per
+// webhook message via dbTakenSlotsRange). Using it turns the 14-day picker and
+// each day-tap from one Supabase query per day into a single batch query, which
+// is what was making the WhatsApp bot slow. Absent, each helper falls back to a
+// fresh backend.takenSlots call — the pre-optimization behaviour.
+async function openDaysServer(backend: Backend, sched: SchedState, takenByDate?: Map<string, string[]>): Promise<DayChip[]> {
   const now = nowIST();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const out: DayChip[] = [];
   for (let i = 0; i < 14 && out.length < MAX_DAY_CHIPS; i++) {
     const d = new Date(now); d.setDate(now.getDate() + i);
     const key = ymd(d);
-    let slots = slotsFor(d, await backend.takenSlots(key), sched);
+    // The map covers the whole window authoritatively, so an absent key = a
+    // day with no taken slots, not an unknown day (no fallback query). Nullish
+    // coalescing only falls through to backend.takenSlots when no map at all.
+    const taken = takenByDate ? takenByDate.get(key) ?? [] : undefined;
+    let slots = slotsFor(d, taken ?? await backend.takenSlots(key), sched);
     if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + BOOKING_LEAD_MIN; });
     if (slots.length) out.push({ date: key, label: dayLabelForOffset(i, d) });
   }
   return out;
 }
-async function timesForDateServer(date: string, backend: Backend, sched: SchedState): Promise<string[]> {
+async function timesForDateServer(date: string, backend: Backend, sched: SchedState, takenByDate?: Map<string, string[]>): Promise<string[]> {
   const now = nowIST();
   const d = new Date(date + "T00:00:00");
-  let slots = slotsFor(d, await backend.takenSlots(date), sched);
+  const taken = takenByDate ? takenByDate.get(date) ?? [] : undefined;
+  let slots = slotsFor(d, taken ?? await backend.takenSlots(date), sched);
   if (date === ymd(now)) {
     const nowMin = now.getHours() * 60 + now.getMinutes();
     slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + BOOKING_LEAD_MIN; });
   }
   return slots;
 }
-async function windowsWithSlotsForServer(date: string, backend: Backend, sched: SchedState): Promise<Window[]> {
-  const times = await timesForDateServer(date, backend, sched);
+async function windowsWithSlotsForServer(date: string, backend: Backend, sched: SchedState, takenByDate?: Map<string, string[]>): Promise<Window[]> {
+  const times = await timesForDateServer(date, backend, sched, takenByDate);
   return windowsFor(new Date(date + "T00:00:00"), sched).filter((w) => times.some((t) => inWindow(t, w)));
 }
 
@@ -988,8 +999,8 @@ function availReplyServer(t: PhrasePack, sched: SchedState): string {
 
 // The WhatsApp bot trusts the sender's number as identity (no OTP needed here,
 // same as cancel/pay) — enter the slot picker for the move directly.
-async function enterPickerServer(resched: { id: string; phone: string }, backend: Backend, sched: SchedState, t: PhrasePack): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
-  const days = await openDaysServer(backend, sched);
+async function enterPickerServer(resched: { id: string; phone: string }, backend: Backend, sched: SchedState, t: PhrasePack, takenByDate?: Map<string, string[]>): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
+  const days = await openDaysServer(backend, sched, takenByDate);
   if (!days.length) return { reply: [t.noSlots], chips: [t.chips.avail], state: { stage: "idle" } };
   return { reply: [t.pickDay], chips: days.map((d) => d.label), state: { stage: "idle", resched } };
 }
@@ -997,8 +1008,8 @@ async function enterPickerServer(resched: { id: string; phone: string }, backend
 // Fresh-slot fallback after the target time got taken on a reschedule commit:
 // same day, same window where possible, re-listed as chips with the move kept
 // alive so the next tap still reschedules (not re-books).
-async function slotTakenFallbackServer(resched: { id: string; phone: string }, date: string, time: string, backend: Backend, sched: SchedState, t: PhrasePack): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
-  const fresh = await timesForDateServer(date, backend, sched);
+async function slotTakenFallbackServer(resched: { id: string; phone: string }, date: string, time: string, backend: Backend, sched: SchedState, t: PhrasePack, takenByDate?: Map<string, string[]>): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
+  const fresh = await timesForDateServer(date, backend, sched, takenByDate);
   const win = windowsFor(new Date(date + "T00:00:00"), sched).find((w) => inWindow(time, w));
   const scoped = win ? fresh.filter((t2) => inWindow(t2, win)) : fresh;
   if (!scoped.length) return { reply: [t.slotTaken, t.noSlots], chips: [t.chips.avail], state: { stage: "idle" } };
@@ -1077,7 +1088,8 @@ export async function botReplyServer(
   phone: string,
   backend: Backend,
   sched: SchedState,
-  source: Source = "whatsapp"
+  source: Source = "whatsapp",
+  takenByDate?: Map<string, string[]>
 ): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
   const t = P[lang];
   const c = t.chips;
@@ -1127,7 +1139,7 @@ export async function botReplyServer(
         state: { stage: "await_resched_pick", reschedCandidates: state.reschedCandidates },
       };
     }
-    return enterPickerServer({ id: picked.id, phone }, backend, sched, t);
+    return enterPickerServer({ id: picked.id, phone }, backend, sched, t, takenByDate);
   }
 
   // name collected: hold the slot, ask which number to book it under —
@@ -1166,7 +1178,7 @@ export async function botReplyServer(
         return { reply: [t.pendingHold], chips: [c.payNow, c.view, c.book], state: { stage: "idle" } };
       }
       if (err instanceof SlotTakenError) {
-        const fresh = await timesForDateServer(state.slot.date, backend, sched);
+        const fresh = await timesForDateServer(state.slot.date, backend, sched, takenByDate);
         const win = windowsFor(new Date(state.slot.date + "T00:00:00"), sched).find((w) => inWindow(state.slot!.time, w));
         const scoped = win ? fresh.filter((t2) => inWindow(t2, win)) : fresh;
         if (!scoped.length) return { reply: [t.slotTaken, t.noSlots], chips: [c.avail], state: { stage: "idle" } };
@@ -1184,7 +1196,7 @@ export async function botReplyServer(
   // tapped a time chip (only meaningful once a day AND a window are picked)
   if (state.pendingDate && state.pendingWindow) {
     const effective = state.pendingRange ?? state.pendingWindow;
-    const times = (await timesForDateServer(state.pendingDate, backend, sched)).filter((s) => inWindow(s, effective));
+    const times = (await timesForDateServer(state.pendingDate, backend, sched, takenByDate)).filter((s) => inWindow(s, effective));
     const match = times.find((s) => fmt(s) === input);
     if (match) {
       const label = `${dayLabelForDate(state.pendingDate, nowIST())} ${fmt(match)}`;
@@ -1194,7 +1206,7 @@ export async function botReplyServer(
           await backend.reschedule(state.resched.id, state.pendingDate, match);
           return { reply: [t.reschedDone(label)], chips: [c.avail, c.book, c.done], state: { stage: "idle" } };
         } catch (err) {
-          if (err instanceof SlotTakenError) return slotTakenFallbackServer(state.resched, state.pendingDate, match, backend, sched, t);
+          if (err instanceof SlotTakenError) return slotTakenFallbackServer(state.resched, state.pendingDate, match, backend, sched, t, takenByDate);
           return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
         }
       }
@@ -1204,7 +1216,7 @@ export async function botReplyServer(
 
   // tapped a range chip (window picked, but it had too many slots for one screen)
   if (state.pendingDate && state.pendingWindow && !state.pendingRange) {
-    const winTimes = (await timesForDateServer(state.pendingDate, backend, sched)).filter((s) => inWindow(s, state.pendingWindow!));
+    const winTimes = (await timesForDateServer(state.pendingDate, backend, sched, takenByDate)).filter((s) => inWindow(s, state.pendingWindow!));
     const ranges = splitWindow(state.pendingWindow, winTimes.length);
     const pickedRange = ranges.length > 1 ? ranges.find((r) => windowLabel(r) === input) : undefined;
     if (pickedRange) {
@@ -1216,10 +1228,10 @@ export async function botReplyServer(
 
   // tapped a window chip (day picked, more than one window that day)
   if (state.pendingDate && !state.pendingWindow) {
-    const wins = await windowsWithSlotsForServer(state.pendingDate, backend, sched);
+    const wins = await windowsWithSlotsForServer(state.pendingDate, backend, sched, takenByDate);
     const pickedWin = wins.find((w) => windowLabel(w) === input);
     if (pickedWin) {
-      const times = (await timesForDateServer(state.pendingDate, backend, sched)).filter((s) => inWindow(s, pickedWin));
+      const times = (await timesForDateServer(state.pendingDate, backend, sched, takenByDate)).filter((s) => inWindow(s, pickedWin));
       const dayLabel = dayLabelForDate(state.pendingDate, nowIST());
       if (times.length > MAX_CHIPS) {
         const ranges = splitWindow(pickedWin, times.length);
@@ -1230,16 +1242,16 @@ export async function botReplyServer(
   }
 
   // tapped a day chip
-  const days = await openDaysServer(backend, sched);
+  const days = await openDaysServer(backend, sched, takenByDate);
   const pickedDay = days.find((d) => d.label === input);
   if (pickedDay) {
-    const times = await timesForDateServer(pickedDay.date, backend, sched);
+    const times = await timesForDateServer(pickedDay.date, backend, sched, takenByDate);
     if (!times.length) {
       const fresh = days.filter((d) => d.date !== pickedDay.date);
       if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched } };
       return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched } };
     }
-    const wins = await windowsWithSlotsForServer(pickedDay.date, backend, sched);
+    const wins = await windowsWithSlotsForServer(pickedDay.date, backend, sched, takenByDate);
     if (wins.length > 1) {
       return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date } };
     }
@@ -1277,12 +1289,12 @@ export async function botReplyServer(
         if (pending.length) return { reply: [t.payPrompt], chips: [c.payNow, c.book], state: { stage: "idle" } };
         return { reply: [t.viewNone], chips: [c.book], state: { stage: "idle" } };
       }
-      if (active.length === 1) return enterPickerServer({ id: active[0].id, phone }, backend, sched, t);
+      if (active.length === 1) return enterPickerServer({ id: active[0].id, phone }, backend, sched, t, takenByDate);
       const candidates: CancelCandidate[] = active.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
       return { reply: [t.reschedWhich], chips: candidates.map((cd) => cd.label), state: { stage: "await_resched_pick", reschedCandidates: candidates } };
     }
     case "book": {
-      const dayList = await openDaysServer(backend, sched);
+      const dayList = await openDaysServer(backend, sched, takenByDate);
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
       return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
     }
