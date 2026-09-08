@@ -35,6 +35,7 @@ export type BotState = {
     | "await_name"
     | "await_phone"
     | "await_pay_pick"
+    | "await_pay_phone"
     | "await_view_phone"
     | "await_resched_phone"
     | "await_resched_pick"
@@ -50,6 +51,7 @@ export type BotState = {
   // sender's own; on the website chat it's the number the patient typed + OTP-gated.
   resched?: { id: string; phone: string };
   reschedCandidates?: CancelCandidate[]; // pick-one when the phone has several active
+  payCandidates?: PayCandidate[]; // pick-one when the phone has several unpaid
   reschedPhone?: string; // website chat: owning phone while picking which booking to move
   reschedOtp?: boolean; // website chat: whether this reschedule needs the WhatsApp code
   otpPhone?: string; // website chat: phone awaiting the 6-digit WhatsApp code
@@ -253,14 +255,14 @@ const P: Record<Lang, PhrasePack> = {
     bookFail: "Something went wrong while booking. Please try again, or call the clinic.",
     flowSlotTaken: "Sorry, that slot was just taken. Please message us again to pick another time.",
     flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
-    confirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${fee}. Please arrive a few minutes early.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\nReply *Cancel* if your plans change.`,
+    confirm: (tok: number, s: string) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${fee}. It's *held for 30 minutes* — complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.`,
     cancelAsk: `Cancellations are handled by the clinic, so I can't cancel it for you here. Would you like to move it to a new time instead? Tap *Reschedule*, or call the clinic on ${clinic.contact.phone} to cancel.`,
     payNone: "You don't have any unpaid appointments right now.",
     payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
     payNotFound: "I couldn't match that to one of your unpaid appointments. Please tap an option above, or reply with the exact token number or name.",
-    payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for a while, tap it whenever you're ready.`,
-    payFail: "Something went wrong starting the payment. Please try again, or pay at the clinic.",
-    payPrompt: "You can also pay the consultation fee online now and skip the counter. Tap *Pay now* whenever you're ready.",
+    payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for 30 minutes. Please complete it before your slot is released.`,
+    payFail: "Something went wrong starting the payment. Please try again, or call the clinic.",
+    payPrompt: "To confirm your slot, please complete the consultation fee payment now. Tap *Pay now* to pay online.",
     viewPrompt: "Of course. Which phone number did you book with?",
     reschedPrompt: "Sure, let's move your appointment. Which phone number did you book with?",
     viewNone: "You don't have any upcoming appointments on this number.",
@@ -303,14 +305,14 @@ const P: Record<Lang, PhrasePack> = {
     bookFail: "బుక్ చేయడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
     flowSlotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. దయచేసి మళ్ళీ మెసేజ్ చేసి వేరే సమయం ఎంచుకోండి.",
     flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
-    confirm: (tok: number, s: string) => `✅ *బుక్ అయ్యింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${fee}. దయచేసి కొన్ని నిమిషాల ముందు రండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\nప్లాన్ మారితే *Cancel* అని రిప్లై చేయండి.`,
+    confirm: (tok: number, s: string) => `✅ *స్లాట్ హోల్డ్!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${fee}. ఇది *30 నిమిషాలు* హోల్డ్ చేయబడుతుంది — అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.`,
     cancelAsk: `రద్దులను క్లినిక్ నిర్వహిస్తుంది, కాబట్టి నేను ఇక్కడ రద్దు చేయలేను. బదులుగా కొత్త సమయానికి మార్చుకోవాలనుకుంటున్నారా? *రీషెడ్యూల్* నొక్కండి, లేదా రద్దు కోసం క్లినిక్‌కు ${clinic.contact.phone} కాల్ చేయండి.`,
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
     payNotFound: "అది మీ చెల్లించని అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
-    payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది కొంతకాలం చెల్లుతుంది, మీరు సిద్ధమైనప్పుడు నొక్కండి.`,
-    payFail: "చెల్లింపు ప్రారంభించడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌లో చెల్లించండి.",
-    payPrompt: "కన్సల్టేషన్ ఫీజును ఇప్పుడే ఆన్‌లైన్‌లో చెల్లించి, కౌంటర్ వద్ద వేచి ఉండనవసరం లేదు. మీరు సిద్ధమైనప్పుడు *ఇప్పుడే చెల్లించండి* నొక్కండి.",
+    payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది 30 నిమిషాలు చెల్లుతుంది. మీ స్లాట్ విడుదల అయ్యేలోపు చెల్లించండి.`,
+    payFail: "చెల్లింపు ప్రారంభించడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
+    payPrompt: "మీ స్లాట్ నిర్ధారించడానికి, దయచేసి ఇప్పుడే కన్సల్టేషన్ ఫీజు చెల్లించండి. *ఇప్పుడే చెల్లించండి* నొక్కండి.",
     viewPrompt: "తప్పకుండా. మీ అపాయింట్ ఏ ఫోన్ నంబర్‌తో బుక్ చేశారు?",
     reschedPrompt: "తప్పకుండా, మీ అపాయింట్‌ని మారుద్దాం. మీరు ఏ ఫోన్ నంబర్‌తో బుక్ చేశారు?",
     viewNone: "ఈ నంబర్‌పై మీకు త్వరలో రాబోయే అపాయింట్‌లు లేవు.",
@@ -353,14 +355,14 @@ const P: Record<Lang, PhrasePack> = {
     bookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
     flowSlotTaken: "माफ़ करें, वह स्लॉट अभी बुक हो गया। कृपया दोबारा मैसेज करके दूसरा समय चुनें।",
     flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
-    confirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${fee}। कृपया कुछ मिनट पहले पहुँचें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\nयोजना बदले तो *Cancel* लिखें।`,
+    confirm: (tok: number, s: string) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${fee}। यह *30 मिनट* के लिए होल्ड है — अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।`,
     cancelAsk: `रद्दीकरण क्लिनिक संभालता है, इसलिए मैं इसे यहाँ रद्द नहीं कर सकता। क्या आप इसके बजाय इसे किसी नए समय पर ले जाना चाहेंगे? *रीशेड्यूल* दबाएँ, या रद्द करने के लिए क्लिनिक को ${clinic.contact.phone} पर कॉल करें।`,
     payNone: "अभी आपके पास कोई अवैतनिक अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
     payNotFound: "यह आपके किसी बकाया भुगतान वाले अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
-    payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह कुछ समय के लिए मान्य है, जब तैयार हों तब दबाएँ।`,
-    payFail: "भुगतान शुरू करने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक में भुगतान करें।",
-    payPrompt: "आप परामर्श शुल्क अभी ऑनलाइन भी चुका सकते हैं और काउंटर पर लाइन से बच सकते हैं। जब तैयार हों तब *अभी भुगतान करें* दबाएँ।",
+    payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह 30 मिनट के लिए मान्य है। स्लॉट रिलीज़ होने से पहले भुगतान पूरा करें।`,
+    payFail: "भुगतान शुरू करने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
+    payPrompt: "अपना स्लॉट पुष्टि करने के लिए कृपया अभी परामर्श शुल्क का भुगतान करें। *अभी भुगतान करें* दबाएँ।",
     viewPrompt: "ज़रूर। आपका अपॉइंटमेंट किस फ़ोन नंबर से बुक हुआ है?",
     reschedPrompt: "ज़रूर, आपका अपॉइंटमेंट बदलते हैं। आपने किस फ़ोन नंबर से बुक किया था?",
     viewNone: "इस नंबर पर आपका कोई आगामी अपॉइंटमेंट नहीं है।",
@@ -459,13 +461,13 @@ export function botStart(lang: Lang): BotOut {
 
 // Active appointments for a phone + whether self-service mutations are gated
 // (mirrors the lookup route's response). Mock mode always reports no gate.
-async function lookupClient(phone: string): Promise<{ appts: Appt[]; otp: boolean }> {
+async function lookupClient(phone: string, includePending = false): Promise<{ appts: Appt[]; otp: boolean }> {
   if (hasSupabase()) {
     try {
       const res = await fetch("/api/appointments/lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone, includePending }),
       });
       if (!res.ok) return { appts: [], otp: false };
       const data = (await res.json()) as { appointments?: Appt[]; otpEnabled?: boolean };
@@ -474,7 +476,7 @@ async function lookupClient(phone: string): Promise<{ appts: Appt[]; otp: boolea
       return { appts: [], otp: false };
     }
   }
-  return { appts: activeAppointmentsByPhone(phone), otp: false };
+  return { appts: activeAppointmentsByPhone(phone, includePending), otp: false };
 }
 
 // Ask Meta to send the verification code over WhatsApp. Errors are collapsed
@@ -626,7 +628,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name } };
     }
     const appt = addBooking({ name, phone: "", reason: source === "website" ? "Booked via RC (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
-    return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.about, c.location, c.done], state: { stage: "idle" } };
+    return { reply: [t.confirm(appt.token, state.slot.label), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle" } };
   }
 
   // completing a booking (DB mode): this input is the patient's phone number
@@ -661,7 +663,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       }
       if (!res.ok) throw new Error("booking failed");
       const { appointment: appt } = (await res.json()) as { appointment: Appt };
-      return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.about, c.location, c.done], state: { stage: "idle" } };
+      return { reply: [t.confirm(appt.token, state.slot.label), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle" } };
     } catch {
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
     }
@@ -752,6 +754,72 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
   }
 
+  // picking which appointment to pay for (multiple unpaid)
+  if (state.stage === "await_pay_pick" && state.payCandidates?.length) {
+    const raw = input.trim();
+    const picked =
+      state.payCandidates.find((cd) => cd.label === raw) ??
+      state.payCandidates.find((cd) => String(cd.token) === raw) ??
+      state.payCandidates.find((cd) => cd.name.toLowerCase().includes(raw.toLowerCase()));
+    if (picked && state.viewPhone) {
+      try {
+        if (hasSupabase()) {
+          const res = await fetch("/api/payments/link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: picked.id, phone: state.viewPhone }),
+          });
+          if (!res.ok) throw new Error("payment link failed");
+          const { url } = await res.json();
+          return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle" } };
+        }
+        // Mock mode: no real payment gateway
+        return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+      } catch {
+        return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+      }
+    }
+    return {
+      reply: [t.payNotFound],
+      chips: state.payCandidates.map((cd) => cd.label),
+      state: { stage: "await_pay_pick", payCandidates: state.payCandidates },
+    };
+  }
+
+  // waiting for phone number to look up unpaid appointments
+  if (state.stage === "await_pay_phone") {
+    const digits = input.replace(/\D/g, "");
+    if (digits.length >= 10) {
+      const phone10 = digits.slice(-10);
+      const { appts } = await lookupClient(phone10, true);
+      const unpaid = appts.filter((a) => !a.paid);
+      if (!unpaid.length) {
+        return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
+      }
+      if (unpaid.length === 1) {
+        try {
+          if (hasSupabase()) {
+            const res = await fetch("/api/payments/link", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: unpaid[0].id, phone: phone10 }),
+            });
+            if (!res.ok) throw new Error("payment link failed");
+            const { url } = await res.json();
+            return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle", viewPhone: phone10 } };
+          }
+          // Mock mode: no real payment gateway
+          return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+        } catch {
+          return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+        }
+      }
+      const candidates: PayCandidate[] = unpaid.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
+      return { reply: [t.payWhich], chips: candidates.map((cd) => cd.label), state: { stage: "await_pay_pick", payCandidates: candidates, viewPhone: phone10 } };
+    }
+    return { reply: [t.viewPrompt], chips: [], state: { stage: "await_pay_phone" } };
+  }
+
   switch (detect(input)) {
     case "avail":
       return { reply: [availReply(t)], chips: [c.book, c.about, c.timings], state: { stage: "idle" } };
@@ -775,6 +843,44 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       // Cancellations are handled by the clinic, not automated — offer a move
       // to a new time and point the patient at the phone to cancel.
       return { reply: [t.cancelAsk], chips: [c.resched, c.book], state: { stage: "idle" } };
+    }
+    case "pay": {
+      // includePending: a just-booked appointment is payment_pending until the
+      // webhook confirms payment, and the whole point of the pay intent is to
+      // collect that payment.
+      const phone = state.viewPhone;
+      if (!phone) {
+        return { reply: [t.viewPrompt], chips: [], state: { stage: "await_pay_phone" } };
+      }
+      const { appts } = await lookupClient(phone, true);
+      const unpaid = appts.filter((a) => !a.paid);
+      if (!unpaid.length) {
+        return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
+      }
+      if (unpaid.length === 1) {
+        try {
+          if (hasSupabase()) {
+            const res = await fetch("/api/payments/link", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: unpaid[0].id, phone }),
+            });
+            if (!res.ok) throw new Error("payment link failed");
+            const { url } = await res.json();
+            return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle" } };
+          }
+          // Mock mode: no real payment gateway
+          return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+        } catch {
+          return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+        }
+      }
+      const candidates: PayCandidate[] = unpaid.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
+      return {
+        reply: [t.payWhich],
+        chips: candidates.map((cd) => cd.label),
+        state: { stage: "await_pay_pick", payCandidates: candidates, viewPhone: phone },
+      };
     }
     case "hours": case "fee":
       return { reply: [t.hours], chips: [c.book, c.location], state: { stage: "idle" } };
@@ -806,7 +912,9 @@ export type Backend = {
   addBooking: (input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }) => Promise<Appt>;
   takenSlots: (date: string) => Promise<string[]>;
   setStatus: (id: string, status: ApptStatus) => Promise<void>;
-  activeAppointmentsByPhone: (phone: string) => Promise<Appt[]>;
+  // includePending adds payment_pending rows — the pay intent needs them, the
+  // view/reschedule intents don't (an unpaid booking isn't confirmed yet).
+  activeAppointmentsByPhone: (phone: string, includePending?: boolean) => Promise<Appt[]>;
   createPaymentLink: (id: string, phone: string) => Promise<string>;
   reschedule: (id: string, date: string, time: string) => Promise<Appt>;
 };
@@ -922,6 +1030,12 @@ export function detectLangSwitch(input: string): Lang | "ask" | null {
 }
 export function flowSlotTakenMsg(lang: Lang): string { return P[lang].flowSlotTaken; }
 export function flowBookFailMsg(lang: Lang): string { return P[lang].flowBookFail; }
+// The mandatory pay prompt sent right after a WhatsApp Flow booking
+// confirmation — the slot is held 30 minutes while payment is pending.
+export function flowPayPrompt(lang: Lang): string { return P[lang].payPrompt; }
+// The matching "Pay now" button label for that prompt (per-language chip label),
+// so the Flow follow-up carries a real tappable button, not just the word.
+export function flowPayNowLabel(lang: Lang): string { return P[lang].chips.payNow; }
 
 export async function botReplyServer(
   input: string,
@@ -1100,13 +1214,29 @@ export async function botReplyServer(
     case "avail":
       return { reply: [availReplyServer(t, sched)], chips: [c.book, c.about, c.timings], state: { stage: "idle" } };
     case "view": {
-      const active = await backend.activeAppointmentsByPhone(phone);
-      if (!active.length) return { reply: [t.viewNone], chips: [c.book], state: { stage: "idle" } };
-      return { reply: [t.viewIntro, ...active.map(fmtApptForView)], chips: [c.resched, c.book], state: { stage: "idle" } };
+      // includePending: a just-booked row is payment_pending until the webhook
+      // confirms payment. It must show as "finish payment" (order is held, not
+      // yet confirmed) rather than the misleading "you have no appointments".
+      const all = await backend.activeAppointmentsByPhone(phone, true);
+      const pending = all.filter((a) => a.status === "payment_pending");
+      const active = all.filter((a) => a.status !== "payment_pending");
+      const lines = [...(pending.length ? [t.payPrompt] : []), ...active.map(fmtApptForView)];
+      if (!lines.length) return { reply: [t.viewNone], chips: [c.book], state: { stage: "idle" } };
+      return {
+        reply: [t.viewIntro, ...lines],
+        chips: pending.length ? [c.payNow, ...(active.length ? [c.resched] : []), c.book] : [c.resched, c.book],
+        state: { stage: "idle" },
+      };
     }
     case "reschedule": {
-      const active = await backend.activeAppointmentsByPhone(phone);
-      if (!active.length) return { reply: [t.viewNone], chips: [c.book], state: { stage: "idle" } };
+      const all = await backend.activeAppointmentsByPhone(phone, true);
+      const active = all.filter((a) => a.status !== "payment_pending");
+      if (!active.length) {
+        // Only unpaid holds on this number — they can't be moved until paid.
+        const pending = all.filter((a) => a.status === "payment_pending");
+        if (pending.length) return { reply: [t.payPrompt], chips: [c.payNow, c.book], state: { stage: "idle" } };
+        return { reply: [t.viewNone], chips: [c.book], state: { stage: "idle" } };
+      }
       if (active.length === 1) return enterPickerServer({ id: active[0].id, phone }, backend, sched, t);
       const candidates: CancelCandidate[] = active.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
       return { reply: [t.reschedWhich], chips: candidates.map((cd) => cd.label), state: { stage: "await_resched_pick", reschedCandidates: candidates } };
@@ -1123,7 +1253,10 @@ export async function botReplyServer(
       return { reply: [t.cancelAsk], chips: [c.resched, c.book], state: { stage: "idle" } };
     }
     case "pay": {
-      const active = (await backend.activeAppointmentsByPhone(phone)).filter((a) => !a.paid);
+      // includePending: a just-booked appointment is payment_pending until the
+      // webhook confirms payment, and the whole point of the pay intent is to
+      // collect that payment.
+      const active = (await backend.activeAppointmentsByPhone(phone, true)).filter((a) => !a.paid);
       if (!active.length) {
         return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
       }
