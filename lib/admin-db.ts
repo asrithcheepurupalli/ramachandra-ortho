@@ -37,6 +37,7 @@ function rowToAppt(r: any): Appt {
     reminderSentAt: r.reminder_sent_at ? new Date(r.reminder_sent_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
+    patientCode: r.patient_code ?? null,
   };
 }
 
@@ -116,14 +117,30 @@ export async function dbAddWalkIn(input: { name: string; phone: string; reason: 
   const phone = normalizePhone(input.phone);
 
   let patientId: string | null = null;
+  let patientCode: string | null = null;
+  let fee: number = clinic.consultationFee;
   if (phone) {
-    const { data: patient, error: patientErr } = await db
+    const { data: existing, error: existingErr } = await db
       .from("patients")
-      .upsert({ name, phone }, { onConflict: "phone" })
-      .select("id")
-      .single();
-    if (patientErr) throw patientErr;
-    patientId = patient?.id ?? null;
+      .select("id, patient_code")
+      .eq("phone", phone)
+      .maybeSingle();
+    if (existingErr) throw existingErr;
+    if (existing) {
+      // Returning patient — pays the returning rate and keeps their code.
+      patientId = existing.id;
+      patientCode = existing.patient_code ?? null;
+      fee = clinic.returningFee;
+    } else {
+      const { data: patient, error: patientErr } = await db
+        .from("patients")
+        .upsert({ name, phone }, { onConflict: "phone" })
+        .select("id, patient_code")
+        .single();
+      if (patientErr) throw patientErr;
+      patientId = patient?.id ?? null;
+      patientCode = patient?.patient_code ?? null;
+    }
   }
 
   const { data: dayAppts, error: dayErr } = await db.from("appointments").select("token").eq("appt_date", today);
@@ -135,6 +152,7 @@ export async function dbAddWalkIn(input: { name: string; phone: string; reason: 
     .insert({
       token,
       patient_id: patientId,
+      patient_code: patientCode,
       name,
       phone,
       reason: input.reason.trim() || "Consultation",
@@ -142,7 +160,7 @@ export async function dbAddWalkIn(input: { name: string; phone: string; reason: 
       appt_time: new Date().toTimeString().slice(0, 5),
       status: "waiting",
       source: input.source ?? "walkin",
-      fee: clinic.consultationFee,
+      fee,
       paid: false,
     })
     .select("*")

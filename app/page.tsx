@@ -231,7 +231,7 @@ function TodayCard({ status, t }: { status: Status | null; t: T }) {
           <div className="truncate text-[14px] font-semibold md:text-[15px]">{clinic.doctor.name}</div>
           <div className="truncate text-[11px] text-muted md:text-xs">{clinic.doctor.title}</div>
         </div>
-        <span className="ml-auto shrink-0 rounded-full bg-brand-tint px-2.5 py-1 text-xs font-semibold text-brand">{clinic.currency}{clinic.consultationFee}</span>
+        <span className="ml-auto shrink-0 rounded-full bg-brand-tint px-2.5 py-1 text-xs font-semibold text-brand" title={`Consultation: ${clinic.currency}${clinic.consultationFee} · Returning: ${clinic.currency}${clinic.returningFee}`}>{clinic.currency}{clinic.consultationFee} · {clinic.currency}{clinic.returningFee}</span>
       </div>
 
       <div className="mt-3.5 grid grid-cols-2 gap-2">
@@ -492,7 +492,7 @@ function FAQ({ t }: { t: T }) {
   const [open, setOpen] = useState<number | null>(null);
   const items = [
     { q: t("faq.q1"), a: t("faq.a1") },
-    { q: t("faq.q2"), a: t("faq.a2", { fee: `${clinic.currency}${clinic.consultationFee}` }) },
+    { q: t("faq.q2"), a: t("faq.a2", { fee: `${clinic.currency}${clinic.consultationFee}`, ret: `${clinic.currency}${clinic.returningFee}` }) },
     { q: t("faq.q3"), a: t("faq.a3") },
     { q: t("faq.q4"), a: t("faq.a4") },
     { q: t("faq.q5"), a: t("faq.a5") },

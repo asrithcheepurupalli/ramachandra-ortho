@@ -97,7 +97,7 @@ export default function PrivacyPage() {
           <p>Please arrive a few minutes before your preferred window.</p>
           <p>Miss your turn? No problem, it moves automatically to the next working day. No need to rebook.</p>
           <p>Plans changed? Message us on WhatsApp or call the clinic and we&rsquo;ll release your token for someone else.</p>
-          <p>The consultation fee ({clinic.currency}{clinic.consultationFee}) is payable at the clinic, not online.</p>
+          <p>The consultation fee ({clinic.currency}{clinic.consultationFee} for new patients, {clinic.currency}{clinic.returningFee} for returning patients) is payable at the clinic after the consultation.</p>
         </Section>
 
         <Section title="Questions">

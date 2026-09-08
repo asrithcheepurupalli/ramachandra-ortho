@@ -16,7 +16,8 @@ export const clinic = {
   },
   rating: { score: 4.8, count: 123, source: "Google" },
 
-  consultationFee: 400,
+  consultationFee: 400,   // new patients
+  returningFee: 350,      // returning patients with a patient record on file
   currency: "₹",
 
   contact: {

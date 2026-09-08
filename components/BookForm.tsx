@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, MessageCircle, CalendarDays, Clock, User,
-  ChevronRight, PartyPopper, Ticket, Wallet,
+  ChevronRight, PartyPopper, Ticket, Wallet, BadgeCheck,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
-import { addBooking, takenSlots, hydrateSchedule, togglePaid, type Appt } from "@/lib/store";
+import { addBooking, takenSlots, hydrateSchedule, togglePaid, lookupPatientMock, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 import { normalizePhone } from "@/lib/phone";
 
@@ -33,6 +33,53 @@ export function BookForm() {
   const [submitting, setSubmitting] = useState(false);
   const [payBusy, setPayBusy] = useState(false);
   const [payErr, setPayErr] = useState("");
+
+  // New-vs-returning gate: the flow starts on a "new or returning?" step, then
+  // moves to the slot picker. Returning patients look up their record by ID or
+  // phone so the name locks and the fee reflects the returning rate.
+  const [stage, setStage] = useState<"patient" | "book" | "done">("patient");
+  const [people, setPeople] = useState<"new" | "returning" | null>(null);
+  const [lookupQ, setLookupQ] = useState("");
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [lookupErr, setLookupErr] = useState("");
+  const [matched, setMatched] = useState<{ name: string; phone: string; patientCode: string; fee: number } | null>(null);
+
+  // Returning patient found: prefill the details and lock the name (the record
+  // is the source of truth). Phone is left editable in case a patient now uses
+  // a different number, but the fee is still decided server-side from the phone
+  // that's actually on the booking.
+  useEffect(() => {
+    if (matched) setForm((f) => ({ ...f, name: matched.name, phone: matched.phone }));
+  }, [matched]);
+
+  const lookup = async () => {
+    const q = lookupQ.trim();
+    if (!q) { setLookupErr(t("book.patient.placeholder")); return; }
+    setLookupBusy(true); setLookupErr("");
+    try {
+      let res;
+      if (hasSupabase()) {
+        const r = await fetch("/api/patients/lookup", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: q }),
+        });
+        const data = await r.json();
+        if (!r.ok) { setLookupErr(data.error ?? t("book.patient.err")); return; }
+        res = data;
+      } else {
+        res = { found: !!lookupPatientMock(q), patient: lookupPatientMock(q) ?? undefined };
+      }
+      if (res.found && res.patient) {
+        setMatched(res.patient);
+      } else {
+        setMatched(null);
+        setLookupErr(t("book.patient.nomatch"));
+      }
+    } catch {
+      setLookupErr(t("book.patient.err"));
+    } finally {
+      setLookupBusy(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -135,11 +182,12 @@ export function BookForm() {
         return;
       }
     }
+    setStage("done");
     if (typeof window !== "undefined") window.scrollTo(0, 0);
   };
 
   /* ── confirmation ─────────────────────────────────────────────────────── */
-  if (booked) {
+  if (stage === "done" && booked) {
     const d = new Date(booked.date + "T00:00:00");
 
     const doPay = async () => {
@@ -179,7 +227,9 @@ export function BookForm() {
             <Row icon={CalendarDays} v={d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })} />
             <Row icon={Clock} v={fmt(booked.time)} />
             <Row icon={Ticket} v={`${clinic.doctor.name} · ${clinic.currency}${booked.fee}`} />
+            {booked.patientCode && <Row icon={BadgeCheck} v={`${t("book.patient.code")}: ${booked.patientCode}`} />}
           </dl>
+          {booked.patientCode && <p className="mt-3 rounded-xl bg-brand-tint px-3 py-2 text-xs text-brand">{t("book.patient.saveid", { code: booked.patientCode })}</p>}
           <p className="mt-5 text-sm leading-relaxed text-muted">{t("book.done.msg")}</p>
           <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>
           {payErr && <p role="alert" className="mt-3 text-sm text-out">{payErr}</p>}
@@ -195,7 +245,7 @@ export function BookForm() {
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}
             <div className="grid grid-cols-1 gap-2">
-              <button onClick={() => { setBooked(null); setSelTime(null); setForm({ name: "", phone: "", reason: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
+              <button onClick={() => { setBooked(null); setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", reason: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
               <Link href="/" className="press w-full rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
             </div>
           </div>
@@ -204,17 +254,90 @@ export function BookForm() {
     );
   }
 
+  /* ── new-or-returning gate ────────────────────────────────────────────── */
+  if (stage === "patient") {
+    return (
+      <main className="mx-auto w-full max-w-lg px-5 pb-28 pt-6 md:pb-12">
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/" className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{clinic.shortName}</span></Link>
+          <div className="flex shrink-0 items-center rounded-full border border-line bg-surface p-0.5">
+            {(Object.keys(langLabels) as Lang[]).map((l) => (
+              <button key={l} onClick={() => setLang(l)} className={`press rounded-full px-2.5 py-1 text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted"}`}>{langLabels[l]}</button>
+            ))}
+          </div>
+        </div>
+
+        <h1 className="mt-6 text-3xl font-semibold tracking-tight">{t("book.title")}</h1>
+        <p className="mt-2 text-[15px] text-muted">{t("book.patient.sub")}</p>
+
+        {people === "returning" ? (
+          <div className="mt-7 rounded-3xl border border-line bg-surface p-5 md:p-6">
+            <h2 className="text-lg font-semibold">{t("book.patient.find")}</h2>
+            <p className="mt-1 text-sm text-muted">{t("book.patient.findsup")}</p>
+            <div className="mt-4 space-y-2">
+              <label htmlFor="lookup-q" className="sr-only">{t("book.patient.placeholder")}</label>
+              <input id="lookup-q" value={lookupQ} onChange={(e) => { setLookupQ(e.target.value); setLookupErr(""); setMatched(null); }} placeholder={t("book.patient.placeholder")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+              <button onClick={lookup} disabled={lookupBusy} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand py-3.5 text-[15px] font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
+                {lookupBusy ? t("book.patient.looking") : <>{t("book.patient.lookup")} <ChevronRight className="h-4 w-4" /></>}
+              </button>
+            </div>
+
+            {matched ? (
+              <div className="mt-4 rounded-2xl bg-brand-tint p-4">
+                <div className="text-sm font-semibold text-brand">{t("book.patient.welcome", { name: matched.name })}</div>
+                <div className="mt-1 text-xs text-brand/80">{t("book.patient.code")}: <b>{matched.patientCode}</b> · {clinic.currency}{clinic.returningFee}</div>
+                <button onClick={() => setStage("book")} className="press mt-4 w-full rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark">{t("cta.bookShort")} <ChevronRight className="ml-1 inline h-4 w-4" /></button>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-out" role="alert">{lookupErr}</p>
+            )}
+
+            <button onClick={() => { setPeople(null); setMatched(null); setLookupQ(""); setLookupErr(""); }} className="press mt-4 text-sm font-semibold text-brand">{t("book.patient.actuallynew")}</button>
+          </div>
+        ) : (
+          <div className="mt-7 space-y-3">
+            <button onClick={() => { setPeople("new"); setStage("book"); }} className="press w-full rounded-3xl border border-line bg-surface p-5 text-left transition hover:border-brand/40">
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"><User className="h-5 w-5" /></span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold">{t("book.patient.new")}</div>
+                  <div className="text-sm text-muted">{t("book.patient.newsub", { cur: clinic.currency, fee: clinic.consultationFee })}</div>
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+              </div>
+            </button>
+            <button onClick={() => setPeople("returning")} className="press w-full rounded-3xl border border-line bg-surface p-5 text-left transition hover:border-brand/40">
+              <div className="flex items-center gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"><BadgeCheck className="h-5 w-5" /></span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold">{t("book.patient.returning")}</div>
+                  <div className="text-sm text-muted">{t("book.patient.returningsub", { cur: clinic.currency, fee: clinic.returningFee })}</div>
+                </div>
+                <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+              </div>
+            </button>
+            <p className="pt-1 text-center text-xs text-muted">{t("book.patient.hint", { cur: clinic.currency, fee: clinic.returningFee, reg: clinic.consultationFee })}</p>
+          </div>
+        )}
+      </main>
+    );
+  }
+
   /* ── booking flow ─────────────────────────────────────────────────────── */
   return (
     <main className="mx-auto w-full max-w-lg px-5 pb-28 pt-6 md:pb-12">
       <div className="flex items-center justify-between gap-3">
-        <Link href="/" className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{clinic.shortName}</span></Link>
+        <button onClick={() => { setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); }} className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{t("book.patient.back")}</span></button>
         <div className="flex shrink-0 items-center rounded-full border border-line bg-surface p-0.5">
           {(Object.keys(langLabels) as Lang[]).map((l) => (
             <button key={l} onClick={() => setLang(l)} className={`press rounded-full px-2.5 py-1 text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted"}`}>{langLabels[l]}</button>
           ))}
         </div>
       </div>
+
+      {people === "returning" && matched && (
+        <div className="mt-5 rounded-2xl bg-brand-tint px-4 py-3 text-sm text-brand">{t("book.patient.welcome", { name: matched.name })} · {t("book.patient.code")}: <b>{matched.patientCode}</b></div>
+      )}
 
       <h1 className="mt-6 text-3xl font-semibold tracking-tight">{t("book.title")}</h1>
       <p className="mt-2 text-[15px] text-muted">{t("book.sub")}</p>
@@ -282,7 +405,7 @@ export function BookForm() {
           <Label icon={User} n="3">{t("book.details")}</Label>
           <div className="mt-3 space-y-2">
             <label htmlFor="book-name" className="sr-only">{t("book.name")}</label>
-            <input id="book-name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErr(""); }} placeholder={t("book.name")} aria-describedby={err ? "book-error" : undefined} aria-invalid={!!err} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+            <input id="book-name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErr(""); }} placeholder={t("book.name")} readOnly={people === "returning" && !!matched} aria-describedby={err ? "book-error" : undefined} aria-invalid={!!err} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface read-only:opacity-70" />
             <label htmlFor="book-phone" className="sr-only">{t("book.phone")}</label>
             <input id="book-phone" value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErr(""); }} placeholder={t("book.phone")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-reason" className="sr-only">{t("book.reason")}</label>

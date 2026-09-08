@@ -36,9 +36,66 @@ export type Appt = {
   reminderSentAt: number | null; // epoch ms of the automatic reminder; null = not yet reminded
   createdAt: number;
   notes: string | null; // doctor's free-text clinical note, written from the doctor portal only
+  patientCode: string | null; // human-readable patient ID (ROC-####), null when not matched
 };
 
 const KEY = "roc.appts.v1";
+
+// ── mock patient registry (localStorage) ─────────────────────────────────────
+// Mirrors the Supabase `patients` table (deduped by phone, each with a stable
+// human-readable code). Drives the returning-patient fee + phone lookup in mock
+// mode, exactly like dbLookupPatient does against the DB.
+const PKEY = "roc.patients.v1";
+type PatientEntry = { patientCode: string; name: string; createdAt: number };
+type PatientRegistry = Record<string, PatientEntry>; // keyed by phone
+
+function loadPatients(): PatientRegistry {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(PKEY);
+    return raw ? (JSON.parse(raw) as PatientRegistry) : {};
+  } catch { return {}; }
+}
+function savePatients(reg: PatientRegistry) {
+  try { localStorage.setItem(PKEY, JSON.stringify(reg)); } catch {}
+}
+// Smallest unused ROC-#### sequence number, monotonic across the registry.
+function nextPatientCode(reg: PatientRegistry): string {
+  let n = Object.values(reg).reduce((m, p) => {
+    const hit = /^ROC-(\d{4})$/.exec(p.patientCode);
+    return hit ? Math.max(m, Number(hit[1])) : m;
+  }, 0);
+  return `ROC-${String(n + 1).padStart(4, "0")}`;
+}
+// Upsert a phone into the registry (assigns a code on first sight) and return
+// its entry. Mirrors the DB's upsert-on-phone behavior.
+function ensurePatient(reg: PatientRegistry, phone: string, name: string): PatientEntry {
+  if (!phone) throw new Error("no phone");
+  if (!reg[phone]) {
+    reg[phone] = { patientCode: nextPatientCode(reg), name, createdAt: Date.now() };
+    savePatients(reg);
+  }
+  return reg[phone];
+}
+// Mirrors dbLookupPatient: a code-like query matches the code; otherwise it's
+// treated as a phone (any stored shape via phoneMatchVariants). Returns null
+// when nothing matches.
+export function lookupPatientMock(query: string): { name: string; phone: string; patientCode: string; fee: number } | null {
+  const q = query.trim();
+  if (!q) return null;
+  const reg = loadPatients();
+  if (/[a-zA-Z]/.test(q)) {
+    const norm = q.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    for (const [phone, p] of Object.entries(reg)) {
+      if (p.patientCode.toUpperCase() === norm) return { name: p.name, phone, patientCode: p.patientCode, fee: clinic.returningFee };
+    }
+  }
+  const variants = phoneMatchVariants(q);
+  for (const v of variants) {
+    if (reg[v]) return { name: reg[v].name, phone: v, patientCode: reg[v].patientCode, fee: clinic.returningFee };
+  }
+  return null;
+}
 
 const rid = () => Math.random().toString(36).slice(2, 9);
 
@@ -59,11 +116,21 @@ function seed(): Appt[] {
     ["Sita Mahalakshmi", "9701901234", "Rheumatoid arthritis review", "website", "reserved", false, null],
   ];
   const times = ["09:30", "09:50", "10:05", "10:20", "10:35", "10:50", "11:10", "11:30", "11:50", "12:10"];
+  // Register each seed patient in the registry so the returning lookup + fee
+  // work against a fresh, seeded store, and carry each code onto its rows.
+  const reg = loadPatients();
+  let counter = 0;
+  const codeFor = (phone: string, name: string) => {
+    if (!phone) return null;
+    if (!reg[phone]) reg[phone] = { patientCode: `ROC-${String(++counter).padStart(4, "0")}`, name, createdAt: Date.now() };
+    return reg[phone].patientCode;
+  };
+  savePatients(reg);
   return rows.map((r, i) => ({
     id: rid(), token: i + 1, name: r[0], phone: r[1], reason: r[2], date: today,
     time: times[i], status: r[4], source: r[3], fee, paid: r[5], paidVia: r[6],
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now() - (10 - i) * 6e5,
-    notes: null,
+    notes: null, patientCode: codeFor(r[1], r[0]),
   }));
 }
 
@@ -127,13 +194,20 @@ export function addWalkIn(input: { name: string; phone: string; reason: string; 
   const today = ymd(new Date());
   const todays = all.filter((a) => a.date === today);
   const token = (todays.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
+  // Returning-fee decision: a phone already in the registry pays the returning
+  // rate (mirrors the server's patients-table check in dbAddBooking).
+  const phone = normalizePhone(input.phone);
+  const reg = loadPatients();
+  const existing = phone ? reg[phone] : undefined;
+  const fee = existing ? clinic.returningFee : clinic.consultationFee;
+  const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
-    id: rid(), token, name: input.name.trim(), phone: normalizePhone(input.phone),
+    id: rid(), token, name: input.name.trim(), phone,
     reason: input.reason.trim() || "Consultation", date: today,
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
-    source: input.source ?? "walkin", fee: clinic.consultationFee, paid: false, paidVia: null,
+    source: input.source ?? "walkin", fee, paid: false, paidVia: null,
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
-    notes: null,
+    notes: null, patientCode,
   };
   write([...all, appt]);
   return appt;
@@ -144,12 +218,17 @@ export function addBooking(input: { name: string; phone: string; reason: string;
   const all = read();
   const dayAppts = all.filter((a) => a.date === input.date);
   const token = (dayAppts.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
+  const phone = normalizePhone(input.phone);
+  const reg = loadPatients();
+  const existing = phone ? reg[phone] : undefined;
+  const fee = existing ? clinic.returningFee : clinic.consultationFee;
+  const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
-    id: rid(), token, name: input.name.trim(), phone: normalizePhone(input.phone),
+    id: rid(), token, name: input.name.trim(), phone,
     reason: input.reason.trim() || "Consultation", date: input.date, time: input.time,
-    status: "reserved", source: input.source ?? "website", fee: clinic.consultationFee,
+    status: "reserved", source: input.source ?? "website", fee,
     paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
-    notes: null,
+    notes: null, patientCode,
   };
   write([...all, appt]);
   return appt;

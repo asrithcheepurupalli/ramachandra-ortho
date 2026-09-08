@@ -222,6 +222,7 @@ function DayApptRow({ a }: { a: Appt }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{a.name}</span>
+            {a.patientCode && <span className="font-mono text-[11px] text-muted">{a.patientCode}</span>}
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusMeta[a.status].cls}`}>{statusMeta[a.status].label}</span>
           </div>
           <div className="flex items-center gap-1 text-xs text-muted">
@@ -265,7 +266,10 @@ function DoctorPatients({ appts }: { appts: Appt[] }) {
           <div key={p.last.id} className="flex items-center gap-3 px-5 py-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-tint text-sm font-semibold text-brand">{p.name[0]}</span>
             <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">{p.name}</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="truncate font-medium">{p.name}</span>
+                {p.last.patientCode && <span className="font-mono text-[11px] text-muted">{p.last.patientCode}</span>}
+              </div>
               <div className="text-xs text-muted">{p.phone || "no phone"} · last: {p.last.reason}</div>
               {p.last.notes && <div className="truncate text-xs italic text-muted">note: {p.last.notes}</div>}
             </div>

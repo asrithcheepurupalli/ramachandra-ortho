@@ -68,6 +68,56 @@ export async function dbActiveAppointmentsByPhone(phone: string): Promise<Appt[]
   return (data ?? []).map(rowToAppt);
 }
 
+export type PatientRecord = {
+  name: string;
+  phone: string;
+  patientCode: string;
+  fee: number; // returningFee — a matched patient pays the returning rate
+};
+
+// Public patient lookup for the booking flow's "returning patient" step. The
+// query is either a readable patient code (ROC-0001, case/space/dash-tolerant)
+// or a phone number (any of its stored shapes — see phoneMatchVariants). A code
+// match wins on ambiguity. Returns null when nothing matches.
+export async function dbLookupPatient(query: string): Promise<PatientRecord | null> {
+  const db = supabaseAdmin();
+  const q = query.trim();
+  if (!q) return null;
+
+  if (/[a-zA-Z]/.test(q)) {
+    const { data: byCode } = await db
+      .from("patients")
+      .select("name, phone, patient_code")
+      .ilike("patient_code", q.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())
+      .maybeSingle();
+    if (byCode?.patient_code) {
+      return {
+        name: byCode.name,
+        phone: byCode.phone ?? "",
+        patientCode: byCode.patient_code,
+        fee: clinic.returningFee,
+      };
+    }
+    // Fall through — a "code-looking" query might actually be a phone (no hit
+    // above), so don't bail out. Letters present but unmatched → still try phone.
+  }
+
+  const { data: byPhone } = await db
+    .from("patients")
+    .select("name, phone, patient_code")
+    .in("phone", phoneMatchVariants(q))
+    .maybeSingle();
+  if (byPhone?.patient_code) {
+    return {
+      name: byPhone.name,
+      phone: byPhone.phone ?? "",
+      patientCode: byPhone.patient_code,
+      fee: clinic.returningFee,
+    };
+  }
+  return null;
+}
+
 function rowToAppt(r: any): Appt {
   return {
     id: r.id,
@@ -88,6 +138,7 @@ function rowToAppt(r: any): Appt {
     reminderSentAt: r.reminder_sent_at ? new Date(r.reminder_sent_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
+    patientCode: r.patient_code ?? null,
   };
 }
 
@@ -115,15 +166,34 @@ export async function dbAddBooking(input: {
   const openSlots = slotsFor(new Date(`${input.date}T00:00:00`), [], sched);
   if (!openSlots.includes(input.time)) throw new InvalidSlotError();
 
+  // Returning-patient fee: the patients table (deduped by phone) is the source
+  // of truth. Query BEFORE the upsert so we know whether a phone already had a
+  // record — the upsert's ON CONFLICT swallows that distinction. A blank phone
+  // can't be matched, so it's always charged the new-patient rate.
   let patientId: string | null = null;
+  let patientCode: string | null = null;
+  let fee: number = clinic.consultationFee;
   if (phone) {
-    const { data: patient, error: patientErr } = await db
+    const { data: existing, error: existingErr } = await db
       .from("patients")
-      .upsert({ name, phone }, { onConflict: "phone" })
-      .select("id")
-      .single();
-    if (patientErr) throw patientErr;
-    patientId = patient?.id ?? null;
+      .select("id, patient_code")
+      .eq("phone", phone)
+      .maybeSingle();
+    if (existingErr) throw existingErr;
+    if (existing) {
+      patientId = existing.id;
+      patientCode = existing.patient_code ?? null;
+      fee = clinic.returningFee;
+    } else {
+      const { data: patient, error: patientErr } = await db
+        .from("patients")
+        .upsert({ name, phone }, { onConflict: "phone" })
+        .select("id, patient_code")
+        .single();
+      if (patientErr) throw patientErr;
+      patientId = patient?.id ?? null;
+      patientCode = patient?.patient_code ?? null;
+    }
   }
 
   // A partial unique index on (appt_date, appt_time) where status <> 'cancelled'
@@ -144,6 +214,7 @@ export async function dbAddBooking(input: {
       .insert({
         token,
         patient_id: patientId,
+        patient_code: patientCode,
         name,
         phone,
         reason: input.reason.trim() || "Consultation",
@@ -151,7 +222,7 @@ export async function dbAddBooking(input: {
         appt_time: input.time,
         status: "reserved",
         source: input.source ?? "website",
-        fee: clinic.consultationFee,
+        fee,
         paid: false,
       })
       .select("*")
