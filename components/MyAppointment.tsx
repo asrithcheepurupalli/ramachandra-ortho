@@ -11,7 +11,7 @@ import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
 import {
-  activeAppointmentsByPhone, cancelBooking, rescheduleBooking, togglePaid,
+  activeAppointmentsByPhone, rescheduleBooking, togglePaid,
   hydrateSchedule, takenSlots, type Appt,
 } from "@/lib/store";
 import { normalizePhone } from "@/lib/phone";
@@ -88,7 +88,6 @@ function MyAppointmentInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onCancelled = (id: string) => setAppts((prev) => (prev ? prev.filter((a) => a.id !== id) : prev));
   const updateAppt = (updated: Appt) =>
     setAppts((prev) => (prev ? prev.map((a) => (a.id === updated.id ? updated : a)) : prev));
 
@@ -135,7 +134,7 @@ function MyAppointmentInner() {
       {appts && appts.length > 0 && (
         <div className="mt-6 space-y-4">
           {appts.map((a) => (
-            <ApptCard key={a.id} appt={a} t={t} phone={phone} otpEnabled={otpEnabled} verified={verified} onVerified={() => setVerified(true)} onCancelled={onCancelled} onUpdated={updateAppt} />
+            <ApptCard key={a.id} appt={a} t={t} phone={phone} otpEnabled={otpEnabled} verified={verified} onVerified={() => setVerified(true)} onUpdated={updateAppt} />
           ))}
         </div>
       )}
@@ -152,13 +151,12 @@ export function MyAppointment() {
 }
 
 function ApptCard({
-  appt, t, phone, otpEnabled, verified, onVerified, onCancelled, onUpdated,
+  appt, t, phone, otpEnabled, verified, onVerified, onUpdated,
 }: {
   appt: Appt; t: Tr; phone: string; otpEnabled: boolean;
-  verified: boolean; onVerified: () => void;
-  onCancelled: (id: string) => void; onUpdated: (a: Appt) => void;
+  verified: boolean; onVerified: () => void; onUpdated: (a: Appt) => void;
 }) {
-  const [mode, setMode] = useState<"idle" | "cancelConfirm" | "reschedule">("idle");
+  const [mode, setMode] = useState<"idle" | "cancel" | "reschedule">("idle");
   const [busy, setBusy] = useState(false);
   const [payBusy, setPayBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -172,27 +170,6 @@ function ApptCard({
   const gate = (action: () => void) => {
     if (!otpEnabled || verified) { action(); return; }
     setPending(() => action);
-  };
-
-  const doCancel = async () => {
-    setBusy(true); setErr("");
-    try {
-      if (hasSupabase()) {
-        const res = await fetch("/api/appointments/cancel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: appt.id, phone }),
-        });
-        const data = await res.json();
-        if (!res.ok) { setErr(data.error ?? t("myappt.error")); setBusy(false); return; }
-      } else {
-        cancelBooking(appt.id);
-      }
-      onCancelled(appt.id);
-    } catch {
-      setErr(t("myappt.error"));
-      setBusy(false);
-    }
   };
 
   const doPay = async () => {
@@ -263,21 +240,25 @@ function ApptCard({
             <button onClick={() => gate(() => setMode("reschedule"))} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
               <PencilLine className="h-4 w-4" /> {t("myappt.reschedule")}
             </button>
-            <button onClick={() => gate(() => setMode("cancelConfirm"))} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-out">
+            <button onClick={() => gate(() => setMode("cancel"))} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-out">
               <XCircle className="h-4 w-4" /> {t("myappt.cancel")}
             </button>
           </div>
         )
       )}
 
-      {mode === "cancelConfirm" && (
+      {mode === "cancel" && (
         <div className="mt-4 rounded-xl bg-bg p-4">
-          <p className="text-sm font-medium text-ink">{t("myappt.cancelConfirm")}</p>
-          <div className="mt-3 flex gap-2">
-            <button onClick={doCancel} disabled={busy} className="press flex-1 rounded-full bg-out py-2.5 text-sm font-semibold text-white transition disabled:opacity-60">
-              {busy ? t("myappt.cancelling") : t("myappt.cancelYes")}
+          <p className="text-sm font-medium text-ink">{t("myappt.cancelAsk")}</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted">{t("myappt.cancelCall", { phone: clinic.contact.phone })}</p>
+          <div className="mt-3 flex flex-col gap-2">
+            <button onClick={() => setMode("reschedule")} className="press flex w-full items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition">
+              <PencilLine className="h-4 w-4" /> {t("myappt.reschedule")}
             </button>
-            <button onClick={() => setMode("idle")} disabled={busy} className="press flex-1 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
+            <a href={`tel:${clinic.contact.phone}`} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
+              <MessageCircle className="h-4 w-4" /> {t("myappt.cancelCallBtn")}
+            </a>
+            <button onClick={() => setMode("idle")} className="press w-full rounded-full border border-line bg-surface py-2.5 text-sm font-semibold text-ink">
               {t("myappt.cancelNo")}
             </button>
           </div>

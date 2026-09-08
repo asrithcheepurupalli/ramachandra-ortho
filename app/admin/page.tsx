@@ -29,8 +29,8 @@ type Patch = (id: string, p: Partial<Appt>) => void;
 
 function changeStatus(id: string, status: ApptStatus, prevStatus: ApptStatus, patch: Patch) {
   // Reflect the change immediately — the API call (and, for a cancel, the
-  // refund + WhatsApp send it triggers) can take a couple of seconds, and
-  // the desk shouldn't stare at an unresponsive button while that happens.
+  // WhatsApp send it triggers) can take a couple of seconds, and the desk
+  // shouldn't stare at an unresponsive button while that happens.
   patch(id, { status });
   // DB mode goes through the API route (not a direct client write) so a
   // cancellation can also fire the WhatsApp cancellation notice server-side.

@@ -34,7 +34,6 @@ export type BotState = {
     | "await_lang"
     | "await_name"
     | "await_phone"
-    | "await_cancel_pick"
     | "await_pay_pick"
     | "await_view_phone"
     | "await_resched_phone"
@@ -59,7 +58,7 @@ export type BotState = {
 // Stages the "cancel" escape hatch checks against, shared by the client and
 // server bot so a future stage addition can't silently drift between them.
 const MID_FLOW_STAGES: BotState["stage"][] = [
-  "await_name", "await_phone", "await_cancel_pick", "await_pay_pick",
+  "await_name", "await_phone", "await_pay_pick",
   "await_view_phone", "await_resched_phone", "await_resched_pick", "await_otp",
 ];
 // A candidate appointment shown when a cancel request is ambiguous (more
@@ -76,8 +75,6 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 export const mkMsg = (from: Sender, text: string): ChatMsg => ({ id: uid(), from, text });
 
 export { SlotTakenError } from "@/lib/errors";
-
-let lastBookingId: string | null = null; // so "cancel" can undo the demo booking
 
 const cur = clinic.currency, fee = clinic.consultationFee, dr = clinic.doctor.name;
 
@@ -206,11 +203,7 @@ type PhrasePack = {
   flowSlotTaken: string;
   flowBookFail: string;
   confirm: (tok: number, s: string) => string;
-  cancelDone: string;
-  cancelNone: string;
-  cancelWhich: string;
-  cancelNotFound: string;
-  cancelUsePage: string;
+  cancelAsk: string;
   payNone: string;
   payWhich: string;
   payNotFound: string;
@@ -261,11 +254,7 @@ const P: Record<Lang, PhrasePack> = {
     flowSlotTaken: "Sorry, that slot was just taken. Please message us again to pick another time.",
     flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
     confirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${fee}. Please arrive a few minutes early.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\nReply *Cancel* if your plans change.`,
-    cancelDone: "Done, your appointment is cancelled. Tap *Book appointment* to rebook anytime. 🙏",
-    cancelNone: "You don't have an active appointment to cancel right now.",
-    cancelWhich: "You have a few appointments booked on this number. Tap the one to cancel, or reply with its token number or the name it's booked under:",
-    cancelNotFound: "I couldn't match that to one of your appointments to cancel. Please tap an option above, or reply with the exact token number or name.",
-    cancelUsePage: "You can cancel (and get refunded, if you already paid) from your appointment page. Tap *View my appointment* and I'll take you there.",
+    cancelAsk: `Cancellations are handled by the clinic, so I can't cancel it for you here. Would you like to move it to a new time instead? Tap *Reschedule*, or call the clinic on ${clinic.contact.phone} to cancel.`,
     payNone: "You don't have any unpaid appointments right now.",
     payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
     payNotFound: "I couldn't match that to one of your unpaid appointments. Please tap an option above, or reply with the exact token number or name.",
@@ -315,11 +304,7 @@ const P: Record<Lang, PhrasePack> = {
     flowSlotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. దయచేసి మళ్ళీ మెసేజ్ చేసి వేరే సమయం ఎంచుకోండి.",
     flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
     confirm: (tok: number, s: string) => `✅ *బుక్ అయ్యింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${fee}. దయచేసి కొన్ని నిమిషాల ముందు రండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\nప్లాన్ మారితే *Cancel* అని రిప్లై చేయండి.`,
-    cancelDone: "అయ్యింది, మీ అపాయింట్‌మెంట్ రద్దు చేయబడింది. మళ్లీ బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి. 🙏",
-    cancelNone: "ప్రస్తుతం రద్దు చేయడానికి యాక్టివ్ అపాయింట్‌మెంట్ లేదు.",
-    cancelWhich: "ఈ నంబర్‌పై మీకు కొన్ని అపాయింట్‌మెంట్‌లు బుక్ అయి ఉన్నాయి. రద్దు చేయాల్సినది నొక్కండి, లేదా దాని టోకెన్ నంబర్ లేదా బుక్ చేసిన పేరు రిప్లై చేయండి:",
-    cancelNotFound: "అది రద్దు చేయాల్సిన మీ అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
-    cancelUsePage: "మీరు మీ అపాయింట్‌మెంట్ పేజీ నుండి రద్దు చేసుకోవచ్చు (ఇప్పటికే పే చేసి ఉంటే రీఫండ్ కూడా వస్తుంది). *నా అపాయింట్‌మెంట్ చూడండి* నొక్కండి, అక్కడికి తీసుకెళ్తాను.",
+    cancelAsk: `రద్దులను క్లినిక్ నిర్వహిస్తుంది, కాబట్టి నేను ఇక్కడ రద్దు చేయలేను. బదులుగా కొత్త సమయానికి మార్చుకోవాలనుకుంటున్నారా? *రీషెడ్యూల్* నొక్కండి, లేదా రద్దు కోసం క్లినిక్‌కు ${clinic.contact.phone} కాల్ చేయండి.`,
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
     payNotFound: "అది మీ చెల్లించని అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
@@ -369,11 +354,7 @@ const P: Record<Lang, PhrasePack> = {
     flowSlotTaken: "माफ़ करें, वह स्लॉट अभी बुक हो गया। कृपया दोबारा मैसेज करके दूसरा समय चुनें।",
     flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
     confirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${fee}। कृपया कुछ मिनट पहले पहुँचें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\nयोजना बदले तो *Cancel* लिखें।`,
-    cancelDone: "हो गया, आपका अपॉइंटमेंट रद्द कर दिया गया है। दोबारा बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ। 🙏",
-    cancelNone: "अभी रद्द करने के लिए कोई सक्रिय अपॉइंटमेंट नहीं है।",
-    cancelWhich: "इस नंबर पर आपके कुछ अपॉइंटमेंट बुक हैं। जिसे रद्द करना है उसे दबाएँ, या उसका टोकन नंबर या बुकिंग वाला नाम रिप्लाई करें:",
-    cancelNotFound: "यह आपके रद्द करने वाले किसी अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
-    cancelUsePage: "आप अपने अपॉइंटमेंट पेज से रद्द कर सकते हैं (अगर पहले ही पेमेंट कर चुके हैं तो रिफंड भी मिलेगा)। *अपॉइंटमेंट देखें* दबाएँ, मैं आपको वहाँ ले चलता हूँ।",
+    cancelAsk: `रद्दीकरण क्लिनिक संभालता है, इसलिए मैं इसे यहाँ रद्द नहीं कर सकता। क्या आप इसके बजाय इसे किसी नए समय पर ले जाना चाहेंगे? *रीशेड्यूल* दबाएँ, या रद्द करने के लिए क्लिनिक को ${clinic.contact.phone} पर कॉल करें।`,
     payNone: "अभी आपके पास कोई अवैतनिक अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
     payNotFound: "यह आपके किसी बकाया भुगतान वाले अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
@@ -645,7 +626,6 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name } };
     }
     const appt = addBooking({ name, phone: "", reason: source === "website" ? "Booked via RC (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
-    lastBookingId = appt.id;
     return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.about, c.location, c.done], state: { stage: "idle" } };
   }
 
@@ -681,7 +661,6 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       }
       if (!res.ok) throw new Error("booking failed");
       const { appointment: appt } = (await res.json()) as { appointment: Appt };
-      lastBookingId = appt.id;
       return { reply: [t.confirm(appt.token, state.slot.label)], chips: [c.avail, c.about, c.location, c.done], state: { stage: "idle" } };
     } catch {
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
@@ -793,13 +772,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
     }
     case "cancel": {
-      // Real cancellations (with refund handling) only happen through the
-      // My Appointment page's OTP-gated flow — this typed intent used to
-      // silently "cancel" the mock store even against the live database,
-      // which never touched the real booking or its refund.
-      if (hasSupabase()) return { reply: [t.cancelUsePage], chips: [c.resched, c.view, c.book], state: { stage: "idle" } };
-      if (lastBookingId) { setStatus(lastBookingId, "cancelled"); lastBookingId = null; return { reply: [t.cancelDone], chips: [c.book], state: { stage: "idle" } }; }
-      return { reply: [t.cancelNone], chips: [c.book], state: { stage: "idle" } };
+      // Cancellations are handled by the clinic, not automated — offer a move
+      // to a new time and point the patient at the phone to cancel.
+      return { reply: [t.cancelAsk], chips: [c.resched, c.book], state: { stage: "idle" } };
     }
     case "hours": case "fee":
       return { reply: [t.hours], chips: [c.book, c.location], state: { stage: "idle" } };
@@ -831,15 +806,11 @@ export type Backend = {
   addBooking: (input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }) => Promise<Appt>;
   takenSlots: (date: string) => Promise<string[]>;
   setStatus: (id: string, status: ApptStatus) => Promise<void>;
-  // Cancels AND, if the appointment was paid, refunds it and tells the
-  // patient about both over WhatsApp — the only way a booking should ever be
-  // cancelled (mirrors the two website cancel routes' shared helper).
-  cancelWithRefund: (id: string) => Promise<Appt>;
   activeAppointmentsByPhone: (phone: string) => Promise<Appt[]>;
   createPaymentLink: (id: string, phone: string) => Promise<string>;
   reschedule: (id: string, date: string, time: string) => Promise<Appt>;
 };
-export type ServerBotState = BotState & { cancelCandidates?: CancelCandidate[]; payCandidates?: PayCandidate[] };
+export type ServerBotState = BotState & { payCandidates?: PayCandidate[] };
 
 async function openDaysServer(backend: Backend, sched: SchedState): Promise<DayChip[]> {
   const now = nowIST();
@@ -969,26 +940,6 @@ export async function botReplyServer(
   // "cancel") instead of backing the patient out of a flow they no longer want.
   if (MID_FLOW_STAGES.includes(state.stage) && detect(input) === "cancel") {
     return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
-  }
-
-  // picking which appointment to cancel, when the phone has more than one
-  // active — matched by exact chip tap, bare token number, or name substring
-  // so "either name or token number" both work, not just the tapped chip.
-  if (state.stage === "await_cancel_pick" && state.cancelCandidates?.length) {
-    const raw = input.trim();
-    const picked =
-      state.cancelCandidates.find((cd) => cd.label === raw) ??
-      state.cancelCandidates.find((cd) => String(cd.token) === raw) ??
-      state.cancelCandidates.find((cd) => cd.name.toLowerCase().includes(raw.toLowerCase()));
-    if (picked) {
-      await backend.cancelWithRefund(picked.id);
-      return { reply: [t.cancelDone], chips: [c.book], state: { stage: "idle" } };
-    }
-    return {
-      reply: [t.cancelNotFound],
-      chips: state.cancelCandidates.map((cd) => cd.label),
-      state: { stage: "await_cancel_pick", cancelCandidates: state.cancelCandidates },
-    };
   }
 
   // picking which appointment to pay for, when the phone has more than one
@@ -1166,20 +1117,10 @@ export async function botReplyServer(
       return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
     }
     case "cancel": {
-      const active = await backend.activeAppointmentsByPhone(phone);
-      if (!active.length) {
-        return { reply: [t.cancelNone], chips: [c.book], state: { stage: "idle" } };
-      }
-      if (active.length === 1) {
-        await backend.cancelWithRefund(active[0].id);
-        return { reply: [t.cancelDone], chips: [c.book], state: { stage: "idle" } };
-      }
-      const candidates: CancelCandidate[] = active.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
-      return {
-        reply: [t.cancelWhich],
-        chips: candidates.map((cd) => cd.label),
-        state: { stage: "await_cancel_pick", cancelCandidates: candidates },
-      };
+      // Cancellations are handled by the clinic, not automated — so instead of
+      // cancelling here, offer a move to a new time and point the patient at
+      // the phone if they still want to cancel.
+      return { reply: [t.cancelAsk], chips: [c.resched, c.book], state: { stage: "idle" } };
     }
     case "pay": {
       const active = (await backend.activeAppointmentsByPhone(phone)).filter((a) => !a.paid);

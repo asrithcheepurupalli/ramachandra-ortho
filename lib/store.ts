@@ -248,9 +248,6 @@ export function activeAppointmentsByPhone(phone: string): Appt[] {
     .filter((a) => variants.includes(a.phone) && activeStatuses.includes(a.status))
     .sort((a, b) => (a.date === b.date ? a.time.localeCompare(b.time) : a.date.localeCompare(b.date)));
 }
-export function cancelBooking(id: string) {
-  setStatus(id, "cancelled");
-}
 export function rescheduleBooking(id: string, date: string, time: string) {
   if (isPastLeadTime(date, time, new Date())) throw new InvalidSlotError();
   const all = read();

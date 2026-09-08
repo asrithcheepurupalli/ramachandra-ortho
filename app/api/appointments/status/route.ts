@@ -5,7 +5,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireStaff } from "@/lib/auth-server";
 import { dbSetStatusReturning } from "@/lib/db";
-import { cancelAppointmentWithRefund } from "@/lib/refunds";
+import { cancelAppointment } from "@/lib/refunds";
 import type { ApptStatus } from "@/lib/store";
 
 const validStatuses: ApptStatus[] = ["reserved", "confirmed", "waiting", "consulting", "done", "cancelled"];
@@ -26,9 +26,10 @@ export async function POST(req: NextRequest) {
   if (!isStatus(status)) return NextResponse.json({ error: "invalid status" }, { status: 400 });
 
   try {
-    // A cancel goes through the shared helper (refund + both WhatsApp
-    // notices); every other status change is a plain flip.
-    const appt = status === "cancelled" ? await cancelAppointmentWithRefund(id) : await dbSetStatusReturning(id, status);
+    // A cancel goes through the shared helper (flip status + WhatsApp notice,
+    // no auto-refund — refunds are manual); every other status change is a
+    // plain flip.
+    const appt = status === "cancelled" ? await cancelAppointment(id) : await dbSetStatusReturning(id, status);
     return NextResponse.json({ appointment: appt });
   } catch (err) {
     console.error("/api/appointments/status", err);
