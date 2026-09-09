@@ -231,7 +231,6 @@ function TodayCard({ status, t }: { status: Status | null; t: T }) {
           <div className="truncate text-[14px] font-semibold md:text-[15px]">{clinic.doctor.name}</div>
           <div className="truncate text-[11px] text-muted md:text-xs">{clinic.doctor.title}</div>
         </div>
-        <span className="ml-auto shrink-0 rounded-full bg-brand-tint px-2.5 py-1 text-xs font-semibold text-brand" title={`Consultation: ${clinic.currency}${clinic.consultationFee} · Returning: ${clinic.currency}${clinic.returningFee}`}>{clinic.currency}{clinic.consultationFee} · {clinic.currency}{clinic.returningFee}</span>
       </div>
 
       <div className="mt-3.5 grid grid-cols-2 gap-2">
