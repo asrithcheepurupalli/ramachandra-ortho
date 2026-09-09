@@ -8,7 +8,7 @@ export const clinic = {
   name: "Ramachandra Ortho Care & Clinics",
   shortName: "Ramachandra Ortho Care",
   tagline: "Bones, joints and mobility, in careful hands.",
-  url: "https://rcorthocare.made-by-ac.com",
+  url: "https://ramachandraorthocare.com",
   doctor: {
     name: "Dr. M. Ramachandra",
     title: "M.S. (Ortho) · Orthopedic Surgeon & Trauma Care Specialist",
