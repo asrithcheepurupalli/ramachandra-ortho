@@ -8,7 +8,6 @@ import {
   IndianRupee,
   CheckCircle2,
   CalendarDays,
-  Phone,
   Clock,
 } from "lucide-react";
 import { ymd, fmt, windowsFor, allSlotsFor, type Window } from "@/lib/schedule";
@@ -166,17 +165,15 @@ export function CalendarView({ appts }: CalendarViewProps) {
   const slotCard = (appt: Appt) => {
     const meta = STATUS_META[appt.status] ?? STATUS_META.reserved;
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-line bg-white px-3 py-2.5">
-        <span className={`h-2 w-2 shrink-0 rounded-full ${meta.dot}`} />
+      <div className="flex items-start gap-2.5 rounded-xl border border-line bg-white px-3 py-2.5">
+        <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${meta.dot}`} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-ink">{appt.name}</div>
-          <div className="flex items-center gap-2 truncate text-xs text-muted">
-            <span>#{appt.token}</span>
-            <span className="flex items-center gap-0.5">
-              <Phone className="h-3 w-3" />
-              {appt.phone}
-            </span>
-            {appt.age ? <span>· Age {appt.age}</span> : null}
+          <div className="text-sm font-semibold leading-snug text-ink">{appt.name}</div>
+          <div className="mt-0.5 text-xs leading-relaxed text-muted">
+            #{appt.token}
+            <span className="mx-1.5 text-brand/30">|</span>
+            {appt.phone}
+            {appt.age > 0 && <span className="ml-1.5">· Age {appt.age}</span>}
           </div>
         </div>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${meta.chip}`}>
@@ -194,8 +191,8 @@ export function CalendarView({ appts }: CalendarViewProps) {
         {/* Date + day navigation */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-lg font-semibold text-ink md:text-xl">{dayLabel}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-semibold leading-tight text-ink md:text-xl">{dayLabel}</h1>
               {isToday && (
                 <span className="shrink-0 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white">
                   Today

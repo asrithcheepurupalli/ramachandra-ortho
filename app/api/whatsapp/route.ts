@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
         await dbAddBooking({
           name: parsed.name,
           phone: parsed.phone || from,
-          age: typeof parsed.age === "number" ? parsed.age : null,
+          age: typeof parsed.age === "number" ? parsed.age : 0,
           date: parsed.date,
           time: parsed.time,
           source: "whatsapp",

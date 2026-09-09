@@ -165,7 +165,7 @@ function rowToAppt(r: any): Appt {
     token: r.token,
     name: r.name,
     phone: r.phone ?? "",
-    age: r.age ?? null,
+    age: r.age ?? 0,
     date: r.appt_date,
     time: r.appt_time,
     status: r.status,
@@ -186,7 +186,7 @@ function rowToAppt(r: any): Appt {
 
 // A patient booking a specific date + time (from the website or WhatsApp).
 export async function dbAddBooking(input: {
-  name: string; phone: string; age?: number | null; date: string; time: string; source?: Source;
+  name: string; phone: string; age: number; date: string; time: string; source?: Source;
 }): Promise<Appt> {
   const db = supabaseAdmin();
   const name = input.name.trim();
@@ -280,7 +280,7 @@ export async function dbAddBooking(input: {
         patient_code: patientCode,
         name,
         phone,
-        age: input.age ?? null,
+        age: input.age,
         reason: "Consultation",
         appt_date: input.date,
         appt_time: input.time,

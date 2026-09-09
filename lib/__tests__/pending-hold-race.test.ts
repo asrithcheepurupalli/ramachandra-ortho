@@ -34,6 +34,7 @@ const insertedRow = {
   name: "Test Patient",
   phone: "9840000000",
   reason: "Consultation",
+  age: 30,
   appt_date: nextMonday(),
   appt_time: "10:00",
   status: "payment_pending",
@@ -50,7 +51,7 @@ const insertedRow = {
   patient_code: "P0001",
 };
 
-const booking = { name: "Test Patient", phone: "9840000000", reason: "Consultation", date: nextMonday(), time: "10:00" };
+const booking = { name: "Test Patient", phone: "9840000000", age: 30, date: nextMonday(), time: "10:00" };
 
 beforeEach(() => {
   vi.resetModules();

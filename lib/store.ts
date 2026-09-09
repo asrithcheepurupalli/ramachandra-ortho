@@ -23,7 +23,7 @@ export type Appt = {
   token: number;
   name: string;
   phone: string;
-  age: number | null;
+  age: number;
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
   status: ApptStatus;
@@ -105,7 +105,7 @@ const rid = () => Math.random().toString(36).slice(2, 9);
 function seed(): Appt[] {
   const today = ymd(new Date());
   const fee = clinic.consultationFee;
-  const rows: [string, string, number | null, Source, ApptStatus, boolean, "cash" | null][] = [
+  const rows: [string, string, number, Source, ApptStatus, boolean, "cash" | null][] = [
     ["Lakshmi Devi", "9848012345", 62, "website", "done", true, "cash"],
     ["Ravi Teja", "9701123456", 28, "whatsapp", "done", true, "cash"],
     ["Suresh Kumar", "9885234567", 55, "walkin", "done", true, "cash"],
@@ -221,7 +221,7 @@ function write(next: Appt[]) {
 function subscribe(l: () => void) { listeners.add(l); return () => listeners.delete(l); }
 
 // ── public actions ──────────────────────────────────────────────────────────
-export function addWalkIn(input: { name: string; phone: string; age?: number | null; source?: Source }) {
+export function addWalkIn(input: { name: string; phone: string; age: number; source?: Source }) {
   const all = read();
   const today = ymd(new Date());
   const todays = all.filter((a) => a.date === today);
@@ -235,7 +235,7 @@ export function addWalkIn(input: { name: string; phone: string; age?: number | n
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,
-    age: input.age ?? null, date: today,
+    age: input.age, date: today,
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
     source: input.source ?? "walkin", fee, paid: false, paidVia: null,
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
@@ -245,7 +245,7 @@ export function addWalkIn(input: { name: string; phone: string; age?: number | n
   return appt;
 }
 // A patient booking a specific date + time from the website (or WhatsApp).
-export function addBooking(input: { name: string; phone: string; age?: number | null; date: string; time: string; source?: Source }): Appt {
+export function addBooking(input: { name: string; phone: string; age: number; date: string; time: string; source?: Source }): Appt {
   if (isPastLeadTime(input.date, input.time, new Date())) throw new InvalidSlotError();
   const all = read();
   const dayAppts = all.filter((a) => a.date === input.date);
@@ -263,7 +263,7 @@ export function addBooking(input: { name: string; phone: string; age?: number | 
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,
-    age: input.age ?? null, date: input.date, time: input.time,
+    age: input.age, date: input.date, time: input.time,
     status: "payment_pending", source: input.source ?? "website", fee,
     paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
     notes: null, patientCode, paymentDeadlineAt: Date.now() + 30 * 60_000,

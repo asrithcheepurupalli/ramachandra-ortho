@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
   if (typeof name !== "string" || !name.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
   if (normalizePhone(phone).length !== 10) return NextResponse.json({ error: "phone must be a valid 10-digit number" }, { status: 400 });
+  if (typeof age !== "number" || age < 0 || age > 150) return NextResponse.json({ error: "age is required" }, { status: 400 });
   if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
   if (typeof time !== "string" || !/^\d{2}:\d{2}$/.test(time)) return NextResponse.json({ error: "time must be HH:MM" }, { status: 400 });
   if (date < ymd(nowIST())) return NextResponse.json({ error: "That date has already passed" }, { status: 400 });
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     const appt = await dbAddBooking({
       name,
       phone,
-      age: typeof age === "number" ? age : null,
+      age,
       date,
       time,
       source: isSource(source) ? source : "website",

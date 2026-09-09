@@ -35,7 +35,7 @@ export function BookForm() {
   const [daysLoading, setDaysLoading] = useState(true);
   const [selDate, setSelDate] = useState<string | null>(null);
   const [selTime, setSelTime] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", age: null as number | null });
+  const [form, setForm] = useState({ name: "", phone: "", age: 0 as number });
   const [booked, setBooked] = useState<Appt | null>(null);
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -222,7 +222,7 @@ export function BookForm() {
     const gone = (selDay?.taken ?? []).map((time) => ({ time, taken: true }));
     return [...open, ...gone].sort((a, b) => toMin(a.time) - toMin(b.time));
   }, [selDay]);
-  const canBook = !!(selDate && selTime && form.name.trim() && form.phone.trim()) && !submitting;
+  const canBook = !!(selDate && selTime && form.name.trim() && form.phone.trim() && form.age > 0) && !submitting;
 
   const dayLabel = (o: DayOpt, i: number) =>
     i === 0 ? t("book.today") : i === 1 ? t("book.tomorrow") : weekdayName(o.d).slice(0, 3);
@@ -231,6 +231,7 @@ export function BookForm() {
     if (!form.name.trim()) { setErr(t("book.needname")); return; }
     if (!form.phone.trim()) { setErr(t("book.needphone")); return; }
     if (normalizePhone(form.phone).length !== 10) { setErr(t("book.badphone")); return; }
+    if (form.age <= 0 || form.age > 150) { setErr(t("book.needage")); return; }
     if (!selDate || !selTime || submitting) return;
 
     if (hasSupabase()) {
@@ -367,7 +368,7 @@ export function BookForm() {
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}
             <div className="grid grid-cols-1 gap-2">
-              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: null }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
+              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: 0 }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
               <Link href="/" className="press w-full rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
             </div>
           </div>
@@ -549,7 +550,7 @@ export function BookForm() {
             <label htmlFor="book-phone" className="sr-only">{t("book.phone")}</label>
             <input id="book-phone" value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErr(""); }} placeholder={t("book.phone")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-age" className="sr-only">{t("book.age")}</label>
-            <input id="book-age" type="number" value={form.age || ""} onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : null })} placeholder={t("book.age")} min="0" max="150" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+            <input id="book-age" type="number" value={form.age || ""} onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : 0 })} placeholder={t("book.age")} min="1" max="150" required className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
           </div>
           {err && <p id="book-error" role="alert" className="mt-2 text-sm text-out">{err}</p>}
         </div>
