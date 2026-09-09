@@ -242,7 +242,17 @@ export function BookForm() {
           body: JSON.stringify({ ...form, date: selDate, time: selTime, source: "website" }),
         });
         const data = await res.json();
-        if (!res.ok) { setErr(data.error ?? "Could not book. Please try again."); return; }
+        if (!res.ok) {
+          // Pending hold: user already has an unpaid appointment, redirect them to finish paying it
+          if (res.status === 409 && data?.code === "pending_hold") {
+            if (typeof window !== "undefined") {
+              window.location.href = `/my-appointment?phone=${encodeURIComponent(form.phone.trim())}`;
+            }
+            return;
+          }
+          setErr(data.error ?? "Could not book. Please try again.");
+          return;
+        }
         setBooked(data.appointment as Appt);
       } catch {
         setErr("Could not book. Please try again.");
