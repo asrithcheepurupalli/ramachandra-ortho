@@ -208,7 +208,19 @@ export async function POST(req: NextRequest) {
     const newState: WaState = { ...result.state, lastChips: result.chips };
     await dbSaveWaSession(from, lang, newState, wamid);
 
-    await sendReply(from, result.reply.join("\n\n"), result.chips);
+    // The session (and this wamid as processed) is already saved above, so a
+    // send failure here can't be recovered by a Meta retry — a retried
+    // delivery of the same message would just be skipped as a duplicate (see
+    // the lastWamid check above). A booking that already committed inside
+    // botReplyServer (dbAddBooking) would then have gone through with the
+    // patient never told, and no other channel exists to tell them. That's
+    // silent by default, so log loudly with enough to manually follow up on
+    // rather than letting it disappear into the generic catch below.
+    try {
+      await sendReply(from, result.reply.join("\n\n"), result.chips);
+    } catch (err) {
+      console.error("whatsapp: reply send failed after state committed — patient may be un-notified", JSON.stringify({ from, stage: newState.stage }), err);
+    }
 
     return new NextResponse("OK", { status: 200 });
   } catch (err) {

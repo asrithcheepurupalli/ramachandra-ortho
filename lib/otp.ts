@@ -195,7 +195,19 @@ async function dbOtpVerified(phone: string): Promise<boolean> {
 // the old bare-phone-number ownership check stays — the gate must never brick
 // a patient's cancel/reschedule/pay over a missing template. The moment the
 // env var lands, the SIM-proof turns on for every mutation.
-export const otpEnabled = () => Boolean(process.env.META_TEMPLATE_OTP);
+// Warn once per process (not once per call — this runs on every mutation) if
+// this ever evaluates false in prod, since a dropped env var would otherwise
+// silently revert every patient to bare-phone-number trust with no signal
+// anywhere except a missing OTP prompt someone would have to notice by eye.
+let warnedOtpDisabled = false;
+export const otpEnabled = () => {
+  const enabled = Boolean(process.env.META_TEMPLATE_OTP);
+  if (!enabled && process.env.VERCEL_ENV === "production" && !warnedOtpDisabled) {
+    warnedOtpDisabled = true;
+    console.warn("otp: META_TEMPLATE_OTP is not set — OTP verification is DISABLED, falling back to bare-phone-number trust");
+  }
+  return enabled;
+};
 
 export async function requestOtp(phone: string): Promise<string | null> {
   return hasSupabase() ? dbRequestOtp(phone) : memRequestOtp(phone);

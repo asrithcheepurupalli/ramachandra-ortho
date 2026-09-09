@@ -5,27 +5,17 @@ import { dbAddBooking, dbLoadSchedule, dbTakenSlots } from "@/lib/db";
 import { SlotTakenError, PendingHoldError } from "@/lib/errors";
 import { slotsFor, ymd, nowIST } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
+import { isRateLimited } from "@/lib/rate-limit";
 
 type Source = "website" | "whatsapp" | "walkin";
 const isSource = (v: unknown): v is Source => v === "website" || v === "whatsapp" || v === "walkin";
 
-// Best-effort per-instance flood guard — no shared store across serverless
-// instances, so this isn't a hard limit, but it blunts a casual script
-// hammering this public endpoint with junk reservations.
 const RATE_LIMIT = 40;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
-const recentHits = new Map<string, number[]>();
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const hits = (recentHits.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
-  hits.push(now);
-  recentHits.set(key, hits);
-  return hits.length > RATE_LIMIT;
-}
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (isRateLimited(ip)) {
+  if (await isRateLimited(`book:${ip}`, RATE_LIMIT, RATE_WINDOW_MS)) {
     return NextResponse.json({ error: "Too many requests. Please try again in a bit." }, { status: 429 });
   }
 

@@ -1,20 +1,25 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbLookupPatient } from "@/lib/db";
+import { isRateLimited } from "@/lib/rate-limit";
 
-const RATE_LIMIT = 8;
-const RATE_WINDOW_MS = 10 * 60 * 1000;
-const recentHits = new Map<string, number[]>();
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const hits = (recentHits.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
-  hits.push(now);
-  recentHits.set(key, hits);
-  return hits.length > RATE_LIMIT;
-}
+// This is the endpoint that makes patient enumeration possible: it's public,
+// unauthenticated, and returns a real name given a guessed phone number or
+// patient code. Two windows, both DB-backed (shared across instances, unlike
+// the old in-memory Map) — a short burst cap for casual abuse, and a much
+// lower daily cap per IP so a slow, cold-start-spread guessing attempt still
+// gets bounded instead of resetting itself for free every few requests.
+const BURST_LIMIT = 8;
+const BURST_WINDOW_MS = 10 * 60 * 1000;
+const DAILY_LIMIT = 30;
+const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (isRateLimited(ip)) return NextResponse.json({ error: "Too many requests." }, { status: 429 });
+  const [burstLimited, dailyLimited] = await Promise.all([
+    isRateLimited(`lookup:burst:${ip}`, BURST_LIMIT, BURST_WINDOW_MS),
+    isRateLimited(`lookup:daily:${ip}`, DAILY_LIMIT, DAILY_WINDOW_MS),
+  ]);
+  if (burstLimited || dailyLimited) return NextResponse.json({ error: "Too many requests." }, { status: 429 });
 
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }

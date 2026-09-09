@@ -294,6 +294,11 @@ export async function dbAddBooking(input: {
     if (!error) return rowToAppt(row);
     if (error.code !== "23505") throw error;
     if (error.message.includes("appointments_slot_idx")) throw new SlotTakenError();
+    // The application-level check above (lines ~220-228) is a plain
+    // SELECT-then-INSERT and can race two concurrent bookings for the same
+    // phone past it; appointments_pending_hold_idx is the real guard, and a
+    // violation here means we lost that race — same error the pre-check throws.
+    if (error.message.includes("appointments_pending_hold_idx")) throw new PendingHoldError();
     // otherwise a token collision under concurrent inserts: retry with a fresh token
   }
   throw new SlotTakenError();
@@ -366,7 +371,11 @@ export async function dbSetStatusReturning(id: string, status: ApptStatus): Prom
 // duplicate, never-completed links behind). Throws a plain Error — the
 // caller (/api/payments/link) maps that to a 502, distinct from the 404s it
 // already returns for a bad id/phone pair.
-export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promise<string> {
+// A placeholder written into razorpay_payment_link_id while this appointment's
+// real link is being minted — see the claim step below.
+const PAYMENT_LINK_CLAIM = "__creating__";
+
+export async function dbGetOrCreatePaymentLink(id: string, phone: string, attempt = 0): Promise<string> {
   const owned = await dbActiveAppointmentsByPhone(phone, true);
   const appt = owned.find((a) => a.id === id);
   if (!appt) throw new Error("not_found");
@@ -379,12 +388,36 @@ export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promi
     .eq("id", id)
     .single();
   if (error) throw error;
-  if (row.razorpay_payment_link_id && row.razorpay_payment_link_url) {
+  if (row.razorpay_payment_link_id && row.razorpay_payment_link_id !== PAYMENT_LINK_CLAIM && row.razorpay_payment_link_url) {
     return row.razorpay_payment_link_url as string;
   }
 
+  // Two concurrent "Pay now" taps (two devices, or a retried request) could
+  // otherwise both pass the check above and both mint a real Razorpay link —
+  // two live, payable links for one slot, and no guarantee the app ever
+  // records whichever one the patient actually pays. Claim the right to
+  // create it first: only the caller whose UPDATE actually flips a NULL wins.
+  if (row.razorpay_payment_link_id !== PAYMENT_LINK_CLAIM) {
+    const { data: claimed, error: claimErr } = await db
+      .from("appointments")
+      .update({ razorpay_payment_link_id: PAYMENT_LINK_CLAIM })
+      .eq("id", id)
+      .is("razorpay_payment_link_id", null)
+      .select("id")
+      .maybeSingle();
+    if (claimErr) throw claimErr;
+    if (!claimed) return waitForClaimedLink(id, phone, attempt); // lost the race
+  } else {
+    return waitForClaimedLink(id, phone, attempt); // already mid-claim from a prior read
+  }
+
   const link = await createPaymentLink(appt);
-  if (!link) throw new Error("razorpay_unavailable");
+  if (!link) {
+    // Self-heal: release the claim so a retry (the patient tapping "Pay now"
+    // again) isn't permanently blocked by a stuck placeholder.
+    await db.from("appointments").update({ razorpay_payment_link_id: null }).eq("id", id).eq("razorpay_payment_link_id", PAYMENT_LINK_CLAIM);
+    throw new Error("razorpay_unavailable");
+  }
 
   const { error: updateErr } = await db
     .from("appointments")
@@ -393,6 +426,30 @@ export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promi
   if (updateErr) throw updateErr;
 
   return link.short_url;
+}
+
+// Polls briefly for the race's winner to finish minting the link. Bounded to
+// one retry of the whole flow so a winner that crashed mid-claim (leaving the
+// placeholder stuck forever) doesn't wedge the loser in an infinite loop —
+// on the retry, if the placeholder never resolves, the same code path will
+// see it's still stuck and eventually surface an error to the caller.
+async function waitForClaimedLink(id: string, phone: string, attempt: number): Promise<string> {
+  const db = supabaseAdmin();
+  for (let i = 0; i < 10; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const { data: fresh, error } = await db
+      .from("appointments")
+      .select("razorpay_payment_link_id, razorpay_payment_link_url")
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+    if (fresh.razorpay_payment_link_id && fresh.razorpay_payment_link_id !== PAYMENT_LINK_CLAIM && fresh.razorpay_payment_link_url) {
+      return fresh.razorpay_payment_link_url as string;
+    }
+    if (!fresh.razorpay_payment_link_id) break; // the winner's Razorpay call failed and self-healed
+  }
+  if (attempt >= 1) throw new Error("razorpay_unavailable");
+  return dbGetOrCreatePaymentLink(id, phone, attempt + 1);
 }
 
 // Called by the Razorpay webhook on payment_link.paid. Flipping paid also
@@ -405,17 +462,34 @@ export async function dbGetOrCreatePaymentLink(id: string, phone: string): Promi
 // confirmation, and excludes cancelled rows so a webhook that lands after the
 // payment-timeout cron cancelled the hold can never resurrect it (the slot was
 // freed for someone else).
-export async function dbMarkPaidByPaymentLink(paymentLinkId: string, paymentId?: string): Promise<Appt | null> {
+export async function dbMarkPaidByPaymentLink(
+  paymentLinkId: string,
+  paymentId?: string,
+  capturedAmountPaise?: number
+): Promise<Appt | null> {
   const db = supabaseAdmin();
   // Read the row first so a non-payment_pending status is preserved on the
   // write rather than force-downgraded to reserved.
   const { data: row, error: readErr } = await db
     .from("appointments")
-    .select("id, status")
+    .select("id, status, fee")
     .eq("razorpay_payment_link_id", paymentLinkId)
     .maybeSingle();
   if (readErr) throw readErr;
   if (!row || row.status === "cancelled") return null;
+
+  // The link was created for exactly row.fee (see createPaymentLink), so the
+  // captured amount should always match it in paise. Never block on a
+  // mismatch — the money already moved at Razorpay, and refusing to record
+  // it here would just leave a paying patient stuck with no visible booking
+  // while the clinic still has the cash — but log loudly so staff can catch
+  // a tampered/duplicated link or a fee that changed after the link issued.
+  if (typeof capturedAmountPaise === "number" && capturedAmountPaise !== row.fee * 100) {
+    console.error(
+      "payments/webhook: captured amount does not match appointment fee",
+      JSON.stringify({ paymentLinkId, paymentId, capturedAmountPaise, expectedPaise: row.fee * 100 })
+    );
+  }
 
   const status = row.status === "payment_pending" ? "reserved" : row.status;
   const { data, error } = await db
@@ -528,7 +602,17 @@ export async function dbLoadWaSession(
 
   let state = (data.state as ServerBotState) ?? { stage: "idle" };
   const age = Date.now() - new Date(data.updated_at).getTime();
-  if (state.stage !== "idle" && state.stage !== "await_lang" && age > SESSION_STALE_MS) state = { stage: "idle" };
+  // The day/window/range picker parks its progress under stage "idle" (see
+  // BotState.pendingDate's own comment in lib/bot.ts) — a bare stage check
+  // here missed that, so a patient who tapped a day chip and vanished for
+  // days would come back to the bot silently replaying availability against
+  // that long-past date (empty slots, or a confusing "Today"/"Tomorrow"
+  // label for a date that's neither) instead of starting fresh. Anything
+  // beyond bare idle counts as mid-flow for staleness purposes.
+  const midFlow =
+    (state.stage !== "idle" && state.stage !== "await_lang") ||
+    Boolean(state.pendingDate || state.pendingWindow || state.pendingRange || state.resched || state.slot);
+  if (midFlow && age > SESSION_STALE_MS) state = { stage: "idle" };
 
   return { lang: (data.lang as Lang) ?? "en", state, lastWamid: data.last_wamid ?? null };
 }

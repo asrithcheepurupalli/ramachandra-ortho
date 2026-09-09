@@ -22,9 +22,10 @@ export async function POST(req: NextRequest) {
 
     const paymentLinkId: string | undefined = payload?.payload?.payment_link?.entity?.id;
     const paymentId: string | undefined = payload?.payload?.payment?.entity?.id;
+    const capturedAmountPaise: number | undefined = payload?.payload?.payment?.entity?.amount;
     if (!paymentLinkId) return new NextResponse("OK", { status: 200 });
 
-    const appt = await dbMarkPaidByPaymentLink(paymentLinkId, paymentId);
+    const appt = await dbMarkPaidByPaymentLink(paymentLinkId, paymentId, capturedAmountPaise);
     if (appt) {
       try { await sendPaymentReceived(appt); } catch (err) { console.error("payments/webhook: notify failed", err); }
     } else {

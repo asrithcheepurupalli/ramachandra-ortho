@@ -351,6 +351,27 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
     if (!window.confirm(`Cancel Token #${a.token} (${a.name})? This sends them a WhatsApp cancellation notice right away and can't be undone.`)) return;
     changeStatus(a.id, "cancelled", a.status, patch);
   };
+  // Refunds are manual by clinic policy (see lib/refunds.ts) — this just
+  // records a refund already issued from the Razorpay dashboard, so the desk
+  // has a way to close the loop instead of a paid+cancelled row sitting
+  // there forever with no record of the money going back out.
+  const recordRefund = () => {
+    const refundId = window.prompt(`Razorpay refund ID for Token #${a.token} (${a.name})?\n\nOnly enter this after the refund is already issued from the Razorpay dashboard.`);
+    if (!refundId || !refundId.trim()) return;
+    const prevRefundedAt = a.refundedAt;
+    patch(a.id, { refundedAt: Date.now(), refundId: refundId.trim() });
+    fetch("/api/appointments/refund", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: a.id, refundId: refundId.trim() }),
+    })
+      .then((res) => { if (!res.ok) throw new Error(String(res.status)); })
+      .catch((err) => {
+        console.error("admin: could not record refund", err);
+        patch(a.id, { refundedAt: prevRefundedAt, refundId: a.refundId });
+        window.alert("Could not save the refund record — please try again.");
+      });
+  };
   return (
     <li className={`flex items-center gap-3 px-5 py-3 ${a.status === "consulting" ? "bg-in/[0.04]" : ""}`}>
       <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg font-mono text-sm font-semibold ${a.status === "done" ? "bg-muted/10 text-muted" : "bg-brand text-white"}`}>{a.token}</div>
@@ -372,6 +393,8 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
             and refunded rows are static (refunds are the only reversal). */}
         {a.refundedAt != null ? (
           <span title={`Refunded${a.refundId ? " · " + a.refundId : ""}`} className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Refunded</span>
+        ) : a.paid && a.paidVia === "razorpay" && a.status === "cancelled" ? (
+          <button onClick={recordRefund} title="Record a refund already issued from the Razorpay dashboard" className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100">Mark refunded</button>
         ) : a.paid && a.paidVia === "razorpay" ? (
           <span title="Paid online via payment link. Cannot be un-marked at the desk." className="shrink-0 rounded-full bg-in/15 px-2 py-0.5 text-[11px] font-medium text-in">Paid online</span>
         ) : a.paid ? (
