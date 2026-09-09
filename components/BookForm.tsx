@@ -35,7 +35,7 @@ export function BookForm() {
   const [daysLoading, setDaysLoading] = useState(true);
   const [selDate, setSelDate] = useState<string | null>(null);
   const [selTime, setSelTime] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", reason: "" });
+  const [form, setForm] = useState({ name: "", phone: "", age: null as number | null });
   const [booked, setBooked] = useState<Appt | null>(null);
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -367,7 +367,7 @@ export function BookForm() {
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}
             <div className="grid grid-cols-1 gap-2">
-              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", reason: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
+              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: null }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
               <Link href="/" className="press w-full rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
             </div>
           </div>
@@ -548,8 +548,8 @@ export function BookForm() {
             <input id="book-name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErr(""); }} placeholder={t("book.name")} readOnly={people === "returning" && !!matched} aria-describedby={err ? "book-error" : undefined} aria-invalid={!!err} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface read-only:opacity-70" />
             <label htmlFor="book-phone" className="sr-only">{t("book.phone")}</label>
             <input id="book-phone" value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErr(""); }} placeholder={t("book.phone")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
-            <label htmlFor="book-reason" className="sr-only">{t("book.reason")}</label>
-            <input id="book-reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder={t("book.reason")} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+            <label htmlFor="book-age" className="sr-only">{t("book.age")}</label>
+            <input id="book-age" type="number" value={form.age || ""} onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : null })} placeholder={t("book.age")} min="0" max="150" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
           </div>
           {err && <p id="book-error" role="alert" className="mt-2 text-sm text-out">{err}</p>}
         </div>

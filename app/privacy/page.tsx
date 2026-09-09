@@ -19,7 +19,7 @@ const waLink = (msg: string) =>
 
 // Bump this whenever the policy text below actually changes — it's the only
 // place the "last updated" date lives, so it can't drift from the content.
-const LAST_UPDATED = new Date("2026-09-02");
+const LAST_UPDATED = new Date("2026-09-09");
 const lastUpdatedLabel = LAST_UPDATED.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
       <div className="mt-2">
         <Section title="What we collect">
           <p>Your name and phone number, whenever you book, whether on this website, on WhatsApp, or through the WhatsApp appointment form.</p>
-          <p>Your reason for visit, and anything you choose to share under &ldquo;anything the doctor should know.&rdquo;</p>
+          <p>Your age (optional), and anything you choose to share under &ldquo;anything the doctor should know.&rdquo;</p>
           <p>The messages you send us on WhatsApp, so our assistant and our front desk can reply and help with your booking.</p>
         </Section>
 

@@ -165,7 +165,7 @@ function rowToAppt(r: any): Appt {
     token: r.token,
     name: r.name,
     phone: r.phone ?? "",
-    reason: r.reason,
+    age: r.age ?? null,
     date: r.appt_date,
     time: r.appt_time,
     status: r.status,
@@ -186,7 +186,7 @@ function rowToAppt(r: any): Appt {
 
 // A patient booking a specific date + time (from the website or WhatsApp).
 export async function dbAddBooking(input: {
-  name: string; phone: string; reason: string; date: string; time: string; source?: Source;
+  name: string; phone: string; age?: number | null; date: string; time: string; source?: Source;
 }): Promise<Appt> {
   const db = supabaseAdmin();
   const name = input.name.trim();
@@ -280,7 +280,8 @@ export async function dbAddBooking(input: {
         patient_code: patientCode,
         name,
         phone,
-        reason: input.reason.trim() || "Consultation",
+        age: input.age ?? null,
+        reason: "Consultation",
         appt_date: input.date,
         appt_time: input.time,
         status: "payment_pending",
@@ -559,6 +560,30 @@ export async function dbMarkDoctorDigestSent(date: string): Promise<boolean> {
   if (!error) return true;
   if (error.code === "23505") return false; // unique violation — already sent today
   throw error;
+}
+
+// The session-digest cron's idempotency guard — a conditional insert keyed on
+// (date, window_start) so overlapping ticks or a GitHub Actions retry can never
+// send the same session's digest twice. Returns whether THIS caller inserted
+// the row — the caller sends only then.
+export async function dbMarkSessionDigestSent(date: string, windowStart: string): Promise<boolean> {
+  const { error } = await supabaseAdmin()
+    .from("session_digest_sent")
+    .insert({ date, window_start: windowStart });
+  if (!error) return true;
+  if (error.code === "23505") return false; // already sent for this session
+  throw error;
+}
+
+// A transient Resend failure shouldn't lose a session's digest forever — clear
+// the marker so the next tick retries within the pre-session lead window.
+export async function dbClearSessionDigestSent(date: string, windowStart: string): Promise<void> {
+  const { error } = await supabaseAdmin()
+    .from("session_digest_sent")
+    .delete()
+    .eq("date", date)
+    .eq("window_start", windowStart);
+  if (error) throw error;
 }
 
 export async function dbLoadSchedule(): Promise<SchedState> {

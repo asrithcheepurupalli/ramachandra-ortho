@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { name, phone, reason, date, time, source } = body ?? {};
+  const { name, phone, age, date, time, source } = body ?? {};
   if (typeof name !== "string" || !name.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
   if (normalizePhone(phone).length !== 10) return NextResponse.json({ error: "phone must be a valid 10-digit number" }, { status: 400 });
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     const appt = await dbAddBooking({
       name,
       phone,
-      reason: typeof reason === "string" ? reason : "",
+      age: typeof age === "number" ? age : null,
       date,
       time,
       source: isSource(source) ? source : "website",

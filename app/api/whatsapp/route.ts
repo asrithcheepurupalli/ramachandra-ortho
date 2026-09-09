@@ -7,6 +7,7 @@ import { dbAddBooking, dbTakenSlots, dbTakenSlotsRange, dbLoadSchedule, dbLoadWa
 import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowPayPrompt, flowPayNowLabel, type Backend, type ServerBotState } from "@/lib/bot";
 import { nowIST, ymd } from "@/lib/schedule";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
+import { sendRescheduledEmail } from "@/lib/mailer";
 import { SlotTakenError, PendingHoldError } from "@/lib/errors";
 
 const backend: Backend = {
@@ -19,7 +20,8 @@ const backend: Backend = {
   // a moved booking too).
   reschedule: async (id, date, time) => {
     const appt = await dbRescheduleAppointment(id, date, time);
-    try { await sendBookingConfirmation(appt); } catch (err) { console.error("whatsapp reschedule: notify failed", err); }
+    try { await sendBookingConfirmation(appt); } catch (err) { console.error("whatsapp reschedule: WhatsApp notify failed", err); }
+    try { await sendRescheduledEmail(appt); } catch (err) { console.error("whatsapp reschedule: email notify failed", err); }
     return appt;
   },
 };
@@ -105,7 +107,7 @@ export async function POST(req: NextRequest) {
         await dbAddBooking({
           name: parsed.name,
           phone: parsed.phone || from,
-          reason: parsed.reason,
+          age: typeof parsed.age === "number" ? parsed.age : null,
           date: parsed.date,
           time: parsed.time,
           source: "whatsapp",

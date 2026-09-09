@@ -24,6 +24,7 @@ import {
   dbLoadScheduleClient, dbSaveScheduleClient, dbSetAvailabilityOverride,
   useDbScheduleTick,
 } from "@/lib/admin-db";
+import { CalendarView } from "@/components/admin/CalendarView";
 
 type Patch = (id: string, p: Partial<Appt>) => void;
 
@@ -58,8 +59,18 @@ function changePaid(id: string, current: Pick<Appt, "paid" | "paidVia">, patch: 
   }
   else togglePaid(id);
 }
-async function addWalkInAny(f: { name: string; phone: string; reason: string }): Promise<{ token: number }> {
-  return hasSupabase() ? dbAddWalkIn(f) : addWalkIn(f);
+async function addWalkInAny(f: { name: string; phone: string; age?: number | null }): Promise<Appt> {
+  const appt = hasSupabase() ? await dbAddWalkIn(f) : await addWalkIn(f);
+  // Fire-and-forget email to the clinic for desk walk-ins. Online/WhatsApp
+  // bookings get their notice from the payment webhook; walk-ins need this.
+  if (hasSupabase()) {
+    fetch("/api/admin/notify-new", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: appt.token, name: appt.name, phone: appt.phone, date: appt.date, time: appt.time, fee: appt.fee, patientCode: appt.patientCode }),
+    }).catch(() => {});
+  }
+  return appt;
 }
 
 // Only relevant in DB mode — mock mode has no Supabase session to sign out
@@ -69,12 +80,13 @@ async function signOutStaff() {
   window.location.href = "/login";
 }
 
-type Tab = "today" | "schedule" | "patients" | "revenue";
+type Tab = "today" | "schedule" | "calendar" | "patients" | "revenue";
 const money = (n: number) => `${clinic.currency}${n.toLocaleString("en-IN")}`;
 
 const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: "today", label: "Today", icon: LayoutDashboard },
   { id: "schedule", label: "Schedule", icon: CalendarCog },
+  { id: "calendar", label: "Calendar", icon: CalendarOff },
   { id: "patients", label: "Patients", icon: Users },
   { id: "revenue", label: "Revenue", icon: IndianRupee },
 ];
@@ -143,13 +155,15 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="p-4 md:p-8">
+        <div className={`${tab === "calendar" ? "p-0" : "p-4 md:p-8"}`}>
           {!mounted || !scheduleLoaded ? (
-            <div className="text-sm text-muted">Loading…</div>
+            <div className="text-sm text-muted p-4 md:p-8">Loading…</div>
           ) : tab === "today" ? (
             <Today appts={appts} patch={patchAppt} />
           ) : tab === "schedule" ? (
             <Schedule />
+          ) : tab === "calendar" ? (
+            <div className="p-4 md:p-8"><CalendarView appts={appts} /></div>
           ) : tab === "patients" ? (
             <Patients appts={appts} />
           ) : (
@@ -382,7 +396,7 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${statusMeta[a.status].cls}`}>{statusMeta[a.status].label}</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted">
-          <span>{fmt(a.time)}</span> · <span className="inline-flex items-center gap-1"><S.icon className="h-3 w-3" />{S.label}</span> · <span className="truncate">{a.reason}</span>
+          <span>{fmt(a.time)}</span> · <span className="inline-flex items-center gap-1"><S.icon className="h-3 w-3" />{S.label}</span>{a.age && ` · Age ${a.age}`}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
@@ -417,14 +431,14 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
 }
 
 function WalkIn() {
-  const [f, setF] = useState({ name: "", phone: "", reason: "" });
+  const [f, setF] = useState({ name: "", phone: "", age: null as number | null });
   const [done, setDone] = useState<null | number>(null);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.name.trim()) return;
     try {
       const a = await addWalkInAny(f);
-      setDone(a.token); setF({ name: "", phone: "", reason: "" });
+      setDone(a.token); setF({ name: "", phone: "", age: null });
       setTimeout(() => setDone(null), 3000);
     } catch (err) {
       console.error("admin: could not add walk-in", err);
@@ -437,7 +451,7 @@ function WalkIn() {
       <form onSubmit={submit} className="mt-3 space-y-2">
         <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Patient name" className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
         <input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="Phone (optional)" inputMode="tel" className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
-        <input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="Reason (e.g. knee pain)" className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
+        <input type="number" value={f.age || ""} onChange={(e) => setF({ ...f, age: e.target.value ? +e.target.value : null })} placeholder="Age (optional)" min="0" max="150" className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
         <button className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand py-2.5 text-sm font-semibold text-white hover:bg-brand-dark"><Plus className="h-4 w-4" /> Add to queue</button>
       </form>
       {done && <div className="mt-2 rounded-lg bg-in/10 px-3 py-2 text-sm text-in">Added · token <b>#{done}</b> issued.</div>}
@@ -746,7 +760,7 @@ function Patients({ appts }: { appts: Appt[] }) {
                 <span className="truncate font-medium">{p.name}</span>
                 {p.last.patientCode && <span className="font-mono text-[11px] text-muted">{p.last.patientCode}</span>}
               </div>
-              <div className="text-xs text-muted">{p.phone || "no phone"} · last: {p.last.reason}</div>
+              <div className="text-xs text-muted">{p.phone || "no phone"}{p.last.age && ` · age ${p.last.age}`}</div>
             </div>
             <span className="rounded-full bg-brand-tint px-2.5 py-1 text-xs font-medium text-brand">{p.visits} visit{p.visits > 1 ? "s" : ""}</span>
             {p.phone && <InviteButton phone={p.phone} />}

@@ -18,65 +18,9 @@
             "id": "APPOINTMENT",
             "title": "Book appointment",
             "data": {
-                "reason": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": {
-                                "type": "string"
-                            },
-                            "title": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "__example__": [
-                        {
-                            "id": "general",
-                            "title": "General consultation"
-                        },
-                        {
-                            "id": "fracture",
-                            "title": "Fracture management"
-                        },
-                        {
-                            "id": "knee",
-                            "title": "Knee replacement"
-                        },
-                        {
-                            "id": "hip",
-                            "title": "Hip replacement"
-                        },
-                        {
-                            "id": "spine",
-                            "title": "Spinal injuries"
-                        },
-                        {
-                            "id": "sports",
-                            "title": "Sports injury"
-                        },
-                        {
-                            "id": "trauma",
-                            "title": "Trauma care"
-                        },
-                        {
-                            "id": "rheum",
-                            "title": "Rheumatology"
-                        },
-                        {
-                            "id": "physio",
-                            "title": "Physiotherapy"
-                        },
-                        {
-                            "id": "xray",
-                            "title": "Digital X-ray"
-                        },
-                        {
-                            "id": "other",
-                            "title": "Something else"
-                        }
-                    ]
+                "age": {
+                    "type": "number",
+                    "__example__": 35
                 },
                 "date": {
                     "type": "array",
@@ -179,11 +123,11 @@
                         "name": "appointment_form",
                         "children": [
                             {
-                                "type": "Dropdown",
-                                "label": "Reason for visit",
-                                "name": "reason",
-                                "data-source": "${data.reason}",
-                                "required": true
+                                "type": "TextInput",
+                                "label": "Age (optional)",
+                                "name": "age",
+                                "input-type": "number",
+                                "required": false
                             },
                             {
                                 "type": "Dropdown",
@@ -194,7 +138,7 @@
                                 "on-select-action": {
                                     "name": "data_exchange",
                                     "payload": {
-                                        "reason": "${form.reason}",
+                                        "age": "${form.age}",
                                         "date": "${form.date}"
                                     }
                                 }
@@ -217,7 +161,7 @@
                                         "name": "DETAILS"
                                     },
                                     "payload": {
-                                        "reason": "${form.reason}",
+                                        "age": "${form.age}",
                                         "date": "${form.date}",
                                         "time": "${form.time}"
                                     }
@@ -232,9 +176,9 @@
             "id": "DETAILS",
             "title": "Your details",
             "data": {
-                "reason": {
-                    "type": "string",
-                    "__example__": "knee"
+                "age": {
+                    "type": "number",
+                    "__example__": 35
                 },
                 "date": {
                     "type": "string",
@@ -282,7 +226,7 @@
                                         "name": "TERMS"
                                     },
                                     "payload": {
-                                        "reason": "${data.reason}",
+                                        "age": "${data.age}",
                                         "date": "${data.date}",
                                         "time": "${data.time}",
                                         "name": "${form.name}",
@@ -301,9 +245,9 @@
             "title": "Confirm",
             "terminal": true,
             "data": {
-                "reason": {
-                    "type": "string",
-                    "__example__": "Knee replacement"
+                "age": {
+                    "type": "number",
+                    "__example__": 35
                 },
                 "date": {
                     "type": "string",
@@ -339,7 +283,7 @@
                             },
                             {
                                 "type": "TextBody",
-                                "text": "${data.reason}\nPreferred: ${data.date}, ${data.time}"
+                                "text": "Preferred: ${data.date}, ${data.time}"
                             },
                             {
                                 "type": "TextHeading",
@@ -359,7 +303,7 @@
                                 "on-click-action": {
                                     "name": "complete",
                                     "payload": {
-                                        "reason": "${data.reason}",
+                                        "age": "${data.age}",
                                         "date": "${data.date}",
                                         "time": "${data.time}",
                                         "name": "${data.name}",
@@ -377,9 +321,9 @@
             "id": "TERMS",
             "title": "Appointment policy",
             "data": {
-                "reason": {
-                    "type": "string",
-                    "__example__": "Knee replacement"
+                "age": {
+                    "type": "number",
+                    "__example__": 35
                 },
                 "date": {
                     "type": "string",
@@ -429,7 +373,7 @@
                                 "name": "SUMMARY"
                             },
                             "payload": {
-                                "reason": "${data.reason}",
+                                "age": "${data.age}",
                                 "date": "${data.date}",
                                 "time": "${data.time}",
                                 "name": "${data.name}",

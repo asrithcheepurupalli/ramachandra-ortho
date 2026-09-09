@@ -15,11 +15,8 @@ import { verifySignature } from "@/lib/meta-whatsapp";
 import { decryptFlowRequest, encryptFlowResponse } from "@/lib/whatsapp-flow-crypto";
 import { dbTakenSlots, dbLoadSchedule } from "@/lib/db";
 import { slotsFor, ymd, fmt, nowIST, type SchedState } from "@/lib/schedule";
-import { serviceGroups } from "@/lib/services";
 
 const DAYS_AHEAD = 14;
-
-const reasonOptions = serviceGroups.flatMap((g) => g.items.map((s) => ({ id: s.name, title: s.name })));
 
 async function liveOpenDates(sched: SchedState): Promise<{ id: string; title: string }[]> {
   const out: { id: string; title: string }[] = [];
@@ -92,7 +89,7 @@ export async function POST(req: NextRequest) {
       return encryptedReply(
         {
           screen: "APPOINTMENT",
-          data: { reason: reasonOptions, date: await liveOpenDates(sched), time: [], time_enabled: false },
+          data: { date: await liveOpenDates(sched), time: [], time_enabled: false },
         },
         aesKey,
         iv
@@ -109,7 +106,7 @@ export async function POST(req: NextRequest) {
         return encryptedReply(
           {
             screen: "APPOINTMENT",
-            data: { reason: reasonOptions, date: dateOptions, time: [], time_enabled: false },
+            data: { date: dateOptions, time: [], time_enabled: false },
             error_message: "No slots left that day — please pick another date.",
           },
           aesKey,
@@ -117,7 +114,7 @@ export async function POST(req: NextRequest) {
         );
       }
       return encryptedReply(
-        { screen: "APPOINTMENT", data: { reason: reasonOptions, date: dateOptions, time, time_enabled: time.length > 0 } },
+        { screen: "APPOINTMENT", data: { date: dateOptions, time, time_enabled: time.length > 0 } },
         aesKey,
         iv
       );

@@ -19,7 +19,7 @@ const waLink = (msg: string) =>
 
 // Bump this whenever the terms text below actually changes, same convention
 // as app/privacy/page.tsx's LAST_UPDATED.
-const LAST_UPDATED = new Date("2026-09-07");
+const LAST_UPDATED = new Date("2026-09-09");
 const lastUpdatedLabel = LAST_UPDATED.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -75,7 +75,7 @@ export default function TermsPage() {
         </Section>
 
         <Section title="Your responsibilities">
-          <p>Give us accurate contact details and reason for visit, so we can reach you and the doctor is prepared.</p>
+          <p>Give us accurate contact details and age if you choose to share it, so we can reach you and the doctor is prepared.</p>
           <p>Don&rsquo;t use this site or our WhatsApp number to send abusive, fraudulent or spam messages, or to book tokens you don&rsquo;t intend to use.</p>
         </Section>
 

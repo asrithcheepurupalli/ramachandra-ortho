@@ -23,7 +23,7 @@ export type Appt = {
   token: number;
   name: string;
   phone: string;
-  reason: string;
+  age: number | null;
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
   status: ApptStatus;
@@ -105,17 +105,17 @@ const rid = () => Math.random().toString(36).slice(2, 9);
 function seed(): Appt[] {
   const today = ymd(new Date());
   const fee = clinic.consultationFee;
-  const rows: [string, string, string, Source, ApptStatus, boolean, "cash" | null][] = [
-    ["Lakshmi Devi", "9848012345", "Knee pain, difficulty walking", "website", "done", true, "cash"],
-    ["Ravi Teja", "9701123456", "Fracture follow-up (left wrist)", "whatsapp", "done", true, "cash"],
-    ["Suresh Kumar", "9885234567", "Lower back pain", "walkin", "done", true, "cash"],
-    ["Anjali Rao", "9963345678", "Post-op knee review", "website", "consulting", true, "cash"],
-    ["Md. Imran", "9848456789", "Shoulder dislocation", "whatsapp", "waiting", false, null],
-    ["Padma Sri", "9701567890", "Ankle sprain, sports injury", "walkin", "waiting", false, null],
-    ["Venkata Rao", "9885678901", "Hip pain, elderly", "website", "waiting", false, null],
-    ["Kavya Reddy", "9963789012", "Neck stiffness", "whatsapp", "reserved", false, null],
-    ["Ganesh Babu", "9848890123", "Cast removal", "walkin", "reserved", false, null],
-    ["Sita Mahalakshmi", "9701901234", "Rheumatoid arthritis review", "website", "reserved", false, null],
+  const rows: [string, string, number | null, Source, ApptStatus, boolean, "cash" | null][] = [
+    ["Lakshmi Devi", "9848012345", 62, "website", "done", true, "cash"],
+    ["Ravi Teja", "9701123456", 28, "whatsapp", "done", true, "cash"],
+    ["Suresh Kumar", "9885234567", 55, "walkin", "done", true, "cash"],
+    ["Anjali Rao", "9963345678", 41, "website", "consulting", true, "cash"],
+    ["Md. Imran", "9848456789", 35, "whatsapp", "waiting", false, null],
+    ["Padma Sri", "9701567890", 23, "walkin", "waiting", false, null],
+    ["Venkata Rao", "9885678901", 78, "website", "waiting", false, null],
+    ["Kavya Reddy", "9963789012", 32, "whatsapp", "reserved", false, null],
+    ["Ganesh Babu", "9848890123", 45, "walkin", "reserved", false, null],
+    ["Sita Mahalakshmi", "9701901234", 68, "website", "reserved", false, null],
   ];
   const times = ["09:30", "09:50", "10:05", "10:20", "10:35", "10:50", "11:10", "11:30", "11:50", "12:10"];
   // Register each seed patient in the registry so the returning lookup + fee
@@ -129,7 +129,7 @@ function seed(): Appt[] {
   };
   savePatients(reg);
   return rows.map((r, i) => ({
-    id: rid(), token: i + 1, name: r[0], phone: r[1], reason: r[2], date: today,
+    id: rid(), token: i + 1, name: r[0], phone: r[1], age: r[2], date: today,
     time: times[i], status: r[4], source: r[3], fee, paid: r[5], paidVia: r[6],
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now() - (10 - i) * 6e5,
     notes: null, patientCode: codeFor(r[1], r[0]), paymentDeadlineAt: null,
@@ -221,7 +221,7 @@ function write(next: Appt[]) {
 function subscribe(l: () => void) { listeners.add(l); return () => listeners.delete(l); }
 
 // ── public actions ──────────────────────────────────────────────────────────
-export function addWalkIn(input: { name: string; phone: string; reason: string; source?: Source }) {
+export function addWalkIn(input: { name: string; phone: string; age?: number | null; source?: Source }) {
   const all = read();
   const today = ymd(new Date());
   const todays = all.filter((a) => a.date === today);
@@ -235,7 +235,7 @@ export function addWalkIn(input: { name: string; phone: string; reason: string; 
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,
-    reason: input.reason.trim() || "Consultation", date: today,
+    age: input.age ?? null, date: today,
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
     source: input.source ?? "walkin", fee, paid: false, paidVia: null,
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
@@ -245,7 +245,7 @@ export function addWalkIn(input: { name: string; phone: string; reason: string; 
   return appt;
 }
 // A patient booking a specific date + time from the website (or WhatsApp).
-export function addBooking(input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }): Appt {
+export function addBooking(input: { name: string; phone: string; age?: number | null; date: string; time: string; source?: Source }): Appt {
   if (isPastLeadTime(input.date, input.time, new Date())) throw new InvalidSlotError();
   const all = read();
   const dayAppts = all.filter((a) => a.date === input.date);
@@ -263,7 +263,7 @@ export function addBooking(input: { name: string; phone: string; reason: string;
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,
-    reason: input.reason.trim() || "Consultation", date: input.date, time: input.time,
+    age: input.age ?? null, date: input.date, time: input.time,
     status: "payment_pending", source: input.source ?? "website", fee,
     paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
     notes: null, patientCode, paymentDeadlineAt: Date.now() + 30 * 60_000,

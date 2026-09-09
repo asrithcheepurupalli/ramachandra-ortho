@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbMarkPaidByPaymentLink } from "@/lib/db";
 import { sendPaymentReceived } from "@/lib/meta-whatsapp";
+import { sendNewAppointmentEmail } from "@/lib/mailer";
 import { verifyWebhookSignature } from "@/lib/razorpay";
 
 export async function POST(req: NextRequest) {
@@ -27,7 +28,8 @@ export async function POST(req: NextRequest) {
 
     const appt = await dbMarkPaidByPaymentLink(paymentLinkId, paymentId, capturedAmountPaise);
     if (appt) {
-      try { await sendPaymentReceived(appt); } catch (err) { console.error("payments/webhook: notify failed", err); }
+      try { await sendPaymentReceived(appt); } catch (err) { console.error("payments/webhook: WhatsApp notify failed", err); }
+      try { await sendNewAppointmentEmail(appt); } catch (err) { console.error("payments/webhook: email notify failed", err); }
     } else {
       // Money was captured at Razorpay but no payment_pending row matched.
       // Either a duplicate delivery (already paid — harmless) or the clinic's

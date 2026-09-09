@@ -670,7 +670,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     if (hasSupabase()) {
       return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name } };
     }
-    const appt = addBooking({ name, phone: "", reason: source === "website" ? "Booked via RC (site chat)" : "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
+    const appt = addBooking({ name, phone: "", date: state.slot.date, time: state.slot.time, source });
     // Carry viewPhone ("" in mock) so the Pay now chip that follows resolves
     // the just-created payment_pending hold without re-asking for a number.
     return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: appt.phone } };
@@ -688,7 +688,6 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         body: JSON.stringify({
           name: state.name || "Patient",
           phone: input.trim(),
-          reason: source === "website" ? "Booked via RC (site chat)" : "WhatsApp booking",
           date: state.slot.date,
           time: state.slot.time,
           source,
@@ -940,7 +939,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 // untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 export type Backend = {
-  addBooking: (input: { name: string; phone: string; reason: string; date: string; time: string; source?: Source }) => Promise<Appt>;
+  addBooking: (input: { name: string; phone: string; date: string; time: string; source?: Source }) => Promise<Appt>;
   takenSlots: (date: string) => Promise<string[]>;
   // includePending adds payment_pending rows — the pay intent needs them, the
   // view/reschedule intents don't (an unpaid booking isn't confirmed yet).
@@ -1164,7 +1163,7 @@ export async function botReplyServer(
       bookPhone = digits;
     }
     try {
-      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, reason: "WhatsApp booking", date: state.slot.date, time: state.slot.time, source });
+      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, date: state.slot.date, time: state.slot.time, source });
       // The booking is done — offer to settle the fee right here, so the
       // patient doesn't have to know a "pay" keyword exists or find the My
       // Appointment page. The chip routes into the shared pay intent below.

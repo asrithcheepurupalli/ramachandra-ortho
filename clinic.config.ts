@@ -26,6 +26,7 @@ export const clinic = {
     landline: "+918913541573",
     emergency: "+919441156566", // emergency-only, label it as such wherever shown
     email: "care@ramachandraortho.in",
+    adminEmail: "admin@ramachandraorthocare.com", // email notifications + digests
   },
 
   location: {
