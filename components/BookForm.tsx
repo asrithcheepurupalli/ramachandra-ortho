@@ -301,7 +301,7 @@ export function BookForm() {
               clearResume();
               setPayErr(data.error ?? t("myappt.payerror"));
             } else {
-              setPayErr(data.error ?? t("myappt.payerror"));
+              setPayErr(data.error ?? "Could not get payment link. Tap Pay now to try again.");
             }
             setPayBusy(false);
             return;
