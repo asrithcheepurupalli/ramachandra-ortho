@@ -1,9 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Payment timeout for mandatory-online-payment bookings. New bookings start as
-// payment_pending with their slot held for 30 minutes (the Razorpay payment
-// link carries the same 30-minute expire_by). A patient who never pays leaves
+// payment_pending with their slot held for 15 minutes (the Razorpay payment
+// link carries the same 15-minute expire_by). A patient who never pays leaves
 // the slot locked forever, so a cron POSTs here every 5 minutes and cancels any
-// payment_pending row older than 30 minutes, freeing its slot for someone else.
+// payment_pending row older than 15 minutes, freeing its slot for someone else.
 //
 // No WhatsApp cancellation notice is sent: the patient never had a confirmed
 // appointment (the row was never shown as active anywhere), and a "your slot
@@ -20,7 +20,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-const PAYMENT_WINDOW_MS = 30 * 60 * 1000;
+const PAYMENT_WINDOW_MS = 15 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -70,5 +70,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ status: "ok", windowMinutes: 30, cancelled });
+  return NextResponse.json({ status: "ok", windowMinutes: 15, cancelled });
 }

@@ -4,7 +4,7 @@
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbTakenSlots, dbTakenSlotsRange, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
-import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowPayPrompt, flowPayNowLabel, type Backend, type ServerBotState } from "@/lib/bot";
+import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, type Backend, type ServerBotState } from "@/lib/bot";
 import { nowIST, ymd } from "@/lib/schedule";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail } from "@/lib/mailer";
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
           time: parsed.time,
           source: "whatsapp",
         });
-        // No confirmation template until payment lands. The slot is held 30
+        // No confirmation template until payment lands. The slot is held 15
         // minutes as payment_pending, so all we send now is the mandatory pay
         // prompt with a REAL Pay now button (same interactive-reply path the
         // conversational bot chips use), letting the patient tap rather than
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
         try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); }
       } catch (err) {
         try {
-          if (err instanceof PendingHoldError) await sendText(from, flowPendingHoldMsg(lang));
+          if (err instanceof PendingHoldError) await sendButtons(from, flowPendingHoldMsg(lang), [flowPayNowLabel(lang), flowStartOverLabel(lang)]);
           else await sendText(from, err instanceof SlotTakenError ? flowSlotTakenMsg(lang) : flowBookFailMsg(lang));
         } catch (err2) { console.error("whatsapp flow: error reply failed", err2); }
       }

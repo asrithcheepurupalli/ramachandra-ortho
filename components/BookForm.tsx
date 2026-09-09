@@ -22,7 +22,7 @@ const waLink = (msg: string) => `https://wa.me/${clinic.contact.whatsapp.replace
 // returning patient can jump straight back to paying and confirming it.
 const SESSION_KEY = "ortho_book_session";
 const RESUME_KEY = "ortho_resume_payment";
-const PAY_WINDOW_MS = 30 * 60 * 1000;
+const PAY_WINDOW_MS = 15 * 60 * 1000;
 
 // slots = still bookable, taken = already booked (rendered greyed out, not hidden)
 type DayOpt = { date: string; d: Date; slots: string[]; taken: string[]; closingSoon?: boolean };
@@ -41,6 +41,7 @@ export function BookForm() {
   const [submitting, setSubmitting] = useState(false);
   const [payBusy, setPayBusy] = useState(false);
   const [payErr, setPayErr] = useState("");
+  const [pendingHold, setPendingHold] = useState(false);
 
   // New-vs-returning gate: the flow starts on a "new or returning?" step, then
   // moves to the slot picker. Returning patients look up their record by ID or
@@ -227,28 +228,29 @@ export function BookForm() {
   const dayLabel = (o: DayOpt, i: number) =>
     i === 0 ? t("book.today") : i === 1 ? t("book.tomorrow") : weekdayName(o.d).slice(0, 3);
 
-  const confirm = async () => {
+  const confirm = async (replacePending = false) => {
     if (!form.name.trim()) { setErr(t("book.needname")); return; }
     if (!form.phone.trim()) { setErr(t("book.needphone")); return; }
     if (normalizePhone(form.phone).length !== 10) { setErr(t("book.badphone")); return; }
     if (form.age <= 0 || form.age > 150) { setErr(t("book.needage")); return; }
     if (!selDate || !selTime || submitting) return;
 
+    setPendingHold(false);
     if (hasSupabase()) {
       setSubmitting(true);
       try {
         const res = await fetch("/api/book", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, date: selDate, time: selTime, source: "website" }),
+          body: JSON.stringify({ ...form, date: selDate, time: selTime, source: "website", replacePending }),
         });
         const data = await res.json();
         if (!res.ok) {
-          // Pending hold: user already has an unpaid appointment, redirect them to finish paying it
+          // Pending hold: user already has an unpaid appointment — offer
+          // "Pay for existing" or "Start fresh" inline instead of redirecting.
           if (res.status === 409 && data?.code === "pending_hold") {
-            if (typeof window !== "undefined") {
-              window.location.href = `/my-appointment?phone=${encodeURIComponent(form.phone.trim())}`;
-            }
+            setPendingHold(true);
+            setSubmitting(false);
             return;
           }
           setErr(data.error ?? "Could not book. Please try again.");
@@ -263,7 +265,7 @@ export function BookForm() {
       }
     } else {
       try {
-        setBooked(addBooking({ ...form, date: selDate, time: selTime, source: "website" }));
+        setBooked(addBooking({ ...form, date: selDate, time: selTime, source: "website", replacePending }));
       } catch {
         setErr("Could not book. Please try again.");
         return;
@@ -553,13 +555,27 @@ export function BookForm() {
             <input id="book-age" type="number" value={form.age || ""} onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : 0 })} placeholder={t("book.age")} min="1" max="150" required className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
           </div>
           {err && <p id="book-error" role="alert" className="mt-2 text-sm text-out">{err}</p>}
+          {pendingHold && (
+            <div className="mt-3 rounded-xl border border-accent/40 bg-accent-tint p-4">
+              <p className="text-sm font-semibold text-out">{t("book.pendingHold.title")}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{t("book.pendingHold.detail")}</p>
+              <div className="mt-3 flex flex-col gap-2">
+                <a href={`/my-appointment?phone=${encodeURIComponent(form.phone.trim())}`} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark">
+                  <Wallet className="h-4 w-4 shrink-0" /> {t("book.pendingHold.pay")}
+                </a>
+                <button onClick={() => confirm(true)} disabled={submitting} className="press flex w-full items-center justify-center gap-2 rounded-full border border-line px-3 py-3 text-sm font-semibold text-ink transition hover:bg-line/40 disabled:opacity-60">
+                  {t("book.pendingHold.startOver")}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* action — sticky on mobile, inline on desktop */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/90 px-5 py-3 backdrop-blur-md md:static md:mt-6 md:border-0 md:bg-transparent md:p-0" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
         <div className="mx-auto max-w-lg">
-          <button onClick={confirm} disabled={!canBook} className={`press flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-semibold transition ${canBook ? "bg-brand text-white hover:bg-brand-dark" : "cursor-not-allowed bg-line text-muted"}`}>
+          <button onClick={() => confirm()} disabled={!canBook} className={`press flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-semibold transition ${canBook ? "bg-brand text-white hover:bg-brand-dark" : "cursor-not-allowed bg-line text-muted"}`}>
             {canBook ? <>{t("book.confirm")}{selTime && selDate ? ` · ${fmt(selTime)}` : ""} <ChevronRight className="h-4 w-4" /></> : <>{t("book.pickslot")}</>}
           </button>
         </div>

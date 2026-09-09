@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { name, phone, age, date, time, source } = body ?? {};
+  const { name, phone, age, date, time, source, replacePending } = body ?? {};
   if (typeof name !== "string" || !name.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
   if (normalizePhone(phone).length !== 10) return NextResponse.json({ error: "phone must be a valid 10-digit number" }, { status: 400 });
@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       date,
       time,
       source: isSource(source) ? source : "website",
+      replacePending: replacePending === true,
     });
     // No confirmation template here. A new booking sits in payment_pending for
     // the payment window, so nothing may say "confirmed" yet — the number arrives
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (err instanceof PendingHoldError) {
       return NextResponse.json({
-        error: "You already have a booking waiting for payment. Please complete that payment first to confirm your slot (an unpaid booking is released automatically after 30 minutes).",
+        error: "You already have a booking waiting for payment. Please complete that payment first to confirm your slot (an unpaid booking is released automatically after 15 minutes).",
         code: "pending_hold",
       }, { status: 409 });
     }

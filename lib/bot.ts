@@ -56,6 +56,7 @@ export type BotState = {
   reschedOtp?: boolean; // website chat: whether this reschedule needs the WhatsApp code
   otpPhone?: string; // website chat: phone awaiting the 6-digit WhatsApp code
   viewPhone?: string; // website chat: phone whose appointments were just listed
+  replacePending?: boolean; // carry "start fresh" intent through the booking flow
 };
 // Stages the "cancel" escape hatch checks against, shared by the client and
 // server bot so a future stage addition can't silently drift between them.
@@ -235,7 +236,7 @@ type PhrasePack = {
   about: string;
   fallback: string;
   thanks: string;
-  chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string };
+  chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string; startOver: string };
 };
 const P: Record<Lang, PhrasePack> = {
   en: {
@@ -258,7 +259,7 @@ const P: Record<Lang, PhrasePack> = {
     badPhone: "That doesn't look like a valid phone number. Please enter a 10 digit number.",
     slotTaken: "Sorry, someone just booked that slot. Here are the times still open:",
     bookFail: "Something went wrong while booking. Please try again, or call the clinic.",
-    pendingHold: "You already have a booking waiting for payment. Please complete that payment now to confirm your slot — an unpaid booking is released automatically after 30 minutes.",
+    pendingHold: "You already have a booking waiting for payment. Please complete that payment now to confirm your slot — an unpaid booking is released automatically after 15 minutes. Or tap *Start fresh* to cancel it and book a new slot.",
     flowSlotTaken: "Sorry, that slot was just taken. Please message us again to pick another time.",
     flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 30 minutes* — complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.`,
@@ -288,7 +289,7 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}*\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nRated ${clinic.rating.score}★ from ${clinic.rating.count}+ ${clinic.rating.source} reviews.`,
     fallback: "I can tell you if the doctor is in, tell you about the doctor, book you an appointment, or share timings and location. What would you like?",
     thanks: "You're welcome 🙏 Get well soon!",
-    chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now" },
+    chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now", startOver: "Start fresh" },
   },
   te: {
     greet: `నమస్కారం 🙏 నేను ${clinic.shortName} అసిస్టెంట్‌ని. మీకు ఎలా సహాయపడగలను?`,
@@ -310,7 +311,7 @@ const P: Record<Lang, PhrasePack> = {
     badPhone: "ఇది సరైన ఫోన్ నంబర్ లా లేదు. దయచేసి 10 అంకెల నంబర్ ఇవ్వండి.",
     slotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. ఇంకా ఖాళీగా ఉన్న సమయాలు ఇవి:",
     bookFail: "బుక్ చేయడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
-    pendingHold: "మీకు ఇప్పటికే చెల్లింపు కోసం వేచి ఉన్న బుకింగ్ ఉంది. మీ స్లాట్ నిర్ధారించడానికి దయచేసి ఇప్పుడే ఆ చెల్లింపు పూర్తి చేయండి — చెల్లించని బుకింగ్ 30 నిమిషాల తర్వాత స్వయంచాలకంగా విడుదల అవుతుంది.",
+    pendingHold: "మీకు ఇప్పటికే చెల్లింపు కోసం వేచి ఉన్న బుకింగ్ ఉంది. మీ స్లాట్ నిర్ధారించడానికి దయచేసి ఇప్పుడే ఆ చెల్లింపు పూర్తి చేయండి — చెల్లించని బుకింగ్ 15 నిమిషాల తర్వాత స్వయంచాలకంగా విడుదల అవుతుంది. లేదా *కొత్తగా మొదలుపెట్టండి* నొక్కి రద్దు చేసి కొత్త స్లాట్ బుక్ చేయండి.",
     flowSlotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. దయచేసి మళ్ళీ మెసేజ్ చేసి వేరే సమయం ఎంచుకోండి.",
     flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఇది *30 నిమిషాలు* హోల్డ్ చేయబడుతుంది — అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.`,
@@ -340,7 +341,7 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}* గురించి:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} రేటింగ్: ${clinic.rating.score}★ (${clinic.rating.count}+ రివ్యూలు).`,
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
     thanks: "సంతోషం 🙏 త్వరగా కోలుకోండి!",
-    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్ చూడండి", resched: "రీషెడ్యూల్", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి" },
+    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్ చూడండి", resched: "రీషెడ్యూల్", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", startOver: "కొత్తగా మొదలుపెట్టండి" },
   },
   hi: {
     greet: `नमस्ते 🙏 मैं ${clinic.shortName} का असिस्टेंट हूँ। मैं आपकी कैसे मदद करूँ?`,
@@ -362,7 +363,7 @@ const P: Record<Lang, PhrasePack> = {
     badPhone: "यह सही फ़ोन नंबर नहीं लग रहा। कृपया 10 अंकों का नंबर दर्ज करें।",
     slotTaken: "माफ़ करें, वह स्लॉट अभी किसी और ने बुक कर लिया। ये समय अभी भी खाली हैं:",
     bookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
-    pendingHold: "आपकी एक बुकिंग पहले से भुगतान के लिए लंबित है। अपना स्लॉट पुष्टि करने के लिए कृपया अभी वह भुगतान पूरा करें — अवैतनिक बुकिंग 30 मिनट बाद अपने आप रिलीज़ हो जाती है।",
+    pendingHold: "आपकी एक बुकिंग पहले से भुगतान के लिए लंबित है। अपना स्लॉट पुष्टि करने के लिए कृपया अभी वह भुगतान पूरा करें — अवैतनिक बुकिंग 15 मिनट बाद अपने आप रिलीज़ हो जाती है। या *नया स्लॉट बुक करें* दबाकर पुरानी बुकिंग रद्द करें और नई बुक करें।",
     flowSlotTaken: "माफ़ करें, वह स्लॉट अभी बुक हो गया। कृपया दोबारा मैसेज करके दूसरा समय चुनें।",
     flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *30 मिनट* के लिए होल्ड है — अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।`,
@@ -392,12 +393,12 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}* के बारे में:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} रेटिंग: ${clinic.rating.score}★ (${clinic.rating.count}+ समीक्षाएं).`,
     fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, डॉक्टर के बारे में बता सकता हूँ, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
     thanks: "आपका स्वागत है 🙏 जल्दी स्वस्थ हों!",
-    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें" },
+    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें", startOver: "नया स्लॉट बुक करें" },
   },
 };
 
 // ── intent detection (heuristic for the beta; Claude in production) ──────────
-type Intent = "avail" | "book" | "cancel" | "pay" | "reschedule" | "view" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback";
+type Intent = "avail" | "book" | "cancel" | "pay" | "reschedule" | "view" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback" | "startOver";
 function detect(s: string): Intent {
   const has = (re: RegExp) => re.test(s);
   if (has(/cancel|రద్దు|कैंसिल|रद्द/i)) return "cancel";
@@ -414,6 +415,7 @@ function detect(s: string): Intent {
   // "review" never matches.
   if (has(/\bview\b|my appointment|(see|check|show) (my )?appointment|అపాయింట్(.{0,10}చూడ|.{0,10}వివర)|నా అపాయింట్|अपॉइंटमेंट(.{0,10}देख|.{0,10}स्थिति)|मेरा अपॉइंटमेंट/i)) return "view";
   if (has(/\bpay\b|payment|checkout|చెల్లించ|చెల్లింపు|भुगतान|पेमेंट/i)) return "pay";
+  if (has(/start (fresh|over)|new slot|book new|కొత్తగా|నయा|नया स्लॉट|नया बुक/i)) return "startOver";
   if (has(/book|appoint|slot|token|బుక్|అపాయింట్|अपॉइंटमेंट|बुक|टोकन/i)) return "book";
   if (has(/about (the )?(doctor|dr)\b|doctor.?s? (bio|profile|qualification)|qualification|credentials|డాక్టర్.{0,3}గురించి|గురించి.{0,3}డాక్టర్|योग्यता|डॉक्टर.{0,3}(बारे|प्रोफाइल)/i)) return "about";
   if (has(/avail|open|in today|is (the )?doctor|doctor (in|there|available)|ఉన్నార|అందుబాటు|उपलब्ध|आज|डॉक्टर/i)) return "avail";
@@ -668,9 +670,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     // DB mode needs a phone (confirmation goes out on WhatsApp, and it's how
     // the admin dashboard reaches the patient) — the mock demo doesn't.
     if (hasSupabase()) {
-      return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name } };
+      return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name, replacePending: state.replacePending } };
     }
-    const appt = addBooking({ name, phone: "", age: 0, date: state.slot.date, time: state.slot.time, source });
+    const appt = addBooking({ name, phone: "", age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending });
     // Carry viewPhone ("" in mock) so the Pay now chip that follows resolves
     // the just-created payment_pending hold without re-asking for a number.
     return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: appt.phone } };
@@ -691,6 +693,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
           date: state.slot.date,
           time: state.slot.time,
           source,
+          replacePending: state.replacePending === true,
         }),
       });
       const body = res.ok || res.status === 409 ? await res.json() : null;
@@ -699,7 +702,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         // second slot (and don't charge a wrong returning fee). Point them at
         // paying the hold they already have; viewPhone carries the typed number
         // so the Pay now chip resolves it without re-asking.
-        return { reply: [t.pendingHold], chips: [c.payNow, c.view, c.book], state: { stage: "idle", viewPhone: input.trim() } };
+        return { reply: [t.pendingHold], chips: [c.payNow, c.startOver, c.view, c.book], state: { stage: "idle", viewPhone: input.trim() } };
       }
       if (res.status === 409) {
         const fresh = await timesForDate(state.slot.date);
@@ -756,7 +759,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
           return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
         }
       }
-      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label } } };
+      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label }, replacePending: state.replacePending } };
     }
   }
 
@@ -768,7 +771,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     if (pickedRange) {
       const times = winTimes.filter((s) => inWindow(s, pickedRange));
       const dayLabel = dayLabelForDate(state.pendingDate, new Date());
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange, replacePending: state.replacePending } };
     }
   }
 
@@ -781,9 +784,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       const dayLabel = dayLabelForDate(state.pendingDate, new Date());
       if (times.length > MAX_CHIPS) {
         const ranges = splitWindow(pickedWin, times.length);
-        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin } };
+        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending } };
       }
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending } };
     }
   }
 
@@ -848,18 +851,18 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     const times = await timesForDate(pickedDay.date);
     if (!times.length) {
       const fresh = days.filter((d) => d.date !== pickedDay.date);
-      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched } };
-      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched } };
+      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
+      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
     }
     const wins = await windowsWithSlotsFor(pickedDay.date);
     if (wins.length > 1) {
-      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date } };
+      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, replacePending: state.replacePending } };
     }
     if (times.length > MAX_CHIPS) {
       const ranges = splitWindow(wins[0], times.length);
-      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
+      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending } };
     }
-    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
+    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending } };
   }
 
   switch (detect(input)) {
@@ -880,6 +883,11 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       const dayList = await openDays();
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
       return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
+    }
+    case "startOver": {
+      const dayList = await openDays();
+      if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
+      return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle", replacePending: true } };
     }
     case "cancel": {
       // Cancellations are handled by the clinic, not automated — offer a move
@@ -939,7 +947,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 // untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 export type Backend = {
-  addBooking: (input: { name: string; phone: string; age: number; date: string; time: string; source?: Source }) => Promise<Appt>;
+  addBooking: (input: { name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean }) => Promise<Appt>;
   takenSlots: (date: string) => Promise<string[]>;
   // includePending adds payment_pending rows — the pay intent needs them, the
   // view/reschedule intents don't (an unpaid booking isn't confirmed yet).
@@ -1079,6 +1087,7 @@ export function flowPayPrompt(lang: Lang): string { return P[lang].payPrompt; }
 // The matching "Pay now" button label for that prompt (per-language chip label),
 // so the Flow follow-up carries a real tappable button, not just the word.
 export function flowPayNowLabel(lang: Lang): string { return P[lang].chips.payNow; }
+export function flowStartOverLabel(lang: Lang): string { return P[lang].chips.startOver; }
 
 export async function botReplyServer(
   input: string,
@@ -1149,7 +1158,7 @@ export async function botReplyServer(
     return {
       reply: [t.askContactConfirm(formatIndianPhone(phone))],
       chips: [c.useNumber],
-      state: { stage: "await_phone", slot: state.slot, name },
+      state: { stage: "await_phone", slot: state.slot, name, replacePending: state.replacePending },
     };
   }
 
@@ -1163,7 +1172,7 @@ export async function botReplyServer(
       bookPhone = digits;
     }
     try {
-      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age: 0, date: state.slot.date, time: state.slot.time, source });
+      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending });
       // The booking is done — offer to settle the fee right here, so the
       // patient doesn't have to know a "pay" keyword exists or find the My
       // Appointment page. The chip routes into the shared pay intent below.
@@ -1174,7 +1183,7 @@ export async function botReplyServer(
         // second slot (or charge a wrong returning fee) — point them at paying
         // the hold they already have. Pay now routes into the shared pay intent
         // (which uses the sender's number, the default booking number).
-        return { reply: [t.pendingHold], chips: [c.payNow, c.view, c.book], state: { stage: "idle" } };
+        return { reply: [t.pendingHold], chips: [c.payNow, c.startOver, c.view, c.book], state: { stage: "idle" } };
       }
       if (err instanceof SlotTakenError) {
         const fresh = await timesForDateServer(state.slot.date, backend, sched, takenByDate);
@@ -1209,7 +1218,7 @@ export async function botReplyServer(
           return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
         }
       }
-      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label } } };
+      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label }, replacePending: state.replacePending } };
     }
   }
 
@@ -1221,7 +1230,7 @@ export async function botReplyServer(
     if (pickedRange) {
       const times = winTimes.filter((s) => inWindow(s, pickedRange));
       const dayLabel = dayLabelForDate(state.pendingDate, nowIST());
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange, replacePending: state.replacePending } };
     }
   }
 
@@ -1234,9 +1243,9 @@ export async function botReplyServer(
       const dayLabel = dayLabelForDate(state.pendingDate, nowIST());
       if (times.length > MAX_CHIPS) {
         const ranges = splitWindow(pickedWin, times.length);
-        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin } };
+        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending } };
       }
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending } };
     }
   }
 
@@ -1247,18 +1256,18 @@ export async function botReplyServer(
     const times = await timesForDateServer(pickedDay.date, backend, sched, takenByDate);
     if (!times.length) {
       const fresh = days.filter((d) => d.date !== pickedDay.date);
-      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched } };
-      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched } };
+      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
+      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
     }
     const wins = await windowsWithSlotsForServer(pickedDay.date, backend, sched, takenByDate);
     if (wins.length > 1) {
-      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date } };
+      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, replacePending: state.replacePending } };
     }
     if (times.length > MAX_CHIPS) {
       const ranges = splitWindow(wins[0], times.length);
-      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
+      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending } };
     }
-    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0] } };
+    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending } };
   }
 
   switch (detect(input)) {
@@ -1296,6 +1305,11 @@ export async function botReplyServer(
       const dayList = await openDaysServer(backend, sched, takenByDate);
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
       return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
+    }
+    case "startOver": {
+      const dayList = await openDaysServer(backend, sched, takenByDate);
+      if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
+      return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle", replacePending: true } };
     }
     case "cancel": {
       // Cancellations are handled by the clinic, not automated — so instead of

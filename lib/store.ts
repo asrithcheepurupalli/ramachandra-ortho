@@ -38,7 +38,7 @@ export type Appt = {
   createdAt: number;
   notes: string | null; // doctor's free-text clinical note, written from the doctor portal only
   patientCode: string | null; // human-readable patient ID (ROC-####), null when not matched
-  paymentDeadlineAt: number | null; // epoch ms; 30 min window for payment_pending bookings, null for walk-ins / legacy
+  paymentDeadlineAt: number | null; // epoch ms; 15 min window for payment_pending bookings, null for walk-ins / legacy
 };
 
 const KEY = "roc.appts.v1";
@@ -165,11 +165,11 @@ function rescheduleNoShows(all: Appt[]): Appt[] {
   return result;
 }
 
-// ── payment timeout: payment_pending bookings older than 30 minutes are
+// ── payment timeout: payment_pending bookings older than 15 minutes are
 // cancelled automatically (mirrors the server cron /api/cron/payment-timeout).
 // Rows are set to "cancelled", never deleted, so admin history/revenue and
 // patient counts match what the server cron does to a real row.
-const PAYMENT_WINDOW_MS = 30 * 60_000;
+const PAYMENT_WINDOW_MS = 15 * 60_000;
 function expirePaymentPending(all: Appt[]): Appt[] {
   const now = Date.now();
   let changed = false;
@@ -245,7 +245,10 @@ export function addWalkIn(input: { name: string; phone: string; age: number; sou
   return appt;
 }
 // A patient booking a specific date + time from the website (or WhatsApp).
-export function addBooking(input: { name: string; phone: string; age: number; date: string; time: string; source?: Source }): Appt {
+// replacePending: when true, cancel any existing payment_pending row for this
+// phone before inserting (the patient is choosing to start over rather than
+// pay the old hold).
+export function addBooking(input: { name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean }): Appt {
   if (isPastLeadTime(input.date, input.time, new Date())) throw new InvalidSlotError();
   const all = read();
   const dayAppts = all.filter((a) => a.date === input.date);
@@ -255,7 +258,16 @@ export function addBooking(input: { name: string; phone: string; age: number; da
   // book a second slot (it would hold two slots and wrongly charge the
   // returning fee against a first visit that was never paid).
   if (phone && all.some((a) => a.phone === phone && a.status === "payment_pending")) {
-    throw new PendingHoldError();
+    if (!input.replacePending) throw new PendingHoldError();
+  }
+  // When replacePending, cancel the old payment_pending row(s) for this phone.
+  let nextAll = all;
+  if (input.replacePending && phone) {
+    nextAll = all.map((a) =>
+      a.phone === phone && a.status === "payment_pending"
+        ? { ...a, status: "cancelled" as Appt["status"] }
+        : a
+    );
   }
   const reg = loadPatients();
   const existing = phone ? reg[phone] : undefined;
@@ -266,9 +278,9 @@ export function addBooking(input: { name: string; phone: string; age: number; da
     age: input.age, date: input.date, time: input.time,
     status: "payment_pending", source: input.source ?? "website", fee,
     paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
-    notes: null, patientCode, paymentDeadlineAt: Date.now() + 30 * 60_000,
+    notes: null, patientCode, paymentDeadlineAt: Date.now() + PAYMENT_WINDOW_MS,
   };
-  write([...all, appt]);
+  write([...nextAll, appt]);
   return appt;
 }
 // Times already taken on a date (so the slot picker can hide them).

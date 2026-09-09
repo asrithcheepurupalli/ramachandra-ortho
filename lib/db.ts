@@ -185,8 +185,11 @@ function rowToAppt(r: any): Appt {
 }
 
 // A patient booking a specific date + time (from the website or WhatsApp).
+// replacePending: when true, cancel any existing payment_pending row for this
+// phone before inserting (the patient is choosing to start over rather than
+// pay the old hold).
 export async function dbAddBooking(input: {
-  name: string; phone: string; age: number; date: string; time: string; source?: Source;
+  name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean;
 }): Promise<Appt> {
   const db = supabaseAdmin();
   const name = input.name.trim();
@@ -210,13 +213,14 @@ export async function dbAddBooking(input: {
 
   // A phone holding an unpaid booking can't book a second slot. The first
   // booking sits in payment_pending (slot held, Razorpay link out) until the
-  // webhook reserves it or the 30-min payment-timeout cron frees it; allowing
+  // webhook reserves it or the 15-min payment-timeout cron frees it; allowing
   // a second booking meanwhile would hold two slots for nothing and — because
   // the patients upsert below already ran on the first attempt — would charge
   // the returning fee (₹350) against a phone that never paid its first ₹400.
-  // Refuse until the hold is resolved. (The WhatsApp sender books under their
-  // own number by default, and the site submits the number on the form, so the
-  // phone here is the same one the hold sits under.)
+  // When replacePending is true (patient chose "Start over"), cancel the old
+  // row instead of refusing. (The WhatsApp sender books under their own number
+  // by default, and the site submits the number on the form, so the phone here
+  // is the same one the hold sits under.)
   if (phone) {
     const { data: pending, error: pendErr } = await db
       .from("appointments")
@@ -224,7 +228,17 @@ export async function dbAddBooking(input: {
       .eq("phone", phone)
       .eq("status", "payment_pending");
     if (pendErr) throw pendErr;
-    if ((pending ?? []).length > 0) throw new PendingHoldError();
+    if ((pending ?? []).length > 0) {
+      if (!input.replacePending) throw new PendingHoldError();
+      // Cancel old payment_pending row(s) so the new booking can proceed.
+      const ids = pending!.map((p) => p.id);
+      const { error: cancelErr } = await db
+        .from("appointments")
+        .update({ status: "cancelled" })
+        .in("id", ids)
+        .eq("status", "payment_pending");
+      if (cancelErr) throw cancelErr;
+    }
   }
 
   // Returning-patient fee: the patients table (deduped by phone) is the source
