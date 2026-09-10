@@ -13,6 +13,7 @@ type Source = "website" | "whatsapp" | "walkin";
 const isSource = (v: unknown): v is Source => v === "website" || v === "whatsapp" || v === "walkin";
 type Claim = "returning_unverified" | "review_free";
 const isClaim = (v: unknown): v is Claim => v === "returning_unverified" || v === "review_free";
+const isGender = (v: unknown): v is "M" | "F" => v === "M" || v === "F";
 
 const RATE_LIMIT = 40;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -30,11 +31,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { name, phone, age, date, time, source, replacePending, claim } = body ?? {};
+  const { name, phone, age, gender, date, time, source, replacePending, claim } = body ?? {};
   if (typeof name !== "string" || !name.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
   if (normalizePhone(phone).length !== 10) return NextResponse.json({ error: "phone must be a valid 10-digit number" }, { status: 400 });
   if (typeof age !== "number" || age < 0 || age > 150) return NextResponse.json({ error: "age is required" }, { status: 400 });
+  // The website form requires gender; the WhatsApp bot never asks, so it's
+  // optional here and just stored as null when omitted.
+  if (gender != null && !isGender(gender)) return NextResponse.json({ error: "gender must be M or F" }, { status: 400 });
   if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
   if (typeof time !== "string" || !/^\d{2}:\d{2}$/.test(time)) return NextResponse.json({ error: "time must be HH:MM" }, { status: 400 });
   if (date < ymd(nowIST())) return NextResponse.json({ error: "That date has already passed" }, { status: 400 });
@@ -51,6 +55,7 @@ export async function POST(req: NextRequest) {
       name,
       phone,
       age,
+      gender: isGender(gender) ? gender : null,
       date,
       time,
       source: isSource(source) ? source : "website",

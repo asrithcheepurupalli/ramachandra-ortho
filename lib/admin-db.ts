@@ -24,6 +24,7 @@ function rowToAppt(r: any): Appt {
     name: r.name,
     phone: r.phone ?? "",
     age: r.age ?? 0,
+    gender: r.gender ?? null,
     date: r.appt_date,
     time: r.appt_time,
     status: r.status,
@@ -112,7 +113,7 @@ export function useAdminAppts(): [Appt[], (id: string, patch: Partial<Appt>) => 
 }
 
 // ── walk-in / status / paid ──────────────────────────────────────────────────
-export async function dbAddWalkIn(input: { name: string; phone: string; age: number; source?: Source }): Promise<Appt> {
+export async function dbAddWalkIn(input: { name: string; phone: string; age: number; gender?: "M" | "F" | null; source?: Source }): Promise<Appt> {
   const db = supabaseBrowser();
   const today = ymd(new Date());
   const name = input.name.trim();
@@ -158,6 +159,7 @@ export async function dbAddWalkIn(input: { name: string; phone: string; age: num
       name,
       phone,
       age: input.age,
+      gender: input.gender ?? null,
       reason: "Consultation",
       appt_date: today,
       appt_time: new Date().toTimeString().slice(0, 5),

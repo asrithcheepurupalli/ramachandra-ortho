@@ -35,7 +35,7 @@ export function BookForm() {
   const [daysLoading, setDaysLoading] = useState(true);
   const [selDate, setSelDate] = useState<string | null>(null);
   const [selTime, setSelTime] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", age: 0 as number });
+  const [form, setForm] = useState({ name: "", phone: "", age: 0 as number, gender: "" as "" | "M" | "F" });
   const [booked, setBooked] = useState<Appt | null>(null);
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -230,7 +230,7 @@ export function BookForm() {
     const gone = (selDay?.taken ?? []).map((time) => ({ time, taken: true }));
     return [...open, ...gone].sort((a, b) => toMin(a.time) - toMin(b.time));
   }, [selDay]);
-  const canBook = !!(selDate && selTime && form.name.trim() && form.phone.trim() && form.age > 0) && !submitting;
+  const canBook = !!(selDate && selTime && form.name.trim() && form.phone.trim() && form.age > 0 && (form.gender === "M" || form.gender === "F")) && !submitting;
 
   const dayLabel = (o: DayOpt, i: number) =>
     i === 0 ? t("book.today") : i === 1 ? t("book.tomorrow") : weekdayName(o.d).slice(0, 3);
@@ -240,6 +240,7 @@ export function BookForm() {
     if (!form.phone.trim()) { setErr(t("book.needphone")); return; }
     if (normalizePhone(form.phone).length !== 10) { setErr(t("book.badphone")); return; }
     if (form.age <= 0 || form.age > 150) { setErr(t("book.needage")); return; }
+    if (form.gender !== "M" && form.gender !== "F") { setErr(t("book.needgender")); return; }
     if (!selDate || !selTime || submitting) return;
 
     setPendingHold(false);
@@ -272,7 +273,7 @@ export function BookForm() {
       }
     } else {
       try {
-        setBooked(addBooking({ ...form, date: selDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }));
+        setBooked(addBooking({ ...form, gender: form.gender || null, date: selDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }));
       } catch {
         setErr("Could not book. Please try again.");
         return;
@@ -385,7 +386,7 @@ export function BookForm() {
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}
             <div className="grid grid-cols-1 gap-2">
-              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setClaim(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: 0 }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
+              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setClaim(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: 0, gender: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
               <Link href="/" className="press w-full rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
             </div>
           </div>
@@ -579,6 +580,12 @@ export function BookForm() {
             <input id="book-phone" value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErr(""); }} placeholder={t("book.phone")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-age" className="sr-only">{t("book.age")}</label>
             <input id="book-age" type="number" value={form.age || ""} onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : 0 })} placeholder={t("book.age")} min="1" max="150" required className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+            <label htmlFor="book-gender" className="sr-only">{t("book.gender")}</label>
+            <select id="book-gender" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value as "" | "M" | "F" })} required className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface">
+              <option value="" disabled>{t("book.gender")}</option>
+              <option value="M">{t("book.male")}</option>
+              <option value="F">{t("book.female")}</option>
+            </select>
           </div>
           {err && <p id="book-error" role="alert" className="mt-2 text-sm text-out">{err}</p>}
           {pendingHold && (

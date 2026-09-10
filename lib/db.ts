@@ -191,6 +191,7 @@ function rowToAppt(r: any): Appt {
     name: r.name,
     phone: r.phone ?? "",
     age: r.age ?? 0,
+    gender: r.gender ?? null,
     date: r.appt_date,
     time: r.appt_time,
     status: r.status,
@@ -221,7 +222,7 @@ function rowToAppt(r: any): Appt {
 // verified in person at the counter). A claimed booking skips payment_pending
 // and Razorpay entirely and lands straight in "reserved".
 export async function dbAddBooking(input: {
-  name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean;
+  name: string; phone: string; age: number; gender?: "M" | "F" | null; date: string; time: string; source?: Source; replacePending?: boolean;
   claim?: "returning_unverified" | "review_free";
 }): Promise<Appt> {
   const db = supabaseAdmin();
@@ -338,6 +339,7 @@ export async function dbAddBooking(input: {
         name,
         phone,
         age: input.age,
+        gender: input.gender ?? null,
         reason: "Consultation",
         appt_date: input.date,
         appt_time: input.time,
