@@ -28,9 +28,9 @@ jobs:
             echo "CRON_SECRET not configured in repo secrets — doctor digest cron is NOT running"
             exit 1
           fi
-          code=$(curl -sS -o /tmp/digest.json -w "%{http_code}" -X POST \
+          code=$(curl -sSL --location-trusted -o /tmp/digest.json -w "%{http_code}" -X POST \
             -H "Authorization: Bearer ${SECRET}" \
-            "https://rcorthocare.made-by-ac.com/api/cron/doctor-digest")
+            "https://ramachandraorthocare.com/api/cron/doctor-digest")
           echo "Doctor digest cron -> HTTP $code"
           cat /tmp/digest.json
           echo

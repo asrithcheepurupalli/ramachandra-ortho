@@ -28,9 +28,9 @@ jobs:
             echo "CRON_SECRET not configured in repo secrets — reminder cron is NOT running"
             exit 1
           fi
-          code=$(curl -sS -o /tmp/reminder.json -w "%{http_code}" -X POST \
+          code=$(curl -sSL --location-trusted -o /tmp/reminder.json -w "%{http_code}" -X POST \
             -H "Authorization: Bearer ${SECRET}" \
-            "https://rcorthocare.made-by-ac.com/api/cron/reminders")
+            "https://ramachandraorthocare.com/api/cron/reminders")
           echo "Reminder cron -> HTTP $code"
           cat /tmp/reminder.json
           echo

@@ -33,9 +33,9 @@ jobs:
             echo "CRON_SECRET not configured in repo secrets — payment-timeout cron is NOT running"
             exit 1
           fi
-          code=$(curl -sS -o /tmp/payment-timeout.json -w "%{http_code}" -X POST \
+          code=$(curl -sSL --location-trusted -o /tmp/payment-timeout.json -w "%{http_code}" -X POST \
             -H "Authorization: Bearer ${SECRET}" \
-            "https://rcorthocare.made-by-ac.com/api/cron/payment-timeout")
+            "https://ramachandraorthocare.com/api/cron/payment-timeout")
           echo "Payment-timeout cron -> HTTP $code"
           cat /tmp/payment-timeout.json
           echo
