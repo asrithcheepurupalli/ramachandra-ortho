@@ -9,7 +9,7 @@ import {
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
-import { addBooking, takenSlots, hydrateSchedule, togglePaid, lookupPatientMock, type Appt } from "@/lib/store";
+import { addBooking, hydrateSchedule, togglePaid, lookupPatientMock, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 import { normalizePhone } from "@/lib/phone";
 
@@ -24,8 +24,7 @@ const SESSION_KEY = "ortho_book_session";
 const RESUME_KEY = "ortho_resume_payment";
 const PAY_WINDOW_MS = 15 * 60 * 1000;
 
-// slots = still bookable, taken = already booked (rendered greyed out, not hidden)
-type DayOpt = { date: string; d: Date; slots: string[]; taken: string[]; closingSoon?: boolean };
+type DayOpt = { date: string; d: Date; slots: string[]; closingSoon?: boolean };
 
 export function BookForm() {
   const [lang, setLang] = useState<Lang>("en");
@@ -178,37 +177,31 @@ export function BookForm() {
         list = await Promise.all(
           keys.map(async ({ i, d, key }) => {
             let slots: string[] = [];
-            let taken: string[] = [];
             try {
               const res = await fetch(`/api/slots?date=${key}`);
               const data = await res.json();
               slots = res.ok ? (data.slots as string[]) : [];
-              taken = res.ok ? (data.taken as string[]) : [];
-            } catch { slots = []; taken = []; }
+            } catch { slots = []; }
             let closingSoon = false;
             if (i === 0) {
               const rawLen = slots.length;
               slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
-              taken = taken.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
               closingSoon = rawLen > 0 && slots.length === 0;
             }
-            return { date: key, d, slots, taken, closingSoon };
+            return { date: key, d, slots, closingSoon };
           })
         );
       } else {
         hydrateSchedule();
         list = keys.map(({ i, d, key }) => {
-          const takenAll = takenSlots(key);
-          let slots = allSlotsFor(d).filter((t) => !takenAll.includes(t));
-          let taken = allSlotsFor(d).filter((t) => takenAll.includes(t));
+          let slots = allSlotsFor(d);
           let closingSoon = false;
           if (i === 0) {
             const rawLen = slots.length;
             slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
-            taken = taken.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
             closingSoon = rawLen > 0 && slots.length === 0;
           }
-          return { date: key, d, slots, taken, closingSoon };
+          return { date: key, d, slots, closingSoon };
         });
       }
       if (cancelled) return;
@@ -223,12 +216,8 @@ export function BookForm() {
   }, []);
 
   const selDay = useMemo(() => days.find((x) => x.date === selDate), [days, selDate]);
-  // Open and taken slots merged into one time-ordered grid, so a booked slot
-  // shows greyed out in place rather than just vanishing from the list.
   const timeSlots = useMemo(() => {
-    const open = (selDay?.slots ?? []).map((time) => ({ time, taken: false }));
-    const gone = (selDay?.taken ?? []).map((time) => ({ time, taken: true }));
-    return [...open, ...gone].sort((a, b) => toMin(a.time) - toMin(b.time));
+    return [...(selDay?.slots ?? [])].sort((a, b) => toMin(a) - toMin(b));
   }, [selDay]);
   const canBook = !!(selDate && selTime && form.name.trim() && form.phone.trim() && form.age > 0 && (form.gender === "M" || form.gender === "F")) && !submitting;
 
@@ -548,17 +537,13 @@ export function BookForm() {
             <p className="mt-3 rounded-xl bg-bg p-4 text-sm text-muted">{selDay?.closingSoon ? t("book.closingsoon") : t("book.noslots")}</p>
           ) : (
             <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4" role="group" aria-label={t("book.time")}>
-              {timeSlots.map(({ time, taken }) => (
+              {timeSlots.map((time) => (
                 <button
                   key={time}
-                  disabled={taken}
                   aria-pressed={selTime === time}
-                  aria-disabled={taken}
-                  onClick={() => !taken && setSelTime(time)}
+                  onClick={() => setSelTime(time)}
                   className={`press rounded-xl border py-2.5 text-sm font-medium transition ${
-                    taken
-                      ? "cursor-not-allowed border-line bg-bg text-muted/50 line-through"
-                      : selTime === time
+                    selTime === time
                       ? "border-brand bg-brand text-white"
                       : "border-line hover:border-brand/40"
                   }`}
@@ -568,6 +553,7 @@ export function BookForm() {
               ))}
             </div>
           )}
+          <p className="mt-2 text-xs text-muted">{t("book.waitnote")}</p>
         </div>
 
         {/* details */}

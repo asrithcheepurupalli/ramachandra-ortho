@@ -7,7 +7,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { clinic, type Lang } from "@/clinic.config";
 import {
-  defaultWeeklyHours, slotsFor, ymd, nowIST, isPastLeadTime,
+  defaultWeeklyHours, allSlotsFor, ymd, nowIST, isPastLeadTime,
   type WeeklyHours, type Exception, type Override, type SchedState,
 } from "@/lib/schedule";
 import type { Appt, ApptStatus, Source } from "@/lib/store";
@@ -37,42 +37,6 @@ async function expireStalePendingHolds(): Promise<void> {
     .lt("created_at", cutoff)
     .eq("paid", false); // never cancel a row the desk collected cash for
   if (error) throw error;
-}
-
-// Times already taken on a date (so the slot picker can hide them).
-export async function dbTakenSlots(date: string): Promise<string[]> {
-  await expireStalePendingHolds();
-  const { data, error } = await supabaseAdmin()
-    .from("appointments")
-    .select("appt_time")
-    .eq("appt_date", date)
-    .neq("status", "cancelled");
-  if (error) throw error;
-  return (data ?? []).map((r) => r.appt_time as string);
-}
-
-// Batch: all taken slots in a contiguous date range (single query instead of
-// N queries when openDaysServer iterates the 14-day window). Returns a Map keyed
-// by YYYY-MM-DD so callers can look up in O(1). The route pre-fetches this for
-// the next 14 days and threads the map into botReplyServer → openDaysServer.
-export async function dbTakenSlotsRange(start: string, end: string): Promise<Map<string, string[]>> {
-  await expireStalePendingHolds();
-  const { data, error } = await supabaseAdmin()
-    .from("appointments")
-    .select("appt_date, appt_time")
-    .gte("appt_date", start)
-    .lte("appt_date", end)
-    .neq("status", "cancelled");
-  if (error) throw error;
-  const map = new Map<string, string[]>();
-  for (const r of data ?? []) {
-    const date = r.appt_date as string;
-    const time = r.appt_time as string;
-    const arr = map.get(date);
-    if (arr) arr.push(time);
-    else map.set(date, [time]);
-  }
-  return map;
 }
 
 // All appointments on a date (for the admin queue view and broadcast sends).
@@ -242,7 +206,7 @@ export async function dbAddBooking(input: {
   if (input.date < ymd(now)) throw new InvalidSlotError();
   if (isPastLeadTime(input.date, input.time, now)) throw new InvalidSlotError();
   const sched = await dbLoadSchedule();
-  const openSlots = slotsFor(new Date(`${input.date}T00:00:00`), [], sched);
+  const openSlots = allSlotsFor(new Date(`${input.date}T00:00:00`), sched);
   if (!openSlots.includes(input.time)) throw new InvalidSlotError();
 
   // A phone holding an unpaid booking can't book a second slot. The first
@@ -255,6 +219,13 @@ export async function dbAddBooking(input: {
   // row instead of refusing. (The WhatsApp sender books under their own number
   // by default, and the site submits the number on the form, so the phone here
   // is the same one the hold sits under.)
+  //
+  // Slot lookups (dbTakenSlots/dbTakenSlotsRange) used to lazily expire stale
+  // pending holds on every availability check, well before the cron got to
+  // them; now that slot capacity is unlimited there's no availability check
+  // left to piggyback on, so the expiry runs right here instead, keeping a
+  // patient from being stuck behind their own stale hold if the cron lags.
+  await expireStalePendingHolds();
   if (phone) {
     const { data: pending, error: pendErr } = await db
       .from("appointments")
@@ -317,11 +288,11 @@ export async function dbAddBooking(input: {
   // the webhook flips it to reserved. A claimed booking (claim set) skips
   // that entirely — there's no Razorpay step for a counter-pay or free claim,
   // so it goes straight to "reserved", `paid` true only for the free claim.
-  // The partial unique index on (appt_date, appt_time) where status <>
-  // 'cancelled' is the real guard against two patients landing the same slot
-  // in a race; the per-day token sequence can also collide under concurrent
-  // inserts, so both are retried a few times (with a freshly recomputed
-  // token) before giving up.
+  // Slot capacity is unlimited, so there's no race to guard against there
+  // anymore — but the per-day token sequence can still collide under
+  // concurrent inserts (two patients both computing "next token" before
+  // either insert lands), so that's retried a few times with a freshly
+  // recomputed token before giving up.
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: dayAppts, error: dayErr } = await db
       .from("appointments")
@@ -354,7 +325,6 @@ export async function dbAddBooking(input: {
 
     if (!error) return rowToAppt(row);
     if (error.code !== "23505") throw error;
-    if (error.message.includes("appointments_slot_idx")) throw new SlotTakenError();
     // The application-level check above (lines ~220-228) is a plain
     // SELECT-then-INSERT and can race two concurrent bookings for the same
     // phone past it; appointments_pending_hold_idx is the real guard, and a
@@ -367,22 +337,21 @@ export async function dbAddBooking(input: {
 
 // Moves an existing appointment to a new date/time, used by patient
 // self-service reschedule. Same availability check + race guard as
-// dbAddBooking, since a slot can be taken between the client's read and
-// this write.
+// dbAddBooking, minus the pending-hold check (a reschedule doesn't touch
+// that guard at all).
 export async function dbRescheduleAppointment(id: string, date: string, time: string): Promise<Appt> {
   const now = nowIST();
   if (date < ymd(now)) throw new InvalidSlotError();
   if (isPastLeadTime(date, time, now)) throw new InvalidSlotError();
   const sched = await dbLoadSchedule();
-  const openSlots = slotsFor(new Date(`${date}T00:00:00`), [], sched);
+  const openSlots = allSlotsFor(new Date(`${date}T00:00:00`), sched);
   if (!openSlots.includes(time)) throw new InvalidSlotError();
 
   // Status guard on the write: only a real (paid) appointment may move. A
   // payment_pending hold is never rescheduled (it isn't confirmed yet — both
   // callers send the CONFIRM template after this, and confirming an unpaid
   // booking would violate the payment-first rule), and a cancelled row is
-  // immutable. A guard that matches nothing is surfaced as not_found, distinct
-  // from a slot conflict below.
+  // immutable. A guard that matches nothing is surfaced as not_found.
   const { data, error } = await supabaseAdmin()
     .from("appointments")
     .update({ appt_date: date, appt_time: time })
@@ -393,8 +362,6 @@ export async function dbRescheduleAppointment(id: string, date: string, time: st
 
   if (!error && data) return rowToAppt(data);
   if (!error) throw new Error("not_found"); // status guard blocked the move
-  if (error.code !== "23505") throw error;
-  if (error.message.includes("appointments_slot_idx")) throw new SlotTakenError();
   throw error;
 }
 

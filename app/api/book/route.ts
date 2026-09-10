@@ -1,9 +1,9 @@
 // Creates a booking. The single place token assignment + patient dedupe
 // happen, so every booking source (website today) goes through it.
 import { NextResponse, type NextRequest } from "next/server";
-import { dbAddBooking, dbLoadSchedule, dbTakenSlots } from "@/lib/db";
+import { dbAddBooking, dbLoadSchedule } from "@/lib/db";
 import { SlotTakenError, PendingHoldError } from "@/lib/errors";
-import { slotsFor, ymd, nowIST } from "@/lib/schedule";
+import { allSlotsFor, ymd, nowIST } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
 import { isRateLimited } from "@/lib/rate-limit";
 import { reportError } from "@/lib/bugdesk";
@@ -45,8 +45,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const sched = await dbLoadSchedule();
-    const taken = await dbTakenSlots(date);
-    const open = slotsFor(new Date(`${date}T00:00:00`), taken, sched);
+    const open = allSlotsFor(new Date(`${date}T00:00:00`), sched);
     if (!open.includes(time)) {
       return NextResponse.json({ error: "That time isn't available. Please pick another slot." }, { status: 400 });
     }

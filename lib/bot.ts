@@ -7,8 +7,8 @@
 // (Anthropic API) for free-text understanding — the shapes below map 1:1.
 // ─────────────────────────────────────────────────────────────────────────────
 import { clinic, type Lang } from "@/clinic.config";
-import { statusAt, fmt, weekdayName, slotsFor, windowsFor, ymd, nowIST, BOOKING_LEAD_MIN, type SchedState, type Window } from "@/lib/schedule";
-import { addBooking, takenSlots, togglePaid, activeAppointmentsByPhone, rescheduleBooking, type Source, type Appt } from "@/lib/store";
+import { statusAt, fmt, weekdayName, allSlotsFor, windowsFor, ymd, nowIST, BOOKING_LEAD_MIN, type SchedState, type Window } from "@/lib/schedule";
+import { addBooking, togglePaid, activeAppointmentsByPhone, rescheduleBooking, type Source, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 import { SlotTakenError, PendingHoldError } from "@/lib/errors";
 
@@ -135,7 +135,7 @@ async function availableSlotsFor(date: string): Promise<string[]> {
       return [];
     }
   }
-  return slotsFor(new Date(date + "T00:00:00"), takenSlots(date));
+  return allSlotsFor(new Date(date + "T00:00:00"));
 }
 type DayChip = { date: string; label: string };
 const MAX_DAY_CHIPS = 7; // a week's worth — plenty of future dates without a giant chip list
@@ -280,6 +280,16 @@ type PhrasePack = {
   thanks: string;
   chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string; startOver: string; payCounter: string; reviewFree: string };
 };
+
+// Appointment times are estimates, stated once at booking-complete: a patient's
+// slot can slip with how earlier consultations and the doctor's pace run that
+// day, so nobody should plan their visit to the minute.
+const WAIT_NOTE: Record<Lang, string> = {
+  en: "Appointment times are estimates. Earlier consultations and the doctor's availability can push things back, usually by 30 minutes to an hour, so allow a little extra time when you plan to arrive.",
+  te: "అపాయింట్‌మెంట్ సమయం అంచనా మాత్రమే. మీకంటే ముందు ఉన్న కన్సల్టేషన్లు, డాక్టర్ లభ్యతను బట్టి సమయం వెనక్కి నెట్టవచ్చు, సాధారణంగా 30 నిమిషాల నుంచి ఒక గంట వరకు. రావాల్సినప్పుడు కొంచెం అదనపు సమయం పెట్టుకోండి.",
+  hi: "अपॉइंटमेंट का समय सिर्फ एक अनुमान है। पहले की सलाह और डॉक्टर की उपलब्धता के आधार पर इसमें आमतौर पर 30 मिनट से एक घंटे तक की देरी हो सकती है। आने के लिए थोड़ा अतिरिक्त समय रखें।",
+};
+
 const P: Record<Lang, PhrasePack> = {
   en: {
     greet: `Namaste 🙏 I'm the assistant for ${clinic.shortName}. How can I help you today?`,
@@ -304,9 +314,9 @@ const P: Record<Lang, PhrasePack> = {
     pendingHold: "You already have a booking waiting for payment. Please complete that payment now to confirm your slot — an unpaid booking is released automatically after 15 minutes. Or tap *Start fresh* to cancel it and book a new slot.",
     flowSlotTaken: "Sorry, that slot was just taken. Please message us again to pick another time.",
     flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
-    confirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 30 minutes* — complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.`,
-    claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt} at the counter when you arrive. No online payment needed, the desk will verify and collect it there.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.`,
-    claimFreeConfirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · this review visit is free, nothing to pay.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.`,
+    confirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 30 minutes* — complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
+    claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt} at the counter when you arrive. No online payment needed, the desk will verify and collect it there.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
+    claimFreeConfirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · this review visit is free, nothing to pay.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
     cancelAsk: `Cancellations are handled by the clinic, so I can't cancel it for you here. Would you like to move it to a new time instead? Tap *Reschedule*, or call the clinic on ${clinic.contact.phone} to cancel.`,
     payNone: "You don't have any unpaid appointments right now.",
     payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
@@ -358,9 +368,9 @@ const P: Record<Lang, PhrasePack> = {
     pendingHold: "మీకు ఇప్పటికే చెల్లింపు కోసం వేచి ఉన్న బుకింగ్ ఉంది. మీ స్లాట్ నిర్ధారించడానికి దయచేసి ఇప్పుడే ఆ చెల్లింపు పూర్తి చేయండి — చెల్లించని బుకింగ్ 15 నిమిషాల తర్వాత స్వయంచాలకంగా విడుదల అవుతుంది. లేదా *కొత్తగా మొదలుపెట్టండి* నొక్కి రద్దు చేసి కొత్త స్లాట్ బుక్ చేయండి.",
     flowSlotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. దయచేసి మళ్ళీ మెసేజ్ చేసి వేరే సమయం ఎంచుకోండి.",
     flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
-    confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఇది *30 నిమిషాలు* హోల్డ్ చేయబడుతుంది — అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.`,
-    claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · మీరు వచ్చినప్పుడు కౌంటర్‌లో ${cur}${feeAmt} చెల్లించండి. ఆన్‌లైన్ చెల్లింపు అవసరం లేదు, డెస్క్ వద్ద వెరిఫై చేసి తీసుకుంటారు.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.`,
-    claimFreeConfirm: (tok: number, s: string) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ఈ రివ్యూ విజిట్ ఫ్రీ, ఏమీ చెల్లించాల్సిన అవసరం లేదు.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.`,
+    confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఇది *30 నిమిషాలు* హోల్డ్ చేయబడుతుంది — అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
+    claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · మీరు వచ్చినప్పుడు కౌంటర్‌లో ${cur}${feeAmt} చెల్లించండి. ఆన్‌లైన్ చెల్లింపు అవసరం లేదు, డెస్క్ వద్ద వెరిఫై చేసి తీసుకుంటారు.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
+    claimFreeConfirm: (tok: number, s: string) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ఈ రివ్యూ విజిట్ ఫ్రీ, ఏమీ చెల్లించాల్సిన అవసరం లేదు.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
     cancelAsk: `రద్దులను క్లినిక్ నిర్వహిస్తుంది, కాబట్టి నేను ఇక్కడ రద్దు చేయలేను. బదులుగా కొత్త సమయానికి మార్చుకోవాలనుకుంటున్నారా? *రీషెడ్యూల్* నొక్కండి, లేదా రద్దు కోసం క్లినిక్‌కు ${clinic.contact.phone} కాల్ చేయండి.`,
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
@@ -412,9 +422,9 @@ const P: Record<Lang, PhrasePack> = {
     pendingHold: "आपकी एक बुकिंग पहले से भुगतान के लिए लंबित है। अपना स्लॉट पुष्टि करने के लिए कृपया अभी वह भुगतान पूरा करें — अवैतनिक बुकिंग 15 मिनट बाद अपने आप रिलीज़ हो जाती है। या *नया स्लॉट बुक करें* दबाकर पुरानी बुकिंग रद्द करें और नई बुक करें।",
     flowSlotTaken: "माफ़ करें, वह स्लॉट अभी बुक हो गया। कृपया दोबारा मैसेज करके दूसरा समय चुनें।",
     flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
-    confirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *30 मिनट* के लिए होल्ड है — अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।`,
-    claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · पहुंचने पर काउंटर पर ${cur}${feeAmt} का भुगतान करें। ऑनलाइन भुगतान की जरूरत नहीं है, डेस्क पर वेरिफाई करके ले लेंगे।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।`,
-    claimFreeConfirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · यह रिव्यू विजिट फ्री है, कुछ भी भुगतान नहीं करना है।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।`,
+    confirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *30 मिनट* के लिए होल्ड है — अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
+    claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · पहुंचने पर काउंटर पर ${cur}${feeAmt} का भुगतान करें। ऑनलाइन भुगतान की जरूरत नहीं है, डेस्क पर वेरिफाई करके ले लेंगे।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
+    claimFreeConfirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · यह रिव्यू विजिट फ्री है, कुछ भी भुगतान नहीं करना है।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
     cancelAsk: `रद्दीकरण क्लिनिक संभालता है, इसलिए मैं इसे यहाँ रद्द नहीं कर सकता। क्या आप इसके बजाय इसे किसी नए समय पर ले जाना चाहेंगे? *रीशेड्यूल* दबाएँ, या रद्द करने के लिए क्लिनिक को ${clinic.contact.phone} पर कॉल करें।`,
     payNone: "अभी आपके पास कोई अवैतनिक अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
@@ -1053,7 +1063,6 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 // ─────────────────────────────────────────────────────────────────────────────
 export type Backend = {
   addBooking: (input: { name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean; claim?: "returning_unverified" | "review_free" }) => Promise<Appt>;
-  takenSlots: (date: string) => Promise<string[]>;
   // includePending adds payment_pending rows — the pay intent needs them, the
   // view/reschedule intents don't (an unpaid booking isn't confirmed yet).
   activeAppointmentsByPhone: (phone: string, includePending?: boolean) => Promise<Appt[]>;
@@ -1065,42 +1074,31 @@ export type Backend = {
 };
 export type ServerBotState = BotState & { payCandidates?: PayCandidate[] };
 
-// takenByDate, when supplied, is a pre-fetched Map<YYYY-MM-DD, string[]> of the
-// already-taken times in the booking window (the route fetches it once per
-// webhook message via dbTakenSlotsRange). Using it turns the 14-day picker and
-// each day-tap from one Supabase query per day into a single batch query, which
-// is what was making the WhatsApp bot slow. Absent, each helper falls back to a
-// fresh backend.takenSlots call — the pre-optimization behaviour.
-async function openDaysServer(backend: Backend, sched: SchedState, takenByDate?: Map<string, string[]>): Promise<DayChip[]> {
+async function openDaysServer(backend: Backend, sched: SchedState): Promise<DayChip[]> {
   const now = nowIST();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const out: DayChip[] = [];
   for (let i = 0; i < 14 && out.length < MAX_DAY_CHIPS; i++) {
     const d = new Date(now); d.setDate(now.getDate() + i);
     const key = ymd(d);
-    // The map covers the whole window authoritatively, so an absent key = a
-    // day with no taken slots, not an unknown day (no fallback query). Nullish
-    // coalescing only falls through to backend.takenSlots when no map at all.
-    const taken = takenByDate ? takenByDate.get(key) ?? [] : undefined;
-    let slots = slotsFor(d, taken ?? await backend.takenSlots(key), sched);
+    let slots = allSlotsFor(d, sched);
     if (i === 0) slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + BOOKING_LEAD_MIN; });
     if (slots.length) out.push({ date: key, label: dayLabelForOffset(i, d) });
   }
   return out;
 }
-async function timesForDateServer(date: string, backend: Backend, sched: SchedState, takenByDate?: Map<string, string[]>): Promise<string[]> {
+async function timesForDateServer(date: string, backend: Backend, sched: SchedState): Promise<string[]> {
   const now = nowIST();
   const d = new Date(date + "T00:00:00");
-  const taken = takenByDate ? takenByDate.get(date) ?? [] : undefined;
-  let slots = slotsFor(d, taken ?? await backend.takenSlots(date), sched);
+  let slots = allSlotsFor(d, sched);
   if (date === ymd(now)) {
     const nowMin = now.getHours() * 60 + now.getMinutes();
     slots = slots.filter((s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m > nowMin + BOOKING_LEAD_MIN; });
   }
   return slots;
 }
-async function windowsWithSlotsForServer(date: string, backend: Backend, sched: SchedState, takenByDate?: Map<string, string[]>): Promise<Window[]> {
-  const times = await timesForDateServer(date, backend, sched, takenByDate);
+async function windowsWithSlotsForServer(date: string, backend: Backend, sched: SchedState): Promise<Window[]> {
+  const times = await timesForDateServer(date, backend, sched);
   return windowsFor(new Date(date + "T00:00:00"), sched).filter((w) => times.some((t) => inWindow(t, w)));
 }
 
@@ -1114,8 +1112,8 @@ function availReplyServer(t: PhrasePack, sched: SchedState): string {
 
 // The WhatsApp bot trusts the sender's number as identity (no OTP needed here,
 // same as cancel/pay) — enter the slot picker for the move directly.
-async function enterPickerServer(resched: { id: string; phone: string }, backend: Backend, sched: SchedState, t: PhrasePack, takenByDate?: Map<string, string[]>): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
-  const days = await openDaysServer(backend, sched, takenByDate);
+async function enterPickerServer(resched: { id: string; phone: string }, backend: Backend, sched: SchedState, t: PhrasePack): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
+  const days = await openDaysServer(backend, sched);
   if (!days.length) return { reply: [t.noSlots], chips: [t.chips.avail], state: { stage: "idle" } };
   return { reply: [t.pickDay], chips: days.map((d) => d.label), state: { stage: "idle", resched } };
 }
@@ -1123,8 +1121,8 @@ async function enterPickerServer(resched: { id: string; phone: string }, backend
 // Fresh-slot fallback after the target time got taken on a reschedule commit:
 // same day, same window where possible, re-listed as chips with the move kept
 // alive so the next tap still reschedules (not re-books).
-async function slotTakenFallbackServer(resched: { id: string; phone: string }, date: string, time: string, backend: Backend, sched: SchedState, t: PhrasePack, takenByDate?: Map<string, string[]>): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
-  const fresh = await timesForDateServer(date, backend, sched, takenByDate);
+async function slotTakenFallbackServer(resched: { id: string; phone: string }, date: string, time: string, backend: Backend, sched: SchedState, t: PhrasePack): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
+  const fresh = await timesForDateServer(date, backend, sched);
   const win = windowsFor(new Date(date + "T00:00:00"), sched).find((w) => inWindow(time, w));
   const scoped = win ? fresh.filter((t2) => inWindow(t2, win)) : fresh;
   if (!scoped.length) return { reply: [t.slotTaken, t.noSlots], chips: [t.chips.avail], state: { stage: "idle" } };
@@ -1235,8 +1233,7 @@ export async function botReplyServer(
   phone: string,
   backend: Backend,
   sched: SchedState,
-  source: Source = "whatsapp",
-  takenByDate?: Map<string, string[]>
+  source: Source = "whatsapp"
 ): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
   const t = P[lang];
   const c = t.chips;
@@ -1287,7 +1284,7 @@ export async function botReplyServer(
         state: { stage: "await_resched_pick", reschedCandidates: state.reschedCandidates },
       };
     }
-    return enterPickerServer({ id: picked.id, phone }, backend, sched, t, takenByDate);
+    return enterPickerServer({ id: picked.id, phone }, backend, sched, t);
   }
 
   // name collected: hold the slot, ask which number to book it under —
@@ -1329,7 +1326,7 @@ export async function botReplyServer(
         return { reply: [t.pendingHold], chips: [c.payNow, c.startOver, c.view, c.book], state: { stage: "idle" } };
       }
       if (err instanceof SlotTakenError) {
-        const fresh = await timesForDateServer(state.slot.date, backend, sched, takenByDate);
+        const fresh = await timesForDateServer(state.slot.date, backend, sched);
         const win = windowsFor(new Date(state.slot.date + "T00:00:00"), sched).find((w) => inWindow(state.slot!.time, w));
         const scoped = win ? fresh.filter((t2) => inWindow(t2, win)) : fresh;
         if (!scoped.length) return { reply: [t.slotTaken, t.noSlots], chips: [c.avail], state: { stage: "idle" } };
@@ -1348,7 +1345,7 @@ export async function botReplyServer(
   // tapped a time chip (only meaningful once a day AND a window are picked)
   if (state.pendingDate && state.pendingWindow) {
     const effective = state.pendingRange ?? state.pendingWindow;
-    const times = (await timesForDateServer(state.pendingDate, backend, sched, takenByDate)).filter((s) => inWindow(s, effective));
+    const times = (await timesForDateServer(state.pendingDate, backend, sched)).filter((s) => inWindow(s, effective));
     const match = times.find((s) => fmt(s) === input);
     if (match) {
       const label = `${dayLabelForDate(state.pendingDate, nowIST())} ${fmt(match)}`;
@@ -1358,7 +1355,7 @@ export async function botReplyServer(
           await backend.reschedule(state.resched.id, state.pendingDate, match);
           return { reply: [t.reschedDone(label)], chips: [c.avail, c.book, c.done], state: { stage: "idle" } };
         } catch (err) {
-          if (err instanceof SlotTakenError) return slotTakenFallbackServer(state.resched, state.pendingDate, match, backend, sched, t, takenByDate);
+          if (err instanceof SlotTakenError) return slotTakenFallbackServer(state.resched, state.pendingDate, match, backend, sched, t);
           await reportBotError("bot", "reschedule failed", { stage: "time_pick", id: state.resched.id }, err);
           return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
         }
@@ -1369,7 +1366,7 @@ export async function botReplyServer(
 
   // tapped a range chip (window picked, but it had too many slots for one screen)
   if (state.pendingDate && state.pendingWindow && !state.pendingRange) {
-    const winTimes = (await timesForDateServer(state.pendingDate, backend, sched, takenByDate)).filter((s) => inWindow(s, state.pendingWindow!));
+    const winTimes = (await timesForDateServer(state.pendingDate, backend, sched)).filter((s) => inWindow(s, state.pendingWindow!));
     const ranges = splitWindow(state.pendingWindow, winTimes.length);
     const pickedRange = ranges.length > 1 ? ranges.find((r) => windowLabel(r) === input) : undefined;
     if (pickedRange) {
@@ -1381,10 +1378,10 @@ export async function botReplyServer(
 
   // tapped a window chip (day picked, more than one window that day)
   if (state.pendingDate && !state.pendingWindow) {
-    const wins = await windowsWithSlotsForServer(state.pendingDate, backend, sched, takenByDate);
+    const wins = await windowsWithSlotsForServer(state.pendingDate, backend, sched);
     const pickedWin = wins.find((w) => windowLabel(w) === input);
     if (pickedWin) {
-      const times = (await timesForDateServer(state.pendingDate, backend, sched, takenByDate)).filter((s) => inWindow(s, pickedWin));
+      const times = (await timesForDateServer(state.pendingDate, backend, sched)).filter((s) => inWindow(s, pickedWin));
       const dayLabel = dayLabelForDate(state.pendingDate, nowIST());
       if (times.length > MAX_CHIPS) {
         const ranges = splitWindow(pickedWin, times.length);
@@ -1395,16 +1392,16 @@ export async function botReplyServer(
   }
 
   // tapped a day chip
-  const days = await openDaysServer(backend, sched, takenByDate);
+  const days = await openDaysServer(backend, sched);
   const pickedDay = days.find((d) => d.label === input);
   if (pickedDay) {
-    const times = await timesForDateServer(pickedDay.date, backend, sched, takenByDate);
+    const times = await timesForDateServer(pickedDay.date, backend, sched);
     if (!times.length) {
       const fresh = days.filter((d) => d.date !== pickedDay.date);
       if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
       return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
     }
-    const wins = await windowsWithSlotsForServer(pickedDay.date, backend, sched, takenByDate);
+    const wins = await windowsWithSlotsForServer(pickedDay.date, backend, sched);
     if (wins.length > 1) {
       return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, replacePending: state.replacePending } };
     }
@@ -1442,17 +1439,17 @@ export async function botReplyServer(
         if (pending.length) return { reply: [t.payPrompt], chips: [c.payNow, c.book], state: { stage: "idle" } };
         return { reply: [t.viewNone], chips: [c.book], state: { stage: "idle" } };
       }
-      if (active.length === 1) return enterPickerServer({ id: active[0].id, phone }, backend, sched, t, takenByDate);
+      if (active.length === 1) return enterPickerServer({ id: active[0].id, phone }, backend, sched, t);
       const candidates: CancelCandidate[] = active.map((a) => ({ id: a.id, token: a.token, name: a.name, label: `#${a.token} · ${a.name}` }));
       return { reply: [t.reschedWhich], chips: candidates.map((cd) => cd.label), state: { stage: "await_resched_pick", reschedCandidates: candidates } };
     }
     case "book": {
-      const dayList = await openDaysServer(backend, sched, takenByDate);
+      const dayList = await openDaysServer(backend, sched);
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
       return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
     }
     case "startOver": {
-      const dayList = await openDaysServer(backend, sched, takenByDate);
+      const dayList = await openDaysServer(backend, sched);
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
       return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle", replacePending: true } };
     }

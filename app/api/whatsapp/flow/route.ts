@@ -13,8 +13,8 @@ import { createHmac } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySignature } from "@/lib/meta-whatsapp";
 import { decryptFlowRequest, encryptFlowResponse } from "@/lib/whatsapp-flow-crypto";
-import { dbTakenSlots, dbLoadSchedule } from "@/lib/db";
-import { slotsFor, ymd, fmt, nowIST, type SchedState } from "@/lib/schedule";
+import { dbLoadSchedule } from "@/lib/db";
+import { allSlotsFor, ymd, fmt, nowIST, type SchedState } from "@/lib/schedule";
 import { report, reportError } from "@/lib/bugdesk";
 
 const DAYS_AHEAD = 14;
@@ -26,16 +26,15 @@ async function liveOpenDates(sched: SchedState): Promise<{ id: string; title: st
     const d = new Date(now);
     d.setDate(now.getDate() + i);
     const date = ymd(d);
-    const taken = await dbTakenSlots(date);
-    if (slotsFor(d, taken, sched).length > 0) {
+    if (allSlotsFor(d, sched).length > 0) {
       out.push({ id: date, title: d.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "2-digit" }) });
     }
   }
   return out;
 }
 
-function liveTimeSlots(date: string, taken: string[], sched: SchedState) {
-  return slotsFor(new Date(`${date}T00:00:00`), taken, sched).map((t) => ({ id: t, title: fmt(t) }));
+function liveTimeSlots(date: string, sched: SchedState) {
+  return allSlotsFor(new Date(`${date}T00:00:00`), sched).map((t) => ({ id: t, title: fmt(t) }));
 }
 
 function encryptedReply(payload: object, aesKey: Buffer, iv: Buffer) {
@@ -108,7 +107,7 @@ export async function POST(req: NextRequest) {
       const sched = await dbLoadSchedule();
       const date: string | undefined = data?.date;
       const dateOptions = await liveOpenDates(sched);
-      const time = date ? liveTimeSlots(date, await dbTakenSlots(date), sched) : [];
+      const time = date ? liveTimeSlots(date, sched) : [];
 
       if (date && time.length === 0) {
         return encryptedReply(

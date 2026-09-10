@@ -93,12 +93,9 @@ alter table public.appointments add column if not exists patient_code text;
 -- No ALTER needed beyond the status comment above — payment_pending is just a
 -- text value in the existing status column; this block is for readability only.
 create index if not exists appointments_date_idx on public.appointments (appt_date);
--- Real double-booking guard: two active (non-cancelled) appointments can never
--- share a date+time, even under concurrent inserts. A cancelled slot frees up
--- (partial index only covers status <> 'cancelled'), and dbAddBooking retries
--- with a fresh token on a plain token collision, but surfaces this violation
--- to the caller as SlotTakenError.
-create unique index if not exists appointments_slot_idx on public.appointments (appt_date, appt_time) where status <> 'cancelled';
+-- Slot capacity is intentionally unlimited: any number of patients may share
+-- the same date+time. The old unique appointments_slot_idx that enforced a
+-- one-booking-per-slot cap was removed in migration 008.
 
 -- Clinic settings: schedule + override live in one row ─────────────────────────
 create table if not exists public.settings (

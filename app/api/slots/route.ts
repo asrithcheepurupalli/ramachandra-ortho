@@ -1,7 +1,7 @@
 // Bookable slots for a date. Server-only because anon has no RLS read access
-// to appointments (patient data) — the client can't compute "taken" itself.
+// to appointments (patient data).
 import { NextResponse, type NextRequest } from "next/server";
-import { dbTakenSlots, dbLoadSchedule } from "@/lib/db";
+import { dbLoadSchedule } from "@/lib/db";
 import { allSlotsFor } from "@/lib/schedule";
 import { reportError } from "@/lib/bugdesk";
 
@@ -12,15 +12,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [taken, sched] = await Promise.all([dbTakenSlots(date), dbLoadSchedule()]);
-    const all = allSlotsFor(new Date(date + "T00:00:00"), sched);
-    // slots stays "open only" for the bot and Flow endpoint, which never show
-    // taken slots. taken is the same grid's booked subset, for the website
-    // booking page to grey out instead of silently hiding.
-    return NextResponse.json({
-      slots: all.filter((t) => !taken.includes(t)),
-      taken: all.filter((t) => taken.includes(t)),
-    });
+    const sched = await dbLoadSchedule();
+    const slots = allSlotsFor(new Date(date + "T00:00:00"), sched);
+    return NextResponse.json({ slots });
   } catch (err) {
     console.error("/api/slots", err);
     await reportError("slots", err, { severity: "warning" });

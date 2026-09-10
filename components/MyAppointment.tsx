@@ -12,14 +12,14 @@ import { tr, langLabels } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
 import {
   activeAppointmentsByPhone, rescheduleBooking, togglePaid,
-  hydrateSchedule, takenSlots, type Appt,
+  hydrateSchedule, type Appt,
 } from "@/lib/store";
 import { normalizePhone } from "@/lib/phone";
 import { hasSupabase } from "@/lib/supabase";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 type Tr = (k: string, v?: Record<string, string | number>) => string;
-type DayOpt = { date: string; d: Date; slots: string[]; taken: string[]; closingSoon?: boolean };
+type DayOpt = { date: string; d: Date; slots: string[]; closingSoon?: boolean };
 
 function MyAppointmentInner() {
   const params = useSearchParams();
@@ -399,38 +399,31 @@ function RescheduleFlow({
         list = await Promise.all(
           keys.map(async ({ i, d, key }) => {
             let slots: string[] = [];
-            let taken: string[] = [];
             try {
               const res = await fetch(`/api/slots?date=${key}`);
               const data = await res.json();
               slots = res.ok ? (data.slots as string[]) : [];
-              taken = res.ok ? (data.taken as string[]) : [];
-            } catch { slots = []; taken = []; }
-            taken = taken.filter((s) => s !== appt.time || key !== appt.date);
+            } catch { slots = []; }
             let closingSoon = false;
             if (i === 0) {
               const rawLen = slots.length;
               slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
-              taken = taken.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
               closingSoon = rawLen > 0 && slots.length === 0;
             }
-            return { date: key, d, slots, taken, closingSoon };
+            return { date: key, d, slots, closingSoon };
           })
         );
       } else {
         hydrateSchedule();
         list = keys.map(({ i, d, key }) => {
-          const takenAll = takenSlots(key).filter((time) => !(key === appt.date && time === appt.time));
-          let slots = allSlotsFor(d).filter((time) => !takenAll.includes(time));
-          let taken = allSlotsFor(d).filter((time) => takenAll.includes(time));
+          let slots = allSlotsFor(d);
           let closingSoon = false;
           if (i === 0) {
             const rawLen = slots.length;
             slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
-            taken = taken.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
             closingSoon = rawLen > 0 && slots.length === 0;
           }
-          return { date: key, d, slots, taken, closingSoon };
+          return { date: key, d, slots, closingSoon };
         });
       }
       if (cancelled) return;
@@ -444,9 +437,7 @@ function RescheduleFlow({
 
   const selDay = useMemo(() => days.find((x) => x.date === selDate), [days, selDate]);
   const timeSlots = useMemo(() => {
-    const open = (selDay?.slots ?? []).map((time) => ({ time, taken: false }));
-    const gone = (selDay?.taken ?? []).map((time) => ({ time, taken: true }));
-    return [...open, ...gone].sort((a, b) => toMin(a.time) - toMin(b.time));
+    return [...(selDay?.slots ?? [])].sort((a, b) => toMin(a) - toMin(b));
   }, [selDay]);
 
   const dayLabel = (o: DayOpt, i: number) =>
@@ -513,17 +504,13 @@ function RescheduleFlow({
           <p className="rounded-lg bg-surface p-3 text-sm text-muted">{selDay?.closingSoon ? t("book.closingsoon") : t("book.noslots")}</p>
         ) : (
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4" role="group" aria-label={t("book.time")}>
-            {timeSlots.map(({ time, taken }) => (
+            {timeSlots.map((time) => (
               <button
                 key={time}
-                disabled={taken}
                 aria-pressed={selTime === time}
-                aria-disabled={taken}
-                onClick={() => !taken && setSelTime(time)}
+                onClick={() => setSelTime(time)}
                 className={`press rounded-lg border py-2 text-sm font-medium transition ${
-                  taken
-                    ? "cursor-not-allowed border-line bg-surface text-muted/50 line-through"
-                    : selTime === time
+                  selTime === time
                     ? "border-brand bg-brand text-white"
                     : "border-line bg-surface hover:border-brand/40"
                 }`}
@@ -533,6 +520,7 @@ function RescheduleFlow({
             ))}
           </div>
         )}
+        {timeSlots.length > 0 && <p className="mt-2 text-xs text-muted">{t("book.waitnote")}</p>}
       </div>
 
       {err && <p role="alert" className="mt-3 text-sm text-out">{err}</p>}

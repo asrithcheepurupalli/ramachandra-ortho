@@ -75,14 +75,16 @@ const toMin = (t: string) => {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 };
-// Minimum lead time before a slot can be booked today (patients need time to
-// travel). Was 10 min, same as clinic.slotMinutes — since a slot only clears
-// this once it's >10 min out, and slots sit on a 10-min grid, the last slot
-// of every window was unbookable for a full 20 min before the window closed
-// (its own 10-min lead time plus the next slot's already having dropped off),
-// which read as "no slots" well before the window was actually done. 5 min
-// halves that blackout without dropping the lead-time protection entirely.
-export const BOOKING_LEAD_MIN = 5;
+// Minimum lead time before a slot can be booked today. Now that a slot can
+// hold any number of bookings, walking in right at a slot's start time and
+// booking it isn't fair to everyone already queued for that slot and the
+// one right after it — so the cutoff skips a full extra slot-width ahead of
+// "now," not just a few minutes. At 10:30 with 15-min slots, the cutoff is
+// 10:30 + 20min = 10:50, which blocks both 10:30 and 10:45 and opens 11:00.
+// Trade-off: this also widens the unbookable window right before the clinic
+// closes for the day (same cutoff applies there) from ~20 min to ~35 min —
+// accepted, since the fairness guarantee matters more than shaving it thin.
+export const BOOKING_LEAD_MIN = 5 + clinic.slotMinutes;
 
 // True when date+time is today and inside the lead-time cutoff (or already
 // past) — the one check every booking/reschedule path must agree on. The
@@ -180,9 +182,9 @@ export function statusAt(now = new Date(), s: SchedState = liveState()): Status 
   return { state: "out", next: nextOpen(now, s), note };
 }
 
-// Every slot time in a date's windows, taken or not — the website booking
-// page needs this to grey out taken slots instead of hiding them; the bot
-// and the Flow endpoint only ever want the open subset, via slotsFor below.
+// Every slot time in a date's windows. Slot capacity is unlimited, so this
+// is the one and only slot list every surface (website, bot, Flow endpoint)
+// renders from — there's no separate "open vs. taken" split to filter by.
 export function allSlotsFor(date: Date, s: SchedState = liveState()): string[] {
   const out: string[] = [];
   for (const w of windowsFor(date, s)) {
@@ -193,18 +195,13 @@ export function allSlotsFor(date: Date, s: SchedState = liveState()): string[] {
   return out;
 }
 
-// Bookable slots for a given date (respects windows, minus already-taken).
-export function slotsFor(date: Date, taken: string[] = [], s: SchedState = liveState()): string[] {
-  return allSlotsFor(date, s).filter((t) => !taken.includes(t));
-}
-
 export const weekdayName = (d: Date) =>
   ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][
     d.getDay()
   ];
 
 // Apply an edited schedule (from the admin editor) onto the live module objects,
-// so statusAt()/slotsFor() reflect it immediately. In production this is one
+// so statusAt()/allSlotsFor() reflect it immediately. In production this is one
 // Supabase row that every surface reads.
 export function applySchedule(w: WeeklyHours, ex: Record<string, Exception>) {
   for (let d = 0; d <= 6; d++) weeklyHours[d] = w[d] ?? [];

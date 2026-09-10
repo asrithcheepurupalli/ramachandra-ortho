@@ -294,10 +294,6 @@ export function addBooking(input: {
   write([...nextAll, appt]);
   return appt;
 }
-// Times already taken on a date (so the slot picker can hide them).
-export function takenSlots(date: string): string[] {
-  return read().filter((a) => a.date === date && a.status !== "cancelled").map((a) => a.time);
-}
 export function setStatus(id: string, status: ApptStatus) {
   write(read().map((a) => (a.id === id ? { ...a, status, paid: status === "done" ? true : a.paid, paidVia: status === "done" && !a.paid ? "cash" : a.paidVia } : a)));
 }
@@ -315,9 +311,8 @@ export function activeAppointmentsByPhone(phone: string, includePending = false)
 export function rescheduleBooking(id: string, date: string, time: string) {
   if (isPastLeadTime(date, time, new Date())) throw new InvalidSlotError();
   const all = read();
-  const taken = all.filter((a) => a.date === date && a.status !== "cancelled" && a.id !== id).map((a) => a.time);
   const d = new Date(date + "T00:00:00");
-  if (!allSlotsFor(d).includes(time) || taken.includes(time)) throw new SlotTakenError();
+  if (!allSlotsFor(d).includes(time)) throw new SlotTakenError();
   write(all.map((a) => (a.id === id ? { ...a, date, time } : a)));
 }
 export function togglePaid(id: string) {
@@ -395,7 +390,7 @@ export function saveSchedule(weekly: WeeklyHours, ex: Record<string, Exception>,
 export function useScheduleTick() {
   return useSyncExternalStore(subscribe, () => scheduleTick, () => 0);
 }
-// Call on client mount so statusAt()/slotsFor() reflect the saved schedule.
+// Call on client mount so statusAt()/allSlotsFor() reflect the saved schedule.
 export function hydrateSchedule() {
   const s = loadSchedule();
   applySchedule(s.weekly, s.exceptions);

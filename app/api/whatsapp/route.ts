@@ -3,9 +3,8 @@
 // Always acks POST with 200 quickly; Meta retries (and can disable) a webhook
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
-import { dbAddBooking, dbTakenSlots, dbTakenSlotsRange, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
+import { dbAddBooking, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
 import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, type Backend, type ServerBotState } from "@/lib/bot";
-import { nowIST, ymd } from "@/lib/schedule";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail, sendNewAppointmentEmail } from "@/lib/mailer";
 import { SlotTakenError, PendingHoldError } from "@/lib/errors";
@@ -13,7 +12,6 @@ import { report, reportError } from "@/lib/bugdesk";
 
 const backend: Backend = {
   addBooking: dbAddBooking,
-  takenSlots: dbTakenSlots,
   activeAppointmentsByPhone: dbActiveAppointmentsByPhone,
   createPaymentLink: dbGetOrCreatePaymentLink,
   // Move the booking AND re-confirm it over WhatsApp, matching what the site's
@@ -210,19 +208,8 @@ export async function POST(req: NextRequest) {
         ? waState.lastChips[Number(asChipNumber[1]) - 1]
         : text;
 
-    const now = nowIST();
-    const end = new Date(now); end.setDate(now.getDate() + 13);
-    // Load the schedule AND pre-fetch every taken slot in the 14-day booking
-    // window as one parallel batch (both are independent reads, so no extra
-    // serial latency). The day picker (openDaysServer) and every
-    // day/window/range/time tap then reuse the map instead of issuing one
-    // Supabase query per day — the picker alone used to be up to 14 sequential
-    // round-trips, which is what made the bot feel slow.
-    const [sched, takenByDate] = await Promise.all([
-      dbLoadSchedule(),
-      dbTakenSlotsRange(ymd(now), ymd(end)),
-    ]);
-    const result = await botReplyServer(effectiveInput, lang, waState, from, backend, sched, "whatsapp", takenByDate);
+    const sched = await dbLoadSchedule();
+    const result = await botReplyServer(effectiveInput, lang, waState, from, backend, sched, "whatsapp");
 
     const newState: WaState = { ...result.state, lastChips: result.chips };
     await dbSaveWaSession(from, lang, newState, wamid);

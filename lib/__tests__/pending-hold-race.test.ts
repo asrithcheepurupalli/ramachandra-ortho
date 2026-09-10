@@ -4,9 +4,8 @@
 // appointments_pending_hold_idx (a partial unique index — see
 // supabase/migrations/002_pending_hold_and_rate_limits.sql) is the real
 // guard; dbAddBooking must translate the resulting 23505 into the same
-// PendingHoldError the pre-check throws. Also covers the pre-existing
-// appointments_slot_idx → SlotTakenError translation and the token-collision
-// retry loop, since all three share one catch block.
+// PendingHoldError the pre-check throws. Also covers the token-collision
+// retry loop, since both share one catch block.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { makeMockDb, mockDbHolder } from "./mock-db";
 
@@ -21,12 +20,16 @@ vi.mock("@/lib/bugdesk", () => ({ report: vi.fn(), reportError: vi.fn() }));
 
 // A Monday at least a couple weeks out so it's never "today" or in the past
 // relative to whenever this test actually runs, and default weekly hours
-// (Mon–Sat, 10:00–12:30 / 18:00–19:45) have it open.
+// (Mon–Sat, 10:00–12:30 / 18:00–19:45) have it open. The app's own date math
+// (ymd, allSlotsFor) reads dates through LOCAL getters, so the string must be
+// built from local getters too — a UTC slice (toISOString) can land a day early
+// when IST is behind UTC near midnight, misreading a Monday as Sunday.
 function nextMonday(): string {
   const d = new Date();
   d.setDate(d.getDate() + 14);
   while (d.getDay() !== 1) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 const scheduleRow = { data: { weekly: null, exceptions: null, override: null }, error: null };
@@ -68,6 +71,7 @@ describe("dbAddBooking concurrency-sensitive error handling", () => {
 
     mockDbHolder.current = makeMockDb([
       scheduleRow, // dbLoadSchedule
+      { data: null, error: null }, // expireStalePendingHolds
       { data: [], error: null }, // application-level pending check — passes (race window)
       existingPatient, // patients existing lookup
       { data: [], error: null }, // dayAppts token scan
@@ -80,30 +84,14 @@ describe("dbAddBooking concurrency-sensitive error handling", () => {
     await expect(dbAddBooking(booking)).rejects.toBeInstanceOf(PendingHoldError);
   });
 
-  it("still translates a slot-taken unique violation into SlotTakenError", async () => {
-    const { dbAddBooking } = await import("@/lib/db");
-    const { SlotTakenError, PendingHoldError } = await import("@/lib/errors");
-
-    mockDbHolder.current = makeMockDb([
-      scheduleRow,
-      { data: [], error: null },
-      existingPatient,
-      { data: [], error: null },
-      { data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "appointments_slot_idx"' } },
-    ]);
-
-    const err = await dbAddBooking(booking).catch((e) => e);
-    expect(err).toBeInstanceOf(SlotTakenError);
-    expect(err).not.toBeInstanceOf(PendingHoldError);
-  });
-
   it("retries once on an unrelated token collision and succeeds", async () => {
     const { dbAddBooking } = await import("@/lib/db");
 
     const mockDb = makeMockDb([
-      scheduleRow,
-      { data: [], error: null },
-      existingPatient,
+      scheduleRow, // dbLoadSchedule
+      { data: null, error: null }, // expireStalePendingHolds
+      { data: [], error: null }, // application-level pending check — passes
+      existingPatient, // patients existing lookup
       { data: [{ token: 1 }], error: null }, // attempt 1: token scan
       { data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "appointments_token_key"' } }, // attempt 1: collides
       { data: [{ token: 1 }, { token: 2 }], error: null }, // attempt 2: token scan (someone else inserted meanwhile)
