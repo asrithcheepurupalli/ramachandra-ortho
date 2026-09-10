@@ -17,8 +17,31 @@ import { createPaymentLink } from "@/lib/razorpay";
 import { normalizePhone, phoneMatchVariants } from "@/lib/phone";
 import { report } from "@/lib/bugdesk";
 
+// Same window the payment-timeout cron uses: a payment_pending hold releases
+// once it's older than this. Defined here (and mirrored by the cron route) so
+// the lazy sweep and the cron agree on how stale is stale.
+export const PAYMENT_WINDOW_MS = 15 * 60 * 1000;
+
+// Lazy expiry for lazily-seeming stale holds: any slot lookup frees
+// payment_pending rows older than the payment window before answering. The
+// GitHub cron is the backstop for items nobody ever looks at; this covers the
+// question that actually matters to the next patient — "is this slot free?" —
+// within one lookup, even when the cron hasn't fired on time (free-tier
+// Actions schedules can lag for hours).
+async function expireStalePendingHolds(): Promise<void> {
+  const cutoff = new Date(Date.now() - PAYMENT_WINDOW_MS).toISOString();
+  const { error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ status: "cancelled" })
+    .eq("status", "payment_pending")
+    .lt("created_at", cutoff)
+    .eq("paid", false); // never cancel a row the desk collected cash for
+  if (error) throw error;
+}
+
 // Times already taken on a date (so the slot picker can hide them).
 export async function dbTakenSlots(date: string): Promise<string[]> {
+  await expireStalePendingHolds();
   const { data, error } = await supabaseAdmin()
     .from("appointments")
     .select("appt_time")
@@ -33,6 +56,7 @@ export async function dbTakenSlots(date: string): Promise<string[]> {
 // by YYYY-MM-DD so callers can look up in O(1). The route pre-fetches this for
 // the next 14 days and threads the map into botReplyServer → openDaysServer.
 export async function dbTakenSlotsRange(start: string, end: string): Promise<Map<string, string[]>> {
+  await expireStalePendingHolds();
   const { data, error } = await supabaseAdmin()
     .from("appointments")
     .select("appt_date, appt_time")

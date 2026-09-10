@@ -18,10 +18,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { safeEqual } from "@/lib/meta-whatsapp";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { report, reportError } from "@/lib/bugdesk";
+import { PAYMENT_WINDOW_MS } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
-
-const PAYMENT_WINDOW_MS = 15 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
