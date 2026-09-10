@@ -7,9 +7,12 @@ import { slotsFor, ymd, nowIST } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
 import { isRateLimited } from "@/lib/rate-limit";
 import { reportError } from "@/lib/bugdesk";
+import { sendNewAppointmentEmail } from "@/lib/mailer";
 
 type Source = "website" | "whatsapp" | "walkin";
 const isSource = (v: unknown): v is Source => v === "website" || v === "whatsapp" || v === "walkin";
+type Claim = "returning_unverified" | "review_free";
+const isClaim = (v: unknown): v is Claim => v === "returning_unverified" || v === "review_free";
 
 const RATE_LIMIT = 40;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -27,7 +30,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { name, phone, age, date, time, source, replacePending } = body ?? {};
+  const { name, phone, age, date, time, source, replacePending, claim } = body ?? {};
   if (typeof name !== "string" || !name.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
   if (normalizePhone(phone).length !== 10) return NextResponse.json({ error: "phone must be a valid 10-digit number" }, { status: 400 });
@@ -52,11 +55,18 @@ export async function POST(req: NextRequest) {
       time,
       source: isSource(source) ? source : "website",
       replacePending: replacePending === true,
+      claim: isClaim(claim) ? claim : undefined,
     });
     // No confirmation template here. A new booking sits in payment_pending for
     // the payment window, so nothing may say "confirmed" yet — the number arrives
     // on the screen with the pay banner, and the real confirmation goes out as
     // META_TEMPLATE_PAID once the Razorpay webhook flips it to reserved.
+    //
+    // A claimed booking skips payment_pending and Razorpay entirely, so it
+    // never reaches the webhook that would otherwise fire this — send it here.
+    if (appt.claimType) {
+      try { await sendNewAppointmentEmail(appt); } catch (err) { console.error("book: claim email notify failed", err); await reportError("book", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
+    }
     return NextResponse.json({ appointment: appt }, { status: 201 });
   } catch (err) {
     if (err instanceof PendingHoldError) {

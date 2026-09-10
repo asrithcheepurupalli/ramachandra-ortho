@@ -7,7 +7,7 @@ import { dbAddBooking, dbTakenSlots, dbTakenSlotsRange, dbLoadSchedule, dbLoadWa
 import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, type Backend, type ServerBotState } from "@/lib/bot";
 import { nowIST, ymd } from "@/lib/schedule";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
-import { sendRescheduledEmail } from "@/lib/mailer";
+import { sendRescheduledEmail, sendNewAppointmentEmail } from "@/lib/mailer";
 import { SlotTakenError, PendingHoldError } from "@/lib/errors";
 import { report, reportError } from "@/lib/bugdesk";
 
@@ -24,6 +24,12 @@ const backend: Backend = {
     try { await sendBookingConfirmation(appt); } catch (err) { console.error("whatsapp reschedule: WhatsApp notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "whatsapp", appt: appt.id } }); }
     try { await sendRescheduledEmail(appt); } catch (err) { console.error("whatsapp reschedule: email notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
     return appt;
+  },
+  // Claim bookings (payCounter / reviewFree) skip Razorpay, so there's no
+  // webhook to fire the staff notification the way a paid booking gets it —
+  // send it here instead, right after the claim booking is created.
+  notifyClaimBooking: async (appt) => {
+    try { await sendNewAppointmentEmail(appt); } catch (err) { console.error("whatsapp: claim email notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
   },
 };
 

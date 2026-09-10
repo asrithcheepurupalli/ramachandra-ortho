@@ -205,6 +205,7 @@ function rowToAppt(r: any): Appt {
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
     patientCode: r.patient_code ?? null,
+    claimType: r.claim_type ?? null,
     paymentDeadlineAt: null, // server-side: expiry is enforced by the payment-timeout cron against created_at
   };
 }
@@ -213,8 +214,15 @@ function rowToAppt(r: any): Appt {
 // replacePending: when true, cancel any existing payment_pending row for this
 // phone before inserting (the patient is choosing to start over rather than
 // pay the old hold).
+//
+// claim: a self-declared payment exemption ("returning_unverified" or
+// "review_free" — see AGENTS context: the clinic has no pre-launch patient
+// data to check these against, so both are trusted at booking time and
+// verified in person at the counter). A claimed booking skips payment_pending
+// and Razorpay entirely and lands straight in "reserved".
 export async function dbAddBooking(input: {
   name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean;
+  claim?: "returning_unverified" | "review_free";
 }): Promise<Appt> {
   const db = supabaseAdmin();
   const name = input.name.trim();
@@ -296,13 +304,23 @@ export async function dbAddBooking(input: {
     }
   }
 
+  // A self-declared claim overrides the looked-up fee outright — there's no
+  // old-patient record to check a "returning" claim against, so it's trusted
+  // at the clinic's own rate and verified in person. "review_free" is ₹0 with
+  // nothing ever collected.
+  if (input.claim === "returning_unverified") fee = clinic.returningFee;
+  else if (input.claim === "review_free") fee = 0;
+
   // Bookings start payment_pending (not reserved): the slot is held + the
   // Razorpay link has a reference_id, but nothing shows in any queue until
-  // the webhook flips it to reserved. The partial unique index on (appt_date,
-  // appt_time) where status <> 'cancelled' is the real guard against two
-  // patients landing the same slot in a race; the per-day token sequence can
-  // also collide under concurrent inserts, so both are retried a few times
-  // (with a freshly recomputed token) before giving up.
+  // the webhook flips it to reserved. A claimed booking (claim set) skips
+  // that entirely — there's no Razorpay step for a counter-pay or free claim,
+  // so it goes straight to "reserved", `paid` true only for the free claim.
+  // The partial unique index on (appt_date, appt_time) where status <>
+  // 'cancelled' is the real guard against two patients landing the same slot
+  // in a race; the per-day token sequence can also collide under concurrent
+  // inserts, so both are retried a few times (with a freshly recomputed
+  // token) before giving up.
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data: dayAppts, error: dayErr } = await db
       .from("appointments")
@@ -323,10 +341,11 @@ export async function dbAddBooking(input: {
         reason: "Consultation",
         appt_date: input.date,
         appt_time: input.time,
-        status: "payment_pending",
+        status: input.claim ? "reserved" : "payment_pending",
         source: input.source ?? "website",
         fee,
-        paid: false,
+        paid: input.claim === "review_free",
+        claim_type: input.claim ?? null,
       })
       .select("*")
       .single();

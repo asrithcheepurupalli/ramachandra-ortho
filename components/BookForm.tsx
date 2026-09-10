@@ -52,6 +52,11 @@ export function BookForm() {
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupErr, setLookupErr] = useState("");
   const [matched, setMatched] = useState<{ name: string; phone: string; patientCode: string; fee: number } | null>(null);
+  // Self-declared payment exemption: no old-patient record exists to check
+  // either claim against, so both are trusted at booking time and verified in
+  // person at the counter (see AGENTS context). Skips payment_pending/Razorpay
+  // entirely — the booking lands straight in "reserved".
+  const [claim, setClaim] = useState<"returning_unverified" | "review_free" | null>(null);
 
   // Last unpaid hold, shown as the resume-payment banner on a returning visit.
   const [resume, setResume] = useState<Appt | null>(null);
@@ -69,6 +74,7 @@ export function BookForm() {
       if (s.lang) setLang(s.lang);
       if (s.stage === "patient" || s.stage === "book") setStage(s.stage);
       if (s.people === "new" || s.people === "returning") setPeople(s.people);
+      if (s.claim === "returning_unverified" || s.claim === "review_free") setClaim(s.claim);
       if (s.matched && typeof s.matched === "object") setMatched(s.matched);
       if (typeof s.lookupQ === "string") setLookupQ(s.lookupQ);
       if (s.form && typeof s.form === "object") setForm(s.form);
@@ -97,15 +103,16 @@ export function BookForm() {
   useEffect(() => {
     if (booked) return;
     try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ lang, stage, people, matched, lookupQ, form, selDate, selTime }));
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ lang, stage, people, claim, matched, lookupQ, form, selDate, selTime }));
     } catch { /* storage full / private mode — resume degrades to nothing */ }
-  }, [lang, stage, people, matched, lookupQ, form, selDate, selTime, booked]);
+  }, [lang, stage, people, claim, matched, lookupQ, form, selDate, selTime, booked]);
 
   // A booking landing on the confirmation screen unpaid is a resume candidate:
   // remember it so a patient who abandons the tab can come back and pay. A
-  // paid or absent booking drops it (clearResume handles the paid paths).
+  // paid, claimed (counter-pay/free, no online payment ever applies), or
+  // absent booking drops it (clearResume handles the paid paths).
   useEffect(() => {
-    if (booked && stage === "done" && !booked.paid) {
+    if (booked && stage === "done" && !booked.paid && !booked.claimType) {
       try { localStorage.setItem(RESUME_KEY, JSON.stringify(booked)); } catch {}
     }
   }, [booked, stage]);
@@ -242,7 +249,7 @@ export function BookForm() {
         const res = await fetch("/api/book", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, date: selDate, time: selTime, source: "website", replacePending }),
+          body: JSON.stringify({ ...form, date: selDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -265,7 +272,7 @@ export function BookForm() {
       }
     } else {
       try {
-        setBooked(addBooking({ ...form, date: selDate, time: selTime, source: "website", replacePending }));
+        setBooked(addBooking({ ...form, date: selDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }));
       } catch {
         setErr("Could not book. Please try again.");
         return;
@@ -340,7 +347,12 @@ export function BookForm() {
             {booked.patientCode && <Row icon={BadgeCheck} v={`${t("book.patient.code")}: ${booked.patientCode}`} />}
           </dl>
           {booked.patientCode && <p className="mt-3 rounded-xl bg-brand-tint px-3 py-2 text-xs text-brand">{t("book.patient.saveid", { code: booked.patientCode })}</p>}
-          {!booked.paid ? (
+          {booked.claimType === "returning_unverified" ? (
+            <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
+              <p className="text-sm font-semibold text-out">{t("book.done.counterPay", { cur: clinic.currency, fee: booked.fee })}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{t("book.done.counterPaySub")}</p>
+            </div>
+          ) : !booked.paid ? (
             <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
               <p className="text-sm font-semibold text-out">{t("book.done.payRequired")}</p>
               <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -352,11 +364,13 @@ export function BookForm() {
           )}
           {/* The carry-over-to-next-day line is about confirmed no-shows; an
               unpaid booking is cancelled outright instead, so it would read as
-              a contradiction here. Show it only once payment confirmed the slot. */}
-          {booked.paid && <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>}
+              a contradiction here. Show it once payment confirmed the slot —
+              or for a claim booking, which is already "reserved" and carries
+              over the same as any other confirmed appointment. */}
+          {(booked.paid || booked.claimType) && <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>}
           {payErr && <p role="alert" className="mt-3 text-sm text-out">{payErr}</p>}
           <div className="mt-6 flex flex-col gap-2">
-            {!booked.paid && (
+            {!booked.paid && !booked.claimType && (
               <button onClick={doPay} disabled={payBusy} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
                 <Wallet className="h-4 w-4 shrink-0" /> {t("book.done.paynow")}
               </button>
@@ -364,13 +378,14 @@ export function BookForm() {
             <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition hover:bg-brand-tint"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
             {/* My Appointment won't show a payment_pending row (it's not real
                 until paid), so the "View appointment" link would dead-end on
-                the empty state. Offer it only once payment confirmed the slot. */}
-            {booked.paid && <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full border border-line px-3 py-3 text-center text-sm font-semibold text-ink">{t("book.done.view")}</Link>}
+                the empty state. Offer it once payment confirmed the slot — or
+                for a claim booking, which is already "reserved" and real. */}
+            {(booked.paid || booked.claimType) && <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full border border-line px-3 py-3 text-center text-sm font-semibold text-ink">{t("book.done.view")}</Link>}
             {/* Stacked full-width, not a flex-1 side-by-side row. Telugu/Hindi
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}
             <div className="grid grid-cols-1 gap-2">
-              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: 0 }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
+              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setClaim(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: 0 }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
               <Link href="/" className="press w-full rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
             </div>
           </div>
@@ -436,6 +451,16 @@ export function BookForm() {
             )}
 
             <button onClick={() => { setPeople(null); setMatched(null); setLookupQ(""); setLookupErr(""); }} className="press mt-4 text-sm font-semibold text-brand">{t("book.patient.actuallynew")}</button>
+
+            {/* Self-declared escape hatch: no pre-launch patient data exists to
+                match against, so a returning patient who doesn't find their
+                record can still book, at the counter-pay rate, verified in
+                person — rather than dead-ending on lookupErr. */}
+            {lookupErr && (
+              <button onClick={() => { setClaim("returning_unverified"); setStage("book"); }} className="press mt-3 w-full rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3 text-left text-sm font-semibold text-out transition hover:border-accent/60">
+                {t("book.patient.unverified", { cur: clinic.currency, fee: clinic.returningFee })}
+              </button>
+            )}
           </div>
         ) : (
           <div className="mt-7 space-y-3">
@@ -460,6 +485,7 @@ export function BookForm() {
               </div>
             </button>
             <p className="pt-1 text-center text-xs text-muted">{t("book.patient.hint", { cur: clinic.currency, fee: clinic.returningFee, reg: clinic.consultationFee })}</p>
+            <button onClick={() => { setClaim("review_free"); setStage("book"); }} className="press w-full text-center text-sm font-semibold text-brand">{t("book.patient.reviewlink")}</button>
           </div>
         )}
       </main>
@@ -470,7 +496,7 @@ export function BookForm() {
   return (
     <main className="mx-auto w-full max-w-lg px-5 pb-28 pt-6 md:pb-12">
       <div className="flex items-center justify-between gap-3">
-        <button onClick={() => { setStage("patient"); setPeople(null); setMatched(null); setSelDate(null); setSelTime(null); }} className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{t("book.patient.back")}</span></button>
+        <button onClick={() => { setStage("patient"); setPeople(null); setClaim(null); setMatched(null); setSelDate(null); setSelTime(null); }} className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{t("book.patient.back")}</span></button>
         <div className="flex shrink-0 items-center rounded-full border border-line bg-surface p-0.5">
           {(Object.keys(langLabels) as Lang[]).map((l) => (
             <button key={l} onClick={() => setLang(l)} className={`press rounded-full px-2.5 py-1 text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted"}`}>{langLabels[l]}</button>

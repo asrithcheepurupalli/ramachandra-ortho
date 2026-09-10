@@ -38,6 +38,7 @@ export type Appt = {
   createdAt: number;
   notes: string | null; // doctor's free-text clinical note, written from the doctor portal only
   patientCode: string | null; // human-readable patient ID (ROC-####), null when not matched
+  claimType: "returning_unverified" | "review_free" | null; // self-declared payment exemption, verified at the counter; null for ordinary bookings
   paymentDeadlineAt: number | null; // epoch ms; 15 min window for payment_pending bookings, null for walk-ins / legacy
 };
 
@@ -132,7 +133,7 @@ function seed(): Appt[] {
     id: rid(), token: i + 1, name: r[0], phone: r[1], age: r[2], date: today,
     time: times[i], status: r[4], source: r[3], fee, paid: r[5], paidVia: r[6],
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now() - (10 - i) * 6e5,
-    notes: null, patientCode: codeFor(r[1], r[0]), paymentDeadlineAt: null,
+    notes: null, patientCode: codeFor(r[1], r[0]), claimType: null, paymentDeadlineAt: null,
   }));
 }
 
@@ -239,7 +240,7 @@ export function addWalkIn(input: { name: string; phone: string; age: number; sou
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
     source: input.source ?? "walkin", fee, paid: false, paidVia: null,
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
-    notes: null, patientCode, paymentDeadlineAt: null,
+    notes: null, patientCode, claimType: null, paymentDeadlineAt: null,
   };
   write([...all, appt]);
   return appt;
@@ -248,7 +249,13 @@ export function addWalkIn(input: { name: string; phone: string; age: number; sou
 // replacePending: when true, cancel any existing payment_pending row for this
 // phone before inserting (the patient is choosing to start over rather than
 // pay the old hold).
-export function addBooking(input: { name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean }): Appt {
+// claim: a self-declared payment exemption ("returning_unverified" or
+// "review_free") — see dbAddBooking. Skips payment_pending/the deadline
+// entirely and lands straight in "reserved".
+export function addBooking(input: {
+  name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean;
+  claim?: "returning_unverified" | "review_free";
+}): Appt {
   if (isPastLeadTime(input.date, input.time, new Date())) throw new InvalidSlotError();
   const all = read();
   const dayAppts = all.filter((a) => a.date === input.date);
@@ -271,14 +278,17 @@ export function addBooking(input: { name: string; phone: string; age: number; da
   }
   const reg = loadPatients();
   const existing = phone ? reg[phone] : undefined;
-  const fee = existing ? clinic.returningFee : clinic.consultationFee;
+  let fee: number = existing ? clinic.returningFee : clinic.consultationFee;
+  if (input.claim === "returning_unverified") fee = clinic.returningFee;
+  else if (input.claim === "review_free") fee = 0;
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,
     age: input.age, date: input.date, time: input.time,
-    status: "payment_pending", source: input.source ?? "website", fee,
-    paid: false, paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
-    notes: null, patientCode, paymentDeadlineAt: Date.now() + PAYMENT_WINDOW_MS,
+    status: input.claim ? "reserved" : "payment_pending", source: input.source ?? "website", fee,
+    paid: input.claim === "review_free", paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
+    notes: null, patientCode, claimType: input.claim ?? null,
+    paymentDeadlineAt: input.claim ? null : Date.now() + PAYMENT_WINDOW_MS,
   };
   write([...nextAll, appt]);
   return appt;

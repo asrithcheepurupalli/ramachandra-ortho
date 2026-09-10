@@ -424,7 +424,7 @@ function DoctorStrip({ t }: { t: T }) {
             <p className="mt-1 text-brand font-medium">{clinic.doctor.title}</p>
             <p className="mt-4 max-w-xl leading-relaxed text-muted">{clinic.doctor.experienceNote}. Patients across Visakhapatnam trust Dr. Ramachandra for clear explanations, unhurried consultations and honest advice, from a hairline fracture to a full joint replacement.</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              {["10 years experience", "Fractures", "Knee replacement", "Sports injuries", "Trauma care", "Physiotherapy"].map((s) => (
+              {["10 years experience", "Complex trauma", "Fracture fixation", "Joint replacement", "Sports injuries", "Pediatric orthopedics", "All types of arthritis", "Rheumatology", "Physiotherapy"].map((s) => (
                 <span key={s} className="rounded-full bg-brand-tint px-3 py-1 text-xs font-medium text-brand">{s}</span>
               ))}
             </div>

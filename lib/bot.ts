@@ -248,6 +248,10 @@ type PhrasePack = {
   flowSlotTaken: string;
   flowBookFail: string;
   confirm: (tok: number, s: string, feeAmt: number) => string;
+  // Self-declared payment exemptions (verified in person at the counter, no
+  // online payment step). See claimCounterConfirm/claimFreeConfirm below.
+  claimCounterConfirm: (tok: number, s: string, feeAmt: number) => string;
+  claimFreeConfirm: (tok: number, s: string) => string;
   cancelAsk: string;
   payNone: string;
   payWhich: string;
@@ -274,7 +278,7 @@ type PhrasePack = {
   about: string;
   fallback: string;
   thanks: string;
-  chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string; startOver: string };
+  chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string; startOver: string; payCounter: string; reviewFree: string };
 };
 const P: Record<Lang, PhrasePack> = {
   en: {
@@ -301,6 +305,8 @@ const P: Record<Lang, PhrasePack> = {
     flowSlotTaken: "Sorry, that slot was just taken. Please message us again to pick another time.",
     flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 30 minutes* — complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.`,
+    claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt} at the counter when you arrive. No online payment needed, the desk will verify and collect it there.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.`,
+    claimFreeConfirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · this review visit is free, nothing to pay.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.`,
     cancelAsk: `Cancellations are handled by the clinic, so I can't cancel it for you here. Would you like to move it to a new time instead? Tap *Reschedule*, or call the clinic on ${clinic.contact.phone} to cancel.`,
     payNone: "You don't have any unpaid appointments right now.",
     payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
@@ -327,7 +333,7 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}*\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nRated ${clinic.rating.score}★ from ${clinic.rating.count}+ ${clinic.rating.source} reviews.`,
     fallback: "I can tell you if the doctor is in, tell you about the doctor, book you an appointment, or share timings and location. What would you like?",
     thanks: "You're welcome 🙏 Get well soon!",
-    chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now", startOver: "Start fresh" },
+    chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now", startOver: "Start fresh", payCounter: "Returning patient, pay at counter", reviewFree: "Free review visit" },
   },
   te: {
     greet: `నమస్కారం 🙏 నేను ${clinic.shortName} అసిస్టెంట్‌ని. మీకు ఎలా సహాయపడగలను?`,
@@ -353,6 +359,8 @@ const P: Record<Lang, PhrasePack> = {
     flowSlotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. దయచేసి మళ్ళీ మెసేజ్ చేసి వేరే సమయం ఎంచుకోండి.",
     flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఇది *30 నిమిషాలు* హోల్డ్ చేయబడుతుంది — అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.`,
+    claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · మీరు వచ్చినప్పుడు కౌంటర్‌లో ${cur}${feeAmt} చెల్లించండి. ఆన్‌లైన్ చెల్లింపు అవసరం లేదు, డెస్క్ వద్ద వెరిఫై చేసి తీసుకుంటారు.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.`,
+    claimFreeConfirm: (tok: number, s: string) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ఈ రివ్యూ విజిట్ ఫ్రీ, ఏమీ చెల్లించాల్సిన అవసరం లేదు.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.`,
     cancelAsk: `రద్దులను క్లినిక్ నిర్వహిస్తుంది, కాబట్టి నేను ఇక్కడ రద్దు చేయలేను. బదులుగా కొత్త సమయానికి మార్చుకోవాలనుకుంటున్నారా? *రీషెడ్యూల్* నొక్కండి, లేదా రద్దు కోసం క్లినిక్‌కు ${clinic.contact.phone} కాల్ చేయండి.`,
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
@@ -379,7 +387,7 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}* గురించి:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} రేటింగ్: ${clinic.rating.score}★ (${clinic.rating.count}+ రివ్యూలు).`,
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
     thanks: "సంతోషం 🙏 త్వరగా కోలుకోండి!",
-    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్ చూడండి", resched: "రీషెడ్యూల్", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", startOver: "కొత్తగా మొదలుపెట్టండి" },
+    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్ చూడండి", resched: "రీషెడ్యూల్", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", startOver: "కొత్తగా మొదలుపెట్టండి", payCounter: "పాత పేషెంట్, కౌంటర్‌లో చెల్లిస్తాను", reviewFree: "ఫ్రీ రివ్యూ విజిట్" },
   },
   hi: {
     greet: `नमस्ते 🙏 मैं ${clinic.shortName} का असिस्टेंट हूँ। मैं आपकी कैसे मदद करूँ?`,
@@ -405,6 +413,8 @@ const P: Record<Lang, PhrasePack> = {
     flowSlotTaken: "माफ़ करें, वह स्लॉट अभी बुक हो गया। कृपया दोबारा मैसेज करके दूसरा समय चुनें।",
     flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *30 मिनट* के लिए होल्ड है — अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।`,
+    claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · पहुंचने पर काउंटर पर ${cur}${feeAmt} का भुगतान करें। ऑनलाइन भुगतान की जरूरत नहीं है, डेस्क पर वेरिफाई करके ले लेंगे।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।`,
+    claimFreeConfirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · यह रिव्यू विजिट फ्री है, कुछ भी भुगतान नहीं करना है।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।`,
     cancelAsk: `रद्दीकरण क्लिनिक संभालता है, इसलिए मैं इसे यहाँ रद्द नहीं कर सकता। क्या आप इसके बजाय इसे किसी नए समय पर ले जाना चाहेंगे? *रीशेड्यूल* दबाएँ, या रद्द करने के लिए क्लिनिक को ${clinic.contact.phone} पर कॉल करें।`,
     payNone: "अभी आपके पास कोई अवैतनिक अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
@@ -431,12 +441,12 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}* के बारे में:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\n${clinic.rating.source} रेटिंग: ${clinic.rating.score}★ (${clinic.rating.count}+ समीक्षाएं).`,
     fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, डॉक्टर के बारे में बता सकता हूँ, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
     thanks: "आपका स्वागत है 🙏 जल्दी स्वस्थ हों!",
-    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें", startOver: "नया स्लॉट बुक करें" },
+    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें", startOver: "नया स्लॉट बुक करें", payCounter: "पुराना मरीज़, काउंटर पर भुगतान करूंगा", reviewFree: "फ्री रिव्यू विजिट" },
   },
 };
 
 // ── intent detection (heuristic for the beta; Claude in production) ──────────
-type Intent = "avail" | "book" | "cancel" | "pay" | "reschedule" | "view" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback" | "startOver";
+type Intent = "avail" | "book" | "cancel" | "pay" | "payCounter" | "reviewFree" | "reschedule" | "view" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback" | "startOver";
 function detect(s: string): Intent {
   const has = (re: RegExp) => re.test(s);
   if (has(/cancel|రద్దు|कैंसिल|रद्द/i)) return "cancel";
@@ -452,6 +462,11 @@ function detect(s: string): Intent {
   // Also before "book": "view my appointment" contains "appointment". \bview\b so
   // "review" never matches.
   if (has(/\bview\b|my appointment|(see|check|show) (my )?appointment|అపాయింట్(.{0,10}చూడ|.{0,10}వివర)|నా అపాయింట్|अपॉइंटमेंट(.{0,10}देख|.{0,10}स्थिति)|मेरा अपॉइंटमेंट/i)) return "view";
+  // Checked before the generic "pay" match below — both of these self-declared
+  // claims contain words ("pay", "counter", "review") that would otherwise be
+  // swallowed by earlier or later checks.
+  if (has(/pay at (the )?counter|returning patient.*counter|కౌంటర్|काउंटर/i)) return "payCounter";
+  if (has(/free review|review visit|రివ్యూ విజిట్|रिव्यू विजिट/i)) return "reviewFree";
   if (has(/\bpay\b|payment|checkout|చెల్లించ|చెల్లింపు|भुगतान|पेमेंट/i)) return "pay";
   if (has(/start (fresh|over)|new slot|book new|కొత్తగా|నయा|नया स्लॉट|नया बुक/i)) return "startOver";
   if (has(/book|appoint|slot|token|బుక్|అపాయింట్|अपॉइंटमेंट|बुक|टोकन/i)) return "book";
@@ -634,6 +649,45 @@ async function startRescheduleClient(phone: string, t: PhrasePack): Promise<BotO
   return enterPickerClient({ id: appt.id, phone }, t);
 }
 
+// Self-declared payment exemptions (payCounter / reviewFree). The patient
+// already picked a slot and gave a name/phone through the normal booking
+// flow above, which left a payment_pending hold — re-run the same booking
+// with replacePending so that hold is cancelled and a fresh row is created,
+// this time going straight to reserved with no Razorpay step at all.
+async function claimRebookClient(
+  state: BotState,
+  t: PhrasePack,
+  c: PhrasePack["chips"],
+  claim: "returning_unverified" | "review_free",
+  source: Source
+): Promise<BotOut> {
+  if (!state.slot || state.viewPhone === undefined) {
+    return { reply: [t.fallback], chips: [c.book, c.avail], state: { stage: "idle" } };
+  }
+  const name = state.name || "Patient";
+  const phone = state.viewPhone;
+  try {
+    let appt: Appt;
+    if (hasSupabase()) {
+      const res = await fetch("/api/book", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, phone, date: state.slot.date, time: state.slot.time, source, replacePending: true, claim }),
+      });
+      if (!res.ok) throw new Error("claim booking failed");
+      const body = await res.json();
+      appt = body.appointment as Appt;
+    } else {
+      appt = addBooking({ name, phone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: true, claim });
+    }
+    const msg = claim === "returning_unverified" ? t.claimCounterConfirm(appt.token, state.slot.label, appt.fee) : t.claimFreeConfirm(appt.token, state.slot.label);
+    return { reply: [msg], chips: [c.avail, c.about, c.done], state: { stage: "idle", viewPhone: phone } };
+  } catch (err) {
+    console.error("bot: claim booking failed", err);
+    return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
+  }
+}
+
 export async function botReply(input: string, lang: Lang, state: BotState, source: Source = "whatsapp"): Promise<BotOut> {
   const t = P[lang];
   const c = t.chips;
@@ -716,7 +770,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     const appt = addBooking({ name, phone: "", age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending });
     // Carry viewPhone ("" in mock) so the Pay now chip that follows resolves
     // the just-created payment_pending hold without re-asking for a number.
-    return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: appt.phone } };
+    // slot/name stay in state too, so a payCounter/reviewFree tap afterward
+    // can re-book the same slot without asking the patient anything again.
+    return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.payCounter, c.reviewFree, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: appt.phone, slot: state.slot, name } };
   }
 
   // completing a booking (DB mode): this input is the patient's phone number
@@ -761,7 +817,8 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       const { appointment: appt } = body as { appointment: Appt };
       // Carry the just-entered phone into viewPhone so the Pay now chip that
       // follows the confirmation resolves the unpaid hold without re-asking.
-      return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: input.trim() } };
+      // slot/name stay in state too, for the payCounter/reviewFree rebook path.
+      return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.payCounter, c.reviewFree, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: input.trim(), slot: state.slot, name: state.name } };
     } catch (err) {
       console.error("bot: booking failed", err);
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
@@ -963,6 +1020,10 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         state: { stage: "await_pay_pick", payCandidates: candidates, viewPhone: phone },
       };
     }
+    case "payCounter":
+      return claimRebookClient(state, t, c, "returning_unverified", source);
+    case "reviewFree":
+      return claimRebookClient(state, t, c, "review_free", source);
     case "hours": case "fee":
       return { reply: [t.hours], chips: [c.book, c.location], state: { stage: "idle" } };
     case "location":
@@ -990,13 +1051,16 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 // untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 export type Backend = {
-  addBooking: (input: { name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean }) => Promise<Appt>;
+  addBooking: (input: { name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean; claim?: "returning_unverified" | "review_free" }) => Promise<Appt>;
   takenSlots: (date: string) => Promise<string[]>;
   // includePending adds payment_pending rows — the pay intent needs them, the
   // view/reschedule intents don't (an unpaid booking isn't confirmed yet).
   activeAppointmentsByPhone: (phone: string, includePending?: boolean) => Promise<Appt[]>;
   createPaymentLink: (id: string, phone: string) => Promise<string>;
   reschedule: (id: string, date: string, time: string) => Promise<Appt>;
+  // Claim bookings (payCounter / reviewFree) skip Razorpay entirely, so there's
+  // no webhook to notify staff — the route that calls addBooking must do it.
+  notifyClaimBooking: (appt: Appt) => Promise<void>;
 };
 export type ServerBotState = BotState & { payCandidates?: PayCandidate[] };
 
@@ -1069,6 +1133,37 @@ async function slotTakenFallbackServer(resched: { id: string; phone: string }, d
     return { reply: [t.slotTaken, t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched, pendingDate: date, pendingWindow: win } };
   }
   return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", resched, pendingDate: date, pendingWindow: win } };
+}
+
+// Self-declared payment exemptions (payCounter / reviewFree), server side.
+// Same idea as claimRebookClient above: the slot/name/phone from the booking
+// that just happened are still in state, so re-run it through the backend
+// with replacePending to cancel the stale payment_pending hold and land the
+// claim booking straight in reserved, no Razorpay step involved. This path
+// calls backend.addBooking directly (bypassing /api/book), so it must fire
+// the staff notification itself via notifyClaimBooking.
+async function claimRebookServer(
+  state: ServerBotState,
+  phone: string,
+  backend: Backend,
+  t: PhrasePack,
+  c: PhrasePack["chips"],
+  claim: "returning_unverified" | "review_free",
+  source: Source
+): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
+  if (!state.slot) {
+    return { reply: [t.fallback], chips: [c.book, c.avail], state: { stage: "idle" } };
+  }
+  const bookPhone = state.viewPhone ?? phone;
+  try {
+    const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: true, claim });
+    await backend.notifyClaimBooking(appt);
+    const msg = claim === "returning_unverified" ? t.claimCounterConfirm(appt.token, state.slot.label, appt.fee) : t.claimFreeConfirm(appt.token, state.slot.label);
+    return { reply: [msg], chips: [c.avail, c.about, c.done], state: { stage: "idle" } };
+  } catch (err) {
+    await reportBotError("bot", "claim booking failed", { stage: "claim_rebook", phone: bookPhone }, err, { severity: "critical" });
+    return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
+  }
 }
 
 export function botStartServer(lang: Lang): { reply: string[]; chips: string[]; state: ServerBotState } {
@@ -1220,7 +1315,10 @@ export async function botReplyServer(
       // The booking is done — offer to settle the fee right here, so the
       // patient doesn't have to know a "pay" keyword exists or find the My
       // Appointment page. The chip routes into the shared pay intent below.
-      return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.location, c.done], state: { stage: "idle" } };
+      // slot/name/viewPhone stay in state for the payCounter/reviewFree rebook
+      // path — viewPhone remembers bookPhone since it can differ from the
+      // WhatsApp sender's own number.
+      return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.payCounter, c.reviewFree, c.avail, c.about, c.location, c.done], state: { stage: "idle", slot: state.slot, name: state.name, viewPhone: bookPhone } };
     } catch (err) {
       if (err instanceof PendingHoldError) {
         // A payment_pending hold already sits on this number. Don't stack a
@@ -1387,6 +1485,10 @@ export async function botReplyServer(
         state: { stage: "await_pay_pick", payCandidates: candidates },
       };
     }
+    case "payCounter":
+      return claimRebookServer(state, phone, backend, t, c, "returning_unverified", source);
+    case "reviewFree":
+      return claimRebookServer(state, phone, backend, t, c, "review_free", source);
     case "hours": case "fee":
       return { reply: [t.hours], chips: [c.book, c.location], state: { stage: "idle" } };
     case "location":

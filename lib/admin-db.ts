@@ -38,6 +38,7 @@ function rowToAppt(r: any): Appt {
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
     patientCode: r.patient_code ?? null,
+    claimType: r.claim_type ?? null,
     paymentDeadlineAt: null,
   };
 }
