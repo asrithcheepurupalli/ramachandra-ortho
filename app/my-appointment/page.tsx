@@ -3,7 +3,7 @@ import { clinic } from "@/clinic.config";
 import { MyAppointment } from "@/components/MyAppointment";
 
 const title = "My Appointment";
-const description = `Look up your booking with ${clinic.doctor.name}, view its status, reschedule it, or cancel it, using the phone number you booked with.`;
+const description = `Look up your booking with ${clinic.doctor.name}, view its status, or reschedule it, using the phone number you booked with.`;
 
 export const metadata: Metadata = {
   title,

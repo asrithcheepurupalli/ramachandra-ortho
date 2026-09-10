@@ -377,7 +377,10 @@ function Reviews({ t }: { t: T }) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <Reveal><SectionHead n="04" title={t("sec.reviews")} /></Reveal>
           <Reveal delay={80}>
-            <div className="flex items-center gap-2"><Stars n={5} /><span className="font-semibold">{clinic.rating.score}</span><span className="text-sm text-muted">· {clinic.rating.count} {clinic.rating.source} reviews</span></div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2"><Stars n={5} /><span className="font-semibold">{clinic.rating.score}</span><span className="text-sm text-muted">· {clinic.rating.count} {clinic.rating.source} reviews</span></div>
+              <a href={clinic.rating.reviewUrl} target="_blank" rel="noreferrer" className="focus-ring ulink inline-flex items-center gap-1.5 text-sm font-semibold text-brand"><Star className="h-3.5 w-3.5 fill-accent text-accent" /> {t("reviews.write")}</a>
+            </div>
           </Reveal>
         </div>
 
@@ -424,7 +427,7 @@ function DoctorStrip({ t }: { t: T }) {
             <p className="mt-1 text-brand font-medium">{clinic.doctor.title}</p>
             <p className="mt-4 max-w-xl leading-relaxed text-muted">{clinic.doctor.experienceNote}. Patients across Visakhapatnam trust Dr. Ramachandra for clear explanations, unhurried consultations and honest advice, from a hairline fracture to a full joint replacement.</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              {["10 years experience", "Complex trauma", "Fracture fixation", "Joint replacement", "Sports injuries", "Pediatric orthopedics", "All types of arthritis", "Rheumatology", "Physiotherapy"].map((s) => (
+              {["10 years experience", ...clinic.doctor.specialties].map((s) => (
                 <span key={s} className="rounded-full bg-brand-tint px-3 py-1 text-xs font-medium text-brand">{s}</span>
               ))}
             </div>
@@ -536,6 +539,7 @@ function Footer({ t }: { t: T }) {
           <div className="flex items-center gap-2.5">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/icon.png" alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-lg" /><span className="text-lg font-semibold text-white">{clinic.name}</span></div>
           <p className="mt-3 max-w-xs text-sm text-white/55">{clinic.tagline}</p>
           <div className="mt-4 flex items-center gap-2 text-sm"><Star className="h-4 w-4 fill-accent text-accent" /><span className="text-white">{clinic.rating.score}</span><span className="text-white/50">· {clinic.rating.count} reviews</span></div>
+          <a href={clinic.rating.reviewUrl} target="_blank" rel="noreferrer" className="focus-ring ulink mt-2 inline-block text-sm text-white/75">{t("reviews.write")}</a>
         </div>
         <div className="text-sm">
           <div className="font-semibold text-white">Visit</div>

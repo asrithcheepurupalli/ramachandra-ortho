@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  ArrowLeft, CalendarDays, Clock, User, Ticket, Search, XCircle, PencilLine, Wallet,
+  ArrowLeft, CalendarDays, Clock, User, Ticket, Search, PencilLine, Wallet,
   MessageCircle, ShieldCheck,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
@@ -156,7 +156,7 @@ function ApptCard({
   appt: Appt; t: Tr; phone: string; otpEnabled: boolean;
   verified: boolean; onVerified: () => void; onUpdated: (a: Appt) => void;
 }) {
-  const [mode, setMode] = useState<"idle" | "cancel" | "reschedule">("idle");
+  const [mode, setMode] = useState<"idle" | "reschedule">("idle");
   const [busy, setBusy] = useState(false);
   const [payBusy, setPayBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -240,29 +240,8 @@ function ApptCard({
             <button onClick={() => gate(() => setMode("reschedule"))} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
               <PencilLine className="h-4 w-4" /> {t("myappt.reschedule")}
             </button>
-            <button onClick={() => gate(() => setMode("cancel"))} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-out">
-              <XCircle className="h-4 w-4" /> {t("myappt.cancel")}
-            </button>
           </div>
         )
-      )}
-
-      {mode === "cancel" && (
-        <div className="mt-4 rounded-xl bg-bg p-4">
-          <p className="text-sm font-medium text-ink">{t("myappt.cancelAsk")}</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted">{t("myappt.cancelCall", { phone: clinic.contact.phone })}</p>
-          <div className="mt-3 flex flex-col gap-2">
-            <button onClick={() => setMode("reschedule")} className="press flex w-full items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition">
-              <PencilLine className="h-4 w-4" /> {t("myappt.reschedule")}
-            </button>
-            <a href={`tel:${clinic.contact.phone}`} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
-              <MessageCircle className="h-4 w-4" /> {t("myappt.cancelCallBtn")}
-            </a>
-            <button onClick={() => setMode("idle")} className="press w-full rounded-full border border-line bg-surface py-2.5 text-sm font-semibold text-ink">
-              {t("myappt.cancelNo")}
-            </button>
-          </div>
-        </div>
       )}
 
       {mode === "reschedule" && (

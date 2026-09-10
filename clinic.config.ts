@@ -13,8 +13,18 @@ export const clinic = {
     name: "Dr. M. Ramachandra",
     title: "M.S. (Ortho) · Orthopedic Surgeon & Trauma Care Specialist",
     experienceNote: "10 years of experience in joint replacements, fractures and sports injuries",
+    specialties: [
+      "Complex trauma",
+      "Fracture fixation",
+      "Joint replacement",
+      "Sports injuries",
+      "Pediatric orthopedics",
+      "All types of arthritis",
+      "Rheumatology",
+      "Physiotherapy",
+    ],
   },
-  rating: { score: 4.8, count: 123, source: "Google" },
+  rating: { score: 4.8, count: 123, source: "Google", reviewUrl: "https://g.page/r/Cfu45jtjzYAuEB0/review" },
 
   consultationFee: 400,   // new patients
   returningFee: 350,      // returning patients with a patient record on file
