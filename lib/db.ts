@@ -15,6 +15,7 @@ import type { ServerBotState } from "@/lib/bot";
 import { SlotTakenError, InvalidSlotError, PendingHoldError } from "@/lib/errors";
 import { createPaymentLink } from "@/lib/razorpay";
 import { normalizePhone, phoneMatchVariants } from "@/lib/phone";
+import { report } from "@/lib/bugdesk";
 
 // Times already taken on a date (so the slot picker can hide them).
 export async function dbTakenSlots(date: string): Promise<string[]> {
@@ -504,6 +505,7 @@ export async function dbMarkPaidByPaymentLink(
       "payments/webhook: captured amount does not match appointment fee",
       JSON.stringify({ paymentLinkId, paymentId, capturedAmountPaise, expectedPaise: row.fee * 100 })
     );
+    await report({ source: "payments/webhook", message: "Captured amount does not match appointment fee", severity: "critical", info: { paymentLinkId, paymentId, capturedAmountPaise, expectedPaise: row.fee * 100 } });
   }
 
   const status = row.status === "payment_pending" ? "reserved" : row.status;

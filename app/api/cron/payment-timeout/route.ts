@@ -17,6 +17,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeEqual } from "@/lib/meta-whatsapp";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { report, reportError } from "@/lib/bugdesk";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
 
   if (readErr) {
     console.error("/api/cron/payment-timeout: read failed", readErr);
+    // The cron can't see pending payments, so expired holds never free up —
+    // slots stay locked. Escalate now, not in the next digest.
+    await reportError("cron/payment-timeout", readErr, { severity: "critical", info: { stage: "read" } });
     return NextResponse.json({ error: "read failed" }, { status: 500 });
   }
 
@@ -61,6 +65,7 @@ export async function POST(req: NextRequest) {
       .select("id");
     if (writeErr) {
       console.error(`/api/cron/payment-timeout: cancel ${row.id} failed`, writeErr);
+      await reportError("cron/payment-timeout", writeErr, { severity: "critical", info: { stage: "cancel", id: row.id } });
     } else if (data?.length) {
       // A guard above can still win the race (the Razorpay webhook reserved the
       // row between our read and this write), in which case the UPDATE matched

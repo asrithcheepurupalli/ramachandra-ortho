@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireStaff } from "@/lib/auth-server";
 import { dbMarkRefunded } from "@/lib/db";
+import { reportError } from "@/lib/bugdesk";
 
 export async function POST(req: NextRequest) {
   if (!(await requireStaff())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("/api/appointments/refund", err);
+    await reportError("appointments/refund", err, { severity: "warning" });
     return NextResponse.json({ error: "Could not record refund" }, { status: 500 });
   }
 }

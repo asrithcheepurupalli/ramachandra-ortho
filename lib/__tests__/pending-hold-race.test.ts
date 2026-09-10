@@ -14,6 +14,10 @@ vi.mock("@/lib/supabase-admin", () => ({
   supabaseAdmin: () => mockDbHolder.current,
 }));
 vi.mock("@/lib/razorpay", () => ({ createPaymentLink: vi.fn() }));
+// lib/db.ts now also imports the (real, server-only) bugdesk module for its
+// fee-mismatch report; these tests never hit that branch, so stub it out rather
+// than let server-only throw.
+vi.mock("@/lib/bugdesk", () => ({ report: vi.fn(), reportError: vi.fn() }));
 
 // A Monday at least a couple weeks out so it's never "today" or in the past
 // relative to whenever this test actually runs, and default weekly hours

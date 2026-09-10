@@ -224,6 +224,72 @@ function shell(opts: {
 </html>`;
 }
 
+// ── Sender: bug desk ─────────────────────────────────────────────────────────
+
+// One item per issue in an alert or digest email. `lastSeen` is pre-formatted
+// (bugdesk.ts formats the IST datetime) so this module stays type-focused.
+export type BugdeskEmailItem = {
+  source: string;
+  message: string;
+  severity: "critical" | "warning";
+  count: number;
+  lastSeen: string;
+  info?: Record<string, unknown> | null;
+};
+
+// Monospace block that shows the raw failure behind an issue. Pre wrapped so
+// the stack/no indentation survives; pre-wrap so long lines never overflow.
+const bugBlock = (item: BugdeskEmailItem) => {
+  const info = item.info && Object.keys(item.info).length ? `\n\n${JSON.stringify(item.info, null, 2)}` : "";
+  return `<pre style="margin:10px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.6;color:${BRAND.muted};background-color:${BRAND.bone};border:1px solid ${BRAND.line};border-radius:10px;padding:12px 14px;white-space:pre-wrap;word-break:break-word;">${esc(item.message)}${info}</pre>`;
+};
+
+function bugItemCard(item: BugdeskEmailItem): string {
+  return `${detailsCard(`
+      ${detailRow("Source", esc(item.source))}
+      ${detailRow("Severity", esc(item.severity), { accent: item.severity === "critical" })}
+      ${detailRow("Occurrences", item.count > 1 ? `${esc(item.count)} times` : "Once")}
+      ${detailRow("Last seen", esc(item.lastSeen))}
+    `)}
+    ${bugBlock(item)}`;
+}
+
+export async function sendBugdeskEmail(opts: {
+  kind: "alert" | "digest";
+  items: BugdeskEmailItem[];
+}): Promise<boolean> {
+  const adminEmail = clinic.contact.adminEmail;
+  if (!adminEmail || !opts.items.length) return false;
+
+  const isAlert = opts.kind === "alert";
+  const head = opts.items[0];
+
+  // One issue for an alert; a short stack for a digest.
+  const body = isAlert
+    ? bugItemCard(head)
+    : opts.items.map(bugItemCard).join(`<div style="height:22px;font-size:0;">&nbsp;</div>`);
+
+  const countLabel = opts.items.length === 1 ? "1 issue" : `${opts.items.length} issues`;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: isAlert
+      ? `Bug alert: ${head.source}· ${head.message}`.slice(0, 120)
+      : `Bug desk digest · ${countLabel}`,
+    html: shell({
+      chipText: isAlert ? "System alert" : "Bug desk",
+      chipFg: isAlert ? BRAND.coral : BRAND.accentDark,
+      chipBg: isAlert ? BRAND.coralTint : BRAND.tint,
+      headline: isAlert ? "Something needs a look right now" : "Issues since the last check",
+      sub: isAlert
+        ? "A critical error just happened. Root cause and context below."
+        : `${opts.items.length} issue${opts.items.length === 1 ? "" : "s"} logged since the last digest.`,
+      body,
+      preheader: `${isAlert ? "Critical:" : ""} ${head.message}`,
+    }),
+  });
+}
+
 // ── Sender: new appointment ──────────────────────────────────────────────────
 
 export async function sendNewAppointmentEmail(

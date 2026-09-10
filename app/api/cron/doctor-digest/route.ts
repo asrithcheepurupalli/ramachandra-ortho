@@ -15,6 +15,7 @@ import { safeEqual, sendDoctorDigest } from "@/lib/meta-whatsapp";
 import { dbApptsForDate, dbMarkDoctorDigestSent } from "@/lib/db";
 import { ymd, nowIST } from "@/lib/schedule";
 import { hasSupabase } from "@/lib/supabase";
+import { reportError } from "@/lib/bugdesk";
 
 export const dynamic = "force-dynamic";
 
@@ -31,19 +32,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "mock-mode", reason: "no Supabase env on this deployment" });
   }
 
-  const isTest = req.nextUrl.searchParams.get("test") === "1";
-  const date = ymd(nowIST());
-  const appts = await dbApptsForDate(date);
-  const active = appts.filter((a) => a.status !== "cancelled");
+  try {
+    const isTest = req.nextUrl.searchParams.get("test") === "1";
+    const date = ymd(nowIST());
+    const appts = await dbApptsForDate(date);
+    const active = appts.filter((a) => a.status !== "cancelled");
 
-  if (isTest) {
-    return NextResponse.json({ date, scanned: appts.length, active: active.length, test: true });
-  }
+    if (isTest) {
+      return NextResponse.json({ date, scanned: appts.length, active: active.length, test: true });
+    }
 
-  const won = await dbMarkDoctorDigestSent(date);
-  if (!won) {
-    return NextResponse.json({ status: "already-sent", date });
+    const won = await dbMarkDoctorDigestSent(date);
+    if (!won) {
+      return NextResponse.json({ status: "already-sent", date });
+    }
+    const ok = await sendDoctorDigest(active);
+    return NextResponse.json({ date, active: active.length, sent: ok });
+  } catch (err) {
+    console.error("/api/cron/doctor-digest", err);
+    // The doctor's daily summary failed outright — they may not know who's in.
+    await reportError("cron/doctor-digest", err, { severity: "critical" });
+    return NextResponse.json({ error: "cron failed" }, { status: 500 });
   }
-  const ok = await sendDoctorDigest(active);
-  return NextResponse.json({ date, active: active.length, sent: ok });
 }

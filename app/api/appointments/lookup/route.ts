@@ -4,6 +4,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbActiveAppointmentsByPhone } from "@/lib/db";
 import { otpEnabled } from "@/lib/otp";
+import { reportError } from "@/lib/bugdesk";
 
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ appointments, otpEnabled: otpEnabled() });
   } catch (err) {
     console.error("/api/appointments/lookup", err);
+    await reportError("appointments/lookup", err, { severity: "warning" });
     return NextResponse.json({ error: "Could not look up appointments" }, { status: 500 });
   }
 }

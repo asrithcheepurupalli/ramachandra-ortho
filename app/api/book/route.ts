@@ -6,6 +6,7 @@ import { SlotTakenError, PendingHoldError } from "@/lib/errors";
 import { slotsFor, ymd, nowIST } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
 import { isRateLimited } from "@/lib/rate-limit";
+import { reportError } from "@/lib/bugdesk";
 
 type Source = "website" | "whatsapp" | "walkin";
 const isSource = (v: unknown): v is Source => v === "website" || v === "whatsapp" || v === "walkin";
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "That slot was just taken. Please pick another." }, { status: 409 });
     }
     console.error("/api/book", err);
+    await reportError("book", err, { severity: "critical" });
     return NextResponse.json({ error: "Could not create booking" }, { status: 500 });
   }
 }

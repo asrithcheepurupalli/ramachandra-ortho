@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbGetOrCreatePaymentLink, dbApptStatus } from "@/lib/db";
 import { otpVerified, otpEnabled } from "@/lib/otp";
+import { report, reportError } from "@/lib/bugdesk";
 
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -47,9 +48,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "This appointment is already paid", code: "already_paid" }, { status: 400 });
     }
     if (err instanceof Error && err.message === "razorpay_unavailable") {
+      // The whole payment provider is down — no link can be minted for anyone.
+      await report({ source: "payments/link", message: "Razorpay unavailable — payment links cannot be created", severity: "critical" });
       return NextResponse.json({ error: "Payments aren't available right now. Please try again shortly." }, { status: 502 });
     }
     console.error("/api/payments/link", err);
+    await reportError("payments/link", err, { severity: "critical" });
     return NextResponse.json({ error: "Could not start payment" }, { status: 500 });
   }
 }

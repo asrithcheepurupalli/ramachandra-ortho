@@ -22,6 +22,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { dbActiveAppointmentsByPhone } from "@/lib/db";
 import { requestOtp, otpEnabled } from "@/lib/otp";
 import { sendVerificationCode } from "@/lib/meta-whatsapp";
+import { reportError } from "@/lib/bugdesk";
 
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sent: true });
   } catch (err) {
     console.error("/api/appointments/request-otp", err);
+    await reportError("appointments/request-otp", err, { severity: "warning" });
     return NextResponse.json({ error: "Couldn't send the code right now. Please try again." }, { status: 500 });
   }
 }

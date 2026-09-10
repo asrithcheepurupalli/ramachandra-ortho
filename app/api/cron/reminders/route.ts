@@ -19,6 +19,7 @@ import { safeEqual, sendReminder } from "@/lib/meta-whatsapp";
 import { dbApptsForDate, dbMarkReminderSent, dbClearReminderSent } from "@/lib/db";
 import { ymd, nowIST } from "@/lib/schedule";
 import { hasSupabase } from "@/lib/supabase";
+import { reportError } from "@/lib/bugdesk";
 import type { Appt, ApptStatus } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -56,36 +57,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "mock-mode", reason: "no Supabase env on this deployment" });
   }
 
-  const isTest = req.nextUrl.searchParams.get("test") === "1";
-  const now = nowIST();
-  const tomorrow = new Date(now.getTime() + MS_PER_DAY);
-  const dates = [ymd(now), ymd(tomorrow)]; // only today + tomorrow can ever be due
-  const rows = (await Promise.all(dates.map((d) => dbApptsForDate(d)))).flat();
+  try {
+    const isTest = req.nextUrl.searchParams.get("test") === "1";
+    const now = nowIST();
+    const tomorrow = new Date(now.getTime() + MS_PER_DAY);
+    const dates = [ymd(now), ymd(tomorrow)]; // only today + tomorrow can ever be due
+    const rows = (await Promise.all(dates.map((d) => dbApptsForDate(d)))).flat();
 
-  const planned: Array<{ id: string; name: string; date: string; time: string; status: ApptStatus; sendAt: string; due: boolean }> = [];
-  const sends: Array<{ id: string; ok: boolean }> = [];
+    const planned: Array<{ id: string; name: string; date: string; time: string; status: ApptStatus; sendAt: string; due: boolean }> = [];
+    const sends: Array<{ id: string; ok: boolean }> = [];
 
-  for (const a of rows) {
-    if (!REMINDABLE.includes(a.status) || !a.phone || a.reminderSentAt) continue;
-    const plan = reminderPlan(a, now);
-    planned.push({ id: a.id, name: a.name, date: a.date, time: a.time, status: a.status, sendAt: plan.sendAt.toISOString(), due: plan.due });
-    if (!plan.due || isTest) continue;
-    // Only the tick that actually sets the flag gets to send, so two
-    // overlapping cron runs can't double-message a patient.
-    const won = await dbMarkReminderSent(a.id);
-    if (!won) continue;
-    const ok = await sendReminder(a.phone, a.name, a.date, a.time);
-    if (!ok) await dbClearReminderSent(a.id); // transient failure → retry next tick
-    sends.push({ id: a.id, ok });
+    for (const a of rows) {
+      if (!REMINDABLE.includes(a.status) || !a.phone || a.reminderSentAt) continue;
+      const plan = reminderPlan(a, now);
+      planned.push({ id: a.id, name: a.name, date: a.date, time: a.time, status: a.status, sendAt: plan.sendAt.toISOString(), due: plan.due });
+      if (!plan.due || isTest) continue;
+      // Only the tick that actually sets the flag gets to send, so two
+      // overlapping cron runs can't double-message a patient.
+      const won = await dbMarkReminderSent(a.id);
+      if (!won) continue;
+      const ok = await sendReminder(a.phone, a.name, a.date, a.time);
+      if (!ok) await dbClearReminderSent(a.id); // transient failure → retry next tick
+      sends.push({ id: a.id, ok });
+    }
+
+    return NextResponse.json({
+      now: now.toISOString(),
+      dates,
+      scanned: rows.length,
+      template: process.env.META_TEMPLATE_REMINDER,
+      ...(isTest
+        ? { test: true, planned }
+        : { sent: sends.length, ok: sends.filter((s) => s.ok).length, failed: sends.filter((s) => !s.ok).length, sends }),
+    });
+  } catch (err) {
+    console.error("/api/cron/reminders", err);
+    // The reminder tick failed outright — patients may silently miss their
+    // nudge. Escalate now.
+    await reportError("cron/reminders", err, { severity: "critical" });
+    return NextResponse.json({ error: "cron failed" }, { status: 500 });
   }
-
-  return NextResponse.json({
-    now: now.toISOString(),
-    dates,
-    scanned: rows.length,
-    template: process.env.META_TEMPLATE_REMINDER,
-    ...(isTest
-      ? { test: true, planned }
-      : { sent: sends.length, ok: sends.filter((s) => s.ok).length, failed: sends.filter((s) => !s.ok).length, sends }),
-  });
 }

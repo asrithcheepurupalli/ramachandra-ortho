@@ -9,6 +9,7 @@ import { nowIST, ymd } from "@/lib/schedule";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail } from "@/lib/mailer";
 import { SlotTakenError, PendingHoldError } from "@/lib/errors";
+import { report, reportError } from "@/lib/bugdesk";
 
 const backend: Backend = {
   addBooking: dbAddBooking,
@@ -20,8 +21,8 @@ const backend: Backend = {
   // a moved booking too).
   reschedule: async (id, date, time) => {
     const appt = await dbRescheduleAppointment(id, date, time);
-    try { await sendBookingConfirmation(appt); } catch (err) { console.error("whatsapp reschedule: WhatsApp notify failed", err); }
-    try { await sendRescheduledEmail(appt); } catch (err) { console.error("whatsapp reschedule: email notify failed", err); }
+    try { await sendBookingConfirmation(appt); } catch (err) { console.error("whatsapp reschedule: WhatsApp notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "whatsapp", appt: appt.id } }); }
+    try { await sendRescheduledEmail(appt); } catch (err) { console.error("whatsapp reschedule: email notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
     return appt;
   },
 };
@@ -65,6 +66,8 @@ export async function POST(req: NextRequest) {
 
   if (!verifySignature(rawBody, req.headers.get("x-hub-signature-256"))) {
     console.error("WhatsApp webhook: bad signature");
+    // Auth itself is failing, not a single message — escalate immediately.
+    await report({ source: "whatsapp", message: "WhatsApp webhook delivered a bad signature", severity: "critical" });
     return new NextResponse("OK", { status: 200 });
   }
 
@@ -118,12 +121,20 @@ export async function POST(req: NextRequest) {
         // conversational bot chips use), letting the patient tap rather than
         // type. The real "appointment confirmed" template (META_TEMPLATE_PAID)
         // fires from the Razorpay webhook once payment completes.
-        try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); }
+        try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); await reportError("whatsapp", err, { severity: "critical", info: { stage: "nfm_reply_pay_prompt", from } }); }
       } catch (err) {
-        try {
-          if (err instanceof PendingHoldError) await sendButtons(from, flowPendingHoldMsg(lang), [flowPayNowLabel(lang), flowStartOverLabel(lang)]);
-          else await sendText(from, err instanceof SlotTakenError ? flowSlotTakenMsg(lang) : flowBookFailMsg(lang));
-        } catch (err2) { console.error("whatsapp flow: error reply failed", err2); }
+        // Held-slot / unpaid-hold conditions are business states, not bugs —
+        // patients get their message, the desk hears nothing.
+        if (err instanceof PendingHoldError || err instanceof SlotTakenError) {
+          try {
+            if (err instanceof PendingHoldError) await sendButtons(from, flowPendingHoldMsg(lang), [flowPayNowLabel(lang), flowStartOverLabel(lang)]);
+            else await sendText(from, flowSlotTakenMsg(lang));
+          } catch (err2) { console.error("whatsapp flow: error reply failed", err2); await reportError("whatsapp", err2, { severity: "warning", info: { stage: "nfm_reply_business", from } }); }
+          // Anything else genuinely failed the booking — surface it.
+        } else {
+          await reportError("whatsapp", err, { severity: "critical", info: { stage: "nfm_reply_book", from } });
+          try { await sendText(from, flowBookFailMsg(lang)); } catch (err2) { console.error("whatsapp flow: error reply failed", err2); await reportError("whatsapp", err2, { severity: "warning", info: { stage: "nfm_reply_book", from } }); }
+        }
       }
       // Reset the conversation to idle: if the patient had a chat booking in
       // progress (say, typing a name) when they submitted the Flow, the stage
@@ -222,11 +233,17 @@ export async function POST(req: NextRequest) {
       await sendReply(from, result.reply.join("\n\n"), result.chips);
     } catch (err) {
       console.error("whatsapp: reply send failed after state committed — patient may be un-notified", JSON.stringify({ from, stage: newState.stage }), err);
+      await reportError("whatsapp", err, { severity: "critical", info: { stage: "post_commit_reply", from } });
     }
 
     return new NextResponse("OK", { status: 200 });
   } catch (err) {
     console.error("/api/whatsapp", err);
+    // Business errors surface to the patient inside the handler — only reach
+    // the desk when the webhook itself genuinely failed.
+    if (!(err instanceof SlotTakenError) && !(err instanceof PendingHoldError)) {
+      await reportError("whatsapp", err, { severity: "critical" });
+    }
     return new NextResponse("OK", { status: 200 });
   }
 }

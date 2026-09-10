@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbLookupPatient } from "@/lib/db";
 import { isRateLimited } from "@/lib/rate-limit";
+import { reportError } from "@/lib/bugdesk";
 
 // This is the endpoint that makes patient enumeration possible: it's public,
 // unauthenticated, and returns a real name given a guessed phone number or
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ found: true, patient });
   } catch (err) {
     console.error("/api/patients/lookup", err);
+    await reportError("patients/lookup", err, { severity: "warning" });
     return NextResponse.json({ error: "Lookup failed." }, { status: 500 });
   }
 }

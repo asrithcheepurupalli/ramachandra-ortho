@@ -3,6 +3,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { dbTakenSlots, dbLoadSchedule } from "@/lib/db";
 import { allSlotsFor } from "@/lib/schedule";
+import { reportError } from "@/lib/bugdesk";
 
 export async function GET(req: NextRequest) {
   const date = req.nextUrl.searchParams.get("date");
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     console.error("/api/slots", err);
+    await reportError("slots", err, { severity: "warning" });
     return NextResponse.json({ error: "Could not load slots" }, { status: 500 });
   }
 }

@@ -10,6 +10,7 @@ import { sendRescheduledEmail } from "@/lib/mailer";
 import { SlotTakenError } from "@/lib/errors";
 import { ymd, nowIST } from "@/lib/schedule";
 import { otpVerified, otpEnabled } from "@/lib/otp";
+import { reportError } from "@/lib/bugdesk";
 
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -46,12 +47,13 @@ export async function POST(req: NextRequest) {
     }
 
     const appt = await dbRescheduleAppointment(id, date, time);
-    try { await sendBookingConfirmation(appt); } catch (err) { console.error("/api/appointments/reschedule: WhatsApp notify failed", err); }
-    try { await sendRescheduledEmail(appt); } catch (err) { console.error("/api/appointments/reschedule: email notify failed", err); }
+    try { await sendBookingConfirmation(appt); } catch (err) { console.error("/api/appointments/reschedule: WhatsApp notify failed", err); await reportError("appointments/reschedule", err, { severity: "warning", info: { channel: "whatsapp", appt: appt.id } }); }
+    try { await sendRescheduledEmail(appt); } catch (err) { console.error("/api/appointments/reschedule: email notify failed", err); await reportError("appointments/reschedule", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
     return NextResponse.json({ appointment: appt });
   } catch (err) {
     if (err instanceof SlotTakenError) { return NextResponse.json({ error: "That time isn't available. Please pick another slot." }, { status: 409 }); }
     console.error("/api/appointments/reschedule", err);
+    await reportError("appointments/reschedule", err, { severity: "warning" });
     return NextResponse.json({ error: "Could not reschedule appointment" }, { status: 500 });
   }
 }

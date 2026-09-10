@@ -15,6 +15,7 @@ import { requireStaff } from "@/lib/auth-server";
 import { dbApptsForDate } from "@/lib/db";
 import { sendClinicNotice, sendReminder } from "@/lib/meta-whatsapp";
 import { ymd, nowIST } from "@/lib/schedule";
+import { reportError } from "@/lib/bugdesk";
 
 // The states a patient can still be messaged about. Consulting are in the room
 // with the doctor; done/cancelled are gone.
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ attempted: recipients.length, failed, kind: structured ? "reminder" : "notice", recipients });
   } catch (err) {
     console.error("/api/admin/broadcast", err);
+    await reportError("admin/broadcast", err, { severity: "warning" });
     return NextResponse.json({ error: "Could not send broadcast" }, { status: 500 });
   }
 }

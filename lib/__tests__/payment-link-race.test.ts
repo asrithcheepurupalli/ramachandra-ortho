@@ -10,6 +10,10 @@ import { makeMockDb, mockDbHolder } from "./mock-db";
 vi.mock("@/lib/supabase-admin", () => ({
   supabaseAdmin: () => mockDbHolder.current,
 }));
+// lib/db.ts now also imports the (real, server-only) bugdesk module for its
+// fee-mismatch report; these tests never hit that branch, so stub it out rather
+// than let server-only throw.
+vi.mock("@/lib/bugdesk", () => ({ report: vi.fn(), reportError: vi.fn() }));
 
 const createPaymentLink = vi.fn();
 vi.mock("@/lib/razorpay", () => ({

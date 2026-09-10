@@ -12,6 +12,43 @@ import { addBooking, takenSlots, togglePaid, activeAppointmentsByPhone, reschedu
 import { hasSupabase } from "@/lib/supabase";
 import { SlotTakenError, PendingHoldError } from "@/lib/errors";
 
+// Report an issue from the bot engine to the bug desk. The same file ships to
+// the browser (website chat: RCChat) AND the server (WhatsApp webhook), so it
+// cannot statically import the server-only bugdesk module. Instead, when
+// running server-side it does a self-fetch to the IP-rate-limited ingestion
+// route (/api/bugdesk/report), which forwards on to the desk — same
+// persistence, zero import-graph risk in the client bundle. On the client the
+// browser console is the only sink — the chat already surfaces a patient-facing
+// failure to the user.
+async function reportBotError(
+  source: string,
+  message: string,
+  info: Record<string, unknown> | undefined,
+  err: unknown,
+  opts?: { severity?: "critical" | "warning" }
+): Promise<void> {
+  console.error(source, message, err ?? "", info ?? {});
+  if (typeof window === "undefined") {
+    try {
+      await fetch(`${clinic.url}/api/bugdesk/report`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          source,
+          message,
+          severity: opts?.severity ?? "warning",
+          info,
+        }),
+        // Never let a slow/hung desk hold up a webhook ack or booking tail.
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch (e) {
+      // A broken reporter must never break the bot.
+      console.error("bugdesk: report failed", e);
+    }
+  }
+}
+
 export type Sender = "bot" | "user";
 export type ChatMsg = { id: string; from: Sender; text: string };
 // pendingDate: set once a day chip has been tapped, so the *next* chip tap is
@@ -93,7 +130,8 @@ async function availableSlotsFor(date: string): Promise<string[]> {
       if (!res.ok) return [];
       const data = await res.json();
       return Array.isArray(data.slots) ? data.slots : [];
-    } catch {
+    } catch (err) {
+      console.error("bot: slot list unavailable", err);
       return [];
     }
   }
@@ -485,7 +523,8 @@ async function lookupClient(phone: string, includePending = false): Promise<{ ap
       if (!res.ok) return { appts: [], otp: false };
       const data = (await res.json()) as { appointments?: Appt[]; otpEnabled?: boolean };
       return { appts: data.appointments ?? [], otp: Boolean(data.otpEnabled) };
-    } catch {
+    } catch (err) {
+      console.error("bot: appointment lookup failed", err);
       return { appts: [], otp: false };
     }
   }
@@ -507,7 +546,8 @@ async function payClientLink(id: string, phone: string): Promise<string | "mock"
       if (!res.ok) return null;
       const data = (await res.json()) as { url?: unknown };
       return typeof data.url === "string" && data.url ? data.url : null;
-    } catch {
+    } catch (err) {
+      console.error("bot: payment link creation failed", err);
       return null;
     }
   }
@@ -539,7 +579,8 @@ async function requestOtpClient(phone: string): Promise<"sent" | "rate" | "fail"
     if (res.status === 429) return "rate";
     if (!res.ok) return "fail";
     return "sent";
-  } catch {
+  } catch (err) {
+    console.error("bot: OTP request failed", err);
     return "fail";
   }
 }
@@ -721,7 +762,8 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       // Carry the just-entered phone into viewPhone so the Pay now chip that
       // follows the confirmation resolves the unpaid hold without re-asking.
       return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: input.trim() } };
-    } catch {
+    } catch (err) {
+      console.error("bot: booking failed", err);
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
     }
   }
@@ -756,6 +798,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
           return { reply: [t.reschedDone(label)], chips: [c.avail, c.book, c.done], state: { stage: "idle" } };
         } catch (err) {
           if (err instanceof SlotTakenError) return slotTakenFallbackClient(state.resched, state.pendingDate, match, t);
+          console.error("bot: reschedule failed", err);
           return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
         }
       }
@@ -1121,7 +1164,8 @@ export async function botReplyServer(
       try {
         const url = await backend.createPaymentLink(picked.id, phone);
         return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle" } };
-      } catch {
+      } catch (err) {
+        await reportBotError("bot", "create payment link failed", { stage: "await_pay_pick" }, err, { severity: "critical" });
         return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
       }
     }
@@ -1197,6 +1241,7 @@ export async function botReplyServer(
         }
         return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win } };
       }
+      await reportBotError("bot", "booking failed", { stage: "await_phone", phone: bookPhone }, err, { severity: "critical" });
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
     }
   }
@@ -1215,6 +1260,7 @@ export async function botReplyServer(
           return { reply: [t.reschedDone(label)], chips: [c.avail, c.book, c.done], state: { stage: "idle" } };
         } catch (err) {
           if (err instanceof SlotTakenError) return slotTakenFallbackServer(state.resched, state.pendingDate, match, backend, sched, t, takenByDate);
+          await reportBotError("bot", "reschedule failed", { stage: "time_pick", id: state.resched.id }, err);
           return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
         }
       }
@@ -1329,7 +1375,8 @@ export async function botReplyServer(
         try {
           const url = await backend.createPaymentLink(active[0].id, phone);
           return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle" } };
-        } catch {
+        } catch (err) {
+          await reportBotError("bot", "create payment link failed", { stage: "pay_intent" }, err, { severity: "critical" });
           return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
         }
       }

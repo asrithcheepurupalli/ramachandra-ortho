@@ -6,6 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireStaff } from "@/lib/auth-server";
 import { dbSetStatusReturning } from "@/lib/db";
 import { cancelAppointment } from "@/lib/refunds";
+import { reportError } from "@/lib/bugdesk";
 import type { ApptStatus } from "@/lib/store";
 
 const validStatuses: ApptStatus[] = ["reserved", "confirmed", "waiting", "consulting", "done", "cancelled"];
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ appointment: appt });
   } catch (err) {
     console.error("/api/appointments/status", err);
+    await reportError("appointments/status", err, { severity: "warning" });
     return NextResponse.json({ error: "Could not update status" }, { status: 500 });
   }
 }

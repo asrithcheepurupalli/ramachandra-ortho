@@ -15,6 +15,7 @@ import { verifySignature } from "@/lib/meta-whatsapp";
 import { decryptFlowRequest, encryptFlowResponse } from "@/lib/whatsapp-flow-crypto";
 import { dbTakenSlots, dbLoadSchedule } from "@/lib/db";
 import { slotsFor, ymd, fmt, nowIST, type SchedState } from "@/lib/schedule";
+import { report, reportError } from "@/lib/bugdesk";
 
 const DAYS_AHEAD = 14;
 
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
       provided: header?.replace(/^sha256=/, ""),
       expected: secret ? createHmac("sha256", secret).update(rawBody).digest("hex") : null,
     });
+    await report({ source: "whatsapp/flow", message: "WhatsApp Flow endpoint delivered a bad signature", severity: "critical" });
     return new NextResponse("Signature verification failed", { status: 432 });
   }
 
@@ -68,6 +70,8 @@ export async function POST(req: NextRequest) {
     decrypted = decryptFlowRequest(JSON.parse(rawBody));
   } catch (err) {
     console.error("WhatsApp Flow endpoint: decrypt failed", err);
+    // Flow can't serve even its first screen — patients hit a dead Flow.
+    await reportError("whatsapp/flow", err, { severity: "critical", info: { stage: "decrypt" } });
     return new NextResponse("Decryption failed", { status: 421 });
   }
   const { payload, aesKey, iv } = decrypted;
@@ -77,6 +81,10 @@ export async function POST(req: NextRequest) {
 
     if (data?.error) {
       console.error("WhatsApp Flow client error notification", data);
+      // The end-user's WhatsApp client reported an error submitting the Flow —
+      // usually their side, but worth a warning so a broken screen (one that
+      // can't ever be submitted) gets noticed rather than silently acked.
+      await report({ source: "whatsapp/flow", message: "WhatsApp Flow client reported an error", severity: "warning", info: { action, error: data } });
       return encryptedReply({ data: { acknowledged: true } }, aesKey, iv);
     }
 
@@ -121,9 +129,11 @@ export async function POST(req: NextRequest) {
     }
 
     console.error("WhatsApp Flow endpoint: unhandled action", action, screen);
+    await report({ source: "whatsapp/flow", message: "Unhandled Flow action received", severity: "warning", info: { action, screen } });
     return encryptedReply({ data: { acknowledged: true } }, aesKey, iv);
   } catch (err) {
     console.error("/api/whatsapp/flow", err);
+    await reportError("whatsapp/flow", err, { severity: "critical" });
     return new NextResponse("Internal error", { status: 500 });
   }
 }

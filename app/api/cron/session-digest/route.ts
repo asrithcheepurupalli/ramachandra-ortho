@@ -20,6 +20,7 @@ import {
 import { windowsFor, ymd, nowIST } from "@/lib/schedule";
 import { sendSessionDigestEmail } from "@/lib/mailer";
 import { hasSupabase } from "@/lib/supabase";
+import { reportError } from "@/lib/bugdesk";
 
 export const dynamic = "force-dynamic";
 
@@ -51,41 +52,48 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: "mock-mode", reason: "no Supabase env on this deployment" });
   }
 
-  const isTest = req.nextUrl.searchParams.get("test") === "1";
-  const now = nowIST();
-  const date = ymd(now);
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const sched = await dbLoadSchedule();
-  const windows = windowsFor(now, sched);
-  // Fetch today's rows once and bucket them per window below.
-  const todays = (await dbApptsForDate(date)).filter((a) => a.status !== "cancelled");
+  try {
+    const isTest = req.nextUrl.searchParams.get("test") === "1";
+    const now = nowIST();
+    const date = ymd(now);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const sched = await dbLoadSchedule();
+    const windows = windowsFor(now, sched);
+    // Fetch today's rows once and bucket them per window below.
+    const todays = (await dbApptsForDate(date)).filter((a) => a.status !== "cancelled");
 
-  const planned: Array<{ label: string; window: string; due: boolean; appts: number }> = [];
-  const sends: Array<{ label: string; window: string; ok: boolean }> = [];
+    const planned: Array<{ label: string; window: string; due: boolean; appts: number }> = [];
+    const sends: Array<{ label: string; window: string; ok: boolean }> = [];
 
-  for (const win of windows) {
-    const startMin = toMin(win.start);
-    const label = sessionLabel(startMin);
-    // Due when the session hasn't started yet and is within the lead window.
-    const due = nowMin <= startMin && startMin - nowMin <= LEAD_MIN;
-    const appts = todays.filter((a) => a.time >= win.start && a.time < win.end);
-    planned.push({ label, window: win.start, due, appts: appts.length });
-    if (!due || isTest || !appts.length) continue;
-    // Only the tick that inserts the (date, window_start) row gets to send, so
-    // two overlapping cron runs can't double-email the same session.
-    const won = await dbMarkSessionDigestSent(date, win.start);
-    if (!won) continue;
-    const ok = await sendSessionDigestEmail(label, date, appts);
-    if (!ok) await dbClearSessionDigestSent(date, win.start); // transient failure → retry next tick
-    sends.push({ label, window: win.start, ok });
+    for (const win of windows) {
+      const startMin = toMin(win.start);
+      const label = sessionLabel(startMin);
+      // Due when the session hasn't started yet and is within the lead window.
+      const due = nowMin <= startMin && startMin - nowMin <= LEAD_MIN;
+      const appts = todays.filter((a) => a.time >= win.start && a.time < win.end);
+      planned.push({ label, window: win.start, due, appts: appts.length });
+      if (!due || isTest || !appts.length) continue;
+      // Only the tick that inserts the (date, window_start) row gets to send, so
+      // two overlapping cron runs can't double-email the same session.
+      const won = await dbMarkSessionDigestSent(date, win.start);
+      if (!won) continue;
+      const ok = await sendSessionDigestEmail(label, date, appts);
+      if (!ok) await dbClearSessionDigestSent(date, win.start); // transient failure → retry next tick
+      sends.push({ label, window: win.start, ok });
+    }
+
+    return NextResponse.json({
+      now: now.toISOString(),
+      date,
+      scanned: windows.length,
+      ...(isTest
+        ? { test: true, planned }
+        : { sent: sends.length, ok: sends.filter((s) => s.ok).length, failed: sends.filter((s) => !s.ok).length, sends }),
+    });
+  } catch (err) {
+    console.error("/api/cron/session-digest", err);
+    // The digest tick failed outright — staff won't know who's booked in.
+    await reportError("cron/session-digest", err, { severity: "critical" });
+    return NextResponse.json({ error: "cron failed" }, { status: 500 });
   }
-
-  return NextResponse.json({
-    now: now.toISOString(),
-    date,
-    scanned: windows.length,
-    ...(isTest
-      ? { test: true, planned }
-      : { sent: sends.length, ok: sends.filter((s) => s.ok).length, failed: sends.filter((s) => !s.ok).length, sends }),
-  });
 }
