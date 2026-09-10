@@ -672,7 +672,7 @@ async function claimRebookClient(
       const res = await fetch("/api/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, date: state.slot.date, time: state.slot.time, source, replacePending: true, claim }),
+        body: JSON.stringify({ name, phone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: true, claim }),
       });
       if (!res.ok) throw new Error("claim booking failed");
       const body = await res.json();
@@ -787,6 +787,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         body: JSON.stringify({
           name: state.name || "Patient",
           phone: input.trim(),
+          age: 0,
           date: state.slot.date,
           time: state.slot.time,
           source,
