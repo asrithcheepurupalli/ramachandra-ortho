@@ -237,20 +237,53 @@ export async function dbAddBooking(input: {
   if (phone) {
     const { data: pending, error: pendErr } = await db
       .from("appointments")
-      .select("id")
+      .select("id, appt_date, appt_time")
       .eq("phone", phone)
       .eq("status", "payment_pending");
     if (pendErr) throw pendErr;
     if ((pending ?? []).length > 0) {
       if (!input.replacePending) throw new PendingHoldError();
-      // Cancel old payment_pending row(s) so the new booking can proceed.
-      const ids = pending!.map((p) => p.id);
-      const { error: cancelErr } = await db
-        .from("appointments")
-        .update({ status: "cancelled" })
-        .in("id", ids)
-        .eq("status", "payment_pending");
-      if (cancelErr) throw cancelErr;
+      // A claim re-booking the SAME slot converts the hold in place instead of
+      // cancelling it and inserting a fresh row. The old cancel+insert left the
+      // discarded hold behind as a visible "Cancelled" ghost in the admin queue
+      // next to the real booking (the queue hides payment_pending but shows
+      // cancelled). Conversion keeps the original token and never creates a
+      // phantom row. appointments_pending_hold_idx guarantees at most one hold
+      // per phone, so pending[0] is the only one.
+      const hold = pending![0];
+      const sameSlot = hold.appt_date === input.date && hold.appt_time === input.time;
+      if (input.claim && sameSlot) {
+        const { data: converted, error: convErr } = await db
+          .from("appointments")
+          .update({
+            status: "reserved",
+            claim_type: input.claim,
+            fee: input.claim === "review_free" ? 0 : clinic.returningFee,
+            paid: input.claim === "review_free",
+            source: input.source ?? "website",
+            name: input.name,
+          })
+          .eq("id", hold.id)
+          // Guard: if the Razorpay webhook already flipped this hold to
+          // reserved (patient paid while the claim request was in flight),
+          // skip the conversion — maybeSingle() yields null and we fall
+          // through to a fresh insert, same as this code did before.
+          .eq("status", "payment_pending")
+          .select("*")
+          .maybeSingle();
+        if (convErr) throw convErr;
+        if (converted) return rowToAppt(converted);
+      } else {
+        // Hold for a different slot (defensive — the UI never produces this)
+        // or no claim set: cancel so the fresh booking below can proceed.
+        const ids = pending!.map((p) => p.id);
+        const { error: cancelErr } = await db
+          .from("appointments")
+          .update({ status: "cancelled" })
+          .in("id", ids)
+          .eq("status", "payment_pending");
+        if (cancelErr) throw cancelErr;
+      }
     }
   }
 
