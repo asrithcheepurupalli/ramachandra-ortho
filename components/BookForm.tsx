@@ -568,12 +568,22 @@ export function BookForm() {
             <input id="book-phone" value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErr(""); }} placeholder={t("book.phone")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-age" className="sr-only">{t("book.age")}</label>
             <input id="book-age" type="number" value={form.age || ""} onChange={(e) => setForm({ ...form, age: e.target.value ? Number(e.target.value) : 0 })} placeholder={t("book.age")} min="1" max="150" required className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
-            <label htmlFor="book-gender" className="sr-only">{t("book.gender")}</label>
-            <select id="book-gender" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value as "" | "M" | "F" })} required className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface">
-              <option value="" disabled>{t("book.gender")}</option>
-              <option value="M">{t("book.male")}</option>
-              <option value="F">{t("book.female")}</option>
-            </select>
+            <fieldset className="grid w-full grid-cols-2 gap-2">
+              <legend className="sr-only">{t("book.gender")}</legend>
+              {(["M", "F"] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  aria-pressed={form.gender === g}
+                  onClick={() => setForm({ ...form, gender: g })}
+                  className={`press rounded-xl border py-3 text-[15px] font-medium transition ${
+                    form.gender === g ? "border-brand bg-brand text-white" : "border-line bg-bg text-ink hover:border-brand/40"
+                  }`}
+                >
+                  {g === "M" ? t("book.male") : t("book.female")}
+                </button>
+              ))}
+            </fieldset>
           </div>
           {err && <p id="book-error" role="alert" className="mt-2 text-sm text-out">{err}</p>}
           {pendingHold && (
