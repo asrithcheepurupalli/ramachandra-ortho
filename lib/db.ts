@@ -249,10 +249,14 @@ export async function dbAddBooking(input: {
   // Returning-patient fee: the patients table (deduped by phone) is the source
   // of truth. Query BEFORE the upsert so we know whether a phone already had a
   // record — the upsert's ON CONFLICT swallows that distinction. A blank phone
-  // can't be matched, so it's always charged the new-patient rate.
+  // can't be matched, so it's always charged the new-patient rate. A matched
+  // returning phone is also marked counterPay: returning customers pay at the
+  // desk, no online payment (the user asked to remove online payment for them
+  // entirely), which auto-claims the booking to returning_unverified below.
   let patientId: string | null = null;
   let patientCode: string | null = null;
   let fee: number = clinic.consultationFee;
+  let counterPay = false;
   if (phone) {
     const { data: existing, error: existingErr } = await db
       .from("patients")
@@ -264,6 +268,7 @@ export async function dbAddBooking(input: {
       patientId = existing.id;
       patientCode = existing.patient_code ?? null;
       fee = clinic.returningFee;
+      counterPay = true;
     } else {
       const { data: patient, error: patientErr } = await db
         .from("patients")
@@ -276,12 +281,15 @@ export async function dbAddBooking(input: {
     }
   }
 
-  // A self-declared claim overrides the looked-up fee outright — there's no
-  // old-patient record to check a "returning" claim against, so it's trusted
-  // at the clinic's own rate and verified in person. "review_free" is ₹0 with
-  // nothing ever collected.
-  if (input.claim === "returning_unverified") fee = clinic.returningFee;
-  else if (input.claim === "review_free") fee = 0;
+  // The final claim: an explicit self-declared claim wins (trusted at the
+  // clinic's own rate and verified in person — there's no old-patient record to
+  // check it against); without one, a matched returning phone is auto-claimed
+  // as returning_unverified so they pay at the counter instead of online.
+  // "review_free" is ₹0 with nothing ever collected.
+  const claim: "returning_unverified" | "review_free" | undefined =
+    input.claim ?? (counterPay ? "returning_unverified" : undefined);
+  if (claim === "returning_unverified") fee = clinic.returningFee;
+  else if (claim === "review_free") fee = 0;
 
   // Bookings start payment_pending (not reserved): the slot is held + the
   // Razorpay link has a reference_id, but nothing shows in any queue until
@@ -314,11 +322,11 @@ export async function dbAddBooking(input: {
         reason: "Consultation",
         appt_date: input.date,
         appt_time: input.time,
-        status: input.claim ? "reserved" : "payment_pending",
+        status: claim ? "reserved" : "payment_pending",
         source: input.source ?? "website",
         fee,
-        paid: input.claim === "review_free",
-        claim_type: input.claim ?? null,
+        paid: claim === "review_free",
+        claim_type: claim ?? null,
       })
       .select("*")
       .single();

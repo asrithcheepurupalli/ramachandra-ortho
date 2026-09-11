@@ -20,7 +20,7 @@ export class SlotTakenError extends Error {
 // patients table is upserted on the first attempt regardless of payment — it
 // would charge the returning fee (₹350) against a phone that never paid its
 // first ₹400. The right move is to finish the existing hold (pay it, or let the
-// 30-minute payment-timeout cron release it). Standalone (not a SlotTakenError)
+// 15-minute payment-timeout cron release it). Standalone (not a SlotTakenError)
 // so each surface can phrase it as "finish your payment", not "pick a new slot".
 export class PendingHoldError extends Error {
   constructor() {

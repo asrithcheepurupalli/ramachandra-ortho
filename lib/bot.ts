@@ -314,14 +314,14 @@ const P: Record<Lang, PhrasePack> = {
     pendingHold: "You already have a booking waiting for payment. Please complete that payment now to confirm your slot — an unpaid booking is released automatically after 15 minutes. Or tap *Start fresh* to cancel it and book a new slot.",
     flowSlotTaken: "Sorry, that slot was just taken. Please message us again to pick another time.",
     flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
-    confirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 30 minutes* — complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
+    confirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 15 minutes* — complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
     claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt} at the counter when you arrive. No online payment needed, the desk will verify and collect it there.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
     claimFreeConfirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · this review visit is free, nothing to pay.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
     cancelAsk: `Cancellations are handled by the clinic, so I can't cancel it for you here. Would you like to move it to a new time instead? Tap *Reschedule*, or call the clinic on ${clinic.contact.phone} to cancel.`,
     payNone: "You don't have any unpaid appointments right now.",
     payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
     payNotFound: "I couldn't match that to one of your unpaid appointments. Please tap an option above, or reply with the exact token number or name.",
-    payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for 30 minutes. Please complete it before your slot is released.`,
+    payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for 15 minutes. Please complete it before your slot is released.`,
     payFail: "Something went wrong starting the payment. Please try again, or call the clinic.",
     payMock: "✅ Payment confirmed! Your appointment is now confirmed.",
     payPrompt: "To confirm your slot, please complete the consultation fee payment now. Tap *Pay now* to pay online.",
@@ -368,14 +368,14 @@ const P: Record<Lang, PhrasePack> = {
     pendingHold: "మీకు ఇప్పటికే చెల్లింపు కోసం వేచి ఉన్న బుకింగ్ ఉంది. మీ స్లాట్ నిర్ధారించడానికి దయచేసి ఇప్పుడే ఆ చెల్లింపు పూర్తి చేయండి — చెల్లించని బుకింగ్ 15 నిమిషాల తర్వాత స్వయంచాలకంగా విడుదల అవుతుంది. లేదా *కొత్తగా మొదలుపెట్టండి* నొక్కి రద్దు చేసి కొత్త స్లాట్ బుక్ చేయండి.",
     flowSlotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. దయచేసి మళ్ళీ మెసేజ్ చేసి వేరే సమయం ఎంచుకోండి.",
     flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
-    confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఇది *30 నిమిషాలు* హోల్డ్ చేయబడుతుంది — అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
+    confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఇది *15 నిమిషాలు* హోల్డ్ చేయబడుతుంది — అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
     claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · మీరు వచ్చినప్పుడు కౌంటర్‌లో ${cur}${feeAmt} చెల్లించండి. ఆన్‌లైన్ చెల్లింపు అవసరం లేదు, డెస్క్ వద్ద వెరిఫై చేసి తీసుకుంటారు.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
     claimFreeConfirm: (tok: number, s: string) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ఈ రివ్యూ విజిట్ ఫ్రీ, ఏమీ చెల్లించాల్సిన అవసరం లేదు.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
     cancelAsk: `రద్దులను క్లినిక్ నిర్వహిస్తుంది, కాబట్టి నేను ఇక్కడ రద్దు చేయలేను. బదులుగా కొత్త సమయానికి మార్చుకోవాలనుకుంటున్నారా? *రీషెడ్యూల్* నొక్కండి, లేదా రద్దు కోసం క్లినిక్‌కు ${clinic.contact.phone} కాల్ చేయండి.`,
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
     payNotFound: "అది మీ చెల్లించని అపాయింట్‌మెంట్‌లలో దేనికీ సరిపోలలేదు. దయచేసి పైన ఉన్న ఆప్షన్ నొక్కండి, లేదా సరైన టోకెన్ నంబర్ లేదా పేరు రిప్లై చేయండి.",
-    payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది 30 నిమిషాలు చెల్లుతుంది. మీ స్లాట్ విడుదల అయ్యేలోపు చెల్లించండి.`,
+    payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది 15 నిమిషాలు చెల్లుతుంది. మీ స్లాట్ విడుదల అయ్యేలోపు చెల్లించండి.`,
     payFail: "చెల్లింపు ప్రారంభించడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
     payMock: "✅ చెల్లింపు నిర్ధారించబడింది! మీ అపాయింట్‌మెంట్ ఇప్పుడు నిర్ధారించబడింది.",
     payPrompt: "మీ స్లాట్ నిర్ధారించడానికి, దయచేసి ఇప్పుడే కన్సల్టేషన్ ఫీజు చెల్లించండి. *ఇప్పుడే చెల్లించండి* నొక్కండి.",
@@ -422,14 +422,14 @@ const P: Record<Lang, PhrasePack> = {
     pendingHold: "आपकी एक बुकिंग पहले से भुगतान के लिए लंबित है। अपना स्लॉट पुष्टि करने के लिए कृपया अभी वह भुगतान पूरा करें — अवैतनिक बुकिंग 15 मिनट बाद अपने आप रिलीज़ हो जाती है। या *नया स्लॉट बुक करें* दबाकर पुरानी बुकिंग रद्द करें और नई बुक करें।",
     flowSlotTaken: "माफ़ करें, वह स्लॉट अभी बुक हो गया। कृपया दोबारा मैसेज करके दूसरा समय चुनें।",
     flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
-    confirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *30 मिनट* के लिए होल्ड है — अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
+    confirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *15 मिनट* के लिए होल्ड है — अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
     claimCounterConfirm: (tok: number, s: string, feeAmt: number) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · पहुंचने पर काउंटर पर ${cur}${feeAmt} का भुगतान करें। ऑनलाइन भुगतान की जरूरत नहीं है, डेस्क पर वेरिफाई करके ले लेंगे।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
     claimFreeConfirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · यह रिव्यू विजिट फ्री है, कुछ भी भुगतान नहीं करना है।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
     cancelAsk: `रद्दीकरण क्लिनिक संभालता है, इसलिए मैं इसे यहाँ रद्द नहीं कर सकता। क्या आप इसके बजाय इसे किसी नए समय पर ले जाना चाहेंगे? *रीशेड्यूल* दबाएँ, या रद्द करने के लिए क्लिनिक को ${clinic.contact.phone} पर कॉल करें।`,
     payNone: "अभी आपके पास कोई अवैतनिक अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
     payNotFound: "यह आपके किसी बकाया भुगतान वाले अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
-    payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह 30 मिनट के लिए मान्य है। स्लॉट रिलीज़ होने से पहले भुगतान पूरा करें।`,
+    payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह 15 मिनट के लिए मान्य है। स्लॉट रिलीज़ होने से पहले भुगतान पूरा करें।`,
     payFail: "भुगतान शुरू करने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
     payMock: "✅ भुगतान पुष्ट हुआ! आपका अपॉइंटमेंट अब पुष्ट है।",
     payPrompt: "अपना स्लॉट पुष्टि करने के लिए कृपया अभी परामर्श शुल्क का भुगतान करें। *अभी भुगतान करें* दबाएँ।",
@@ -698,6 +698,35 @@ async function claimRebookClient(
   }
 }
 
+// Booking-completion reply. A normal booking sits in payment_pending (slot
+// held, pay online to confirm), so the reply prompts for payment and offers
+// the pay-now / pay-at-counter / free-review rebook chips. A claimed booking
+// (returning counter-pay or free review) is confirmed instantly: no pay prompt,
+// no pay chips (returning customers pay at the counter, as asked). baseChips
+// are the surface's standing chips (chat omits location, flow includes it).
+function bookingDoneReply(
+  t: PhrasePack,
+  c: PhrasePack["chips"],
+  appt: Appt,
+  slot: Slot,
+  name: string | undefined,
+  viewPhone: string,
+  baseChips: string[]
+): BotOut {
+  const state: BotState = { stage: "idle", slot, name, viewPhone };
+  if (appt.claimType === "review_free") {
+    return { reply: [t.claimFreeConfirm(appt.token, slot.label)], chips: baseChips, state };
+  }
+  if (appt.claimType === "returning_unverified") {
+    return { reply: [t.claimCounterConfirm(appt.token, slot.label, appt.fee)], chips: baseChips, state };
+  }
+  return {
+    reply: [t.confirm(appt.token, slot.label, appt.fee), t.payPrompt],
+    chips: [c.payNow, c.payCounter, c.reviewFree, ...baseChips],
+    state,
+  };
+}
+
 export async function botReply(input: string, lang: Lang, state: BotState, source: Source = "whatsapp"): Promise<BotOut> {
   const t = P[lang];
   const c = t.chips;
@@ -778,11 +807,11 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name, replacePending: state.replacePending } };
     }
     const appt = addBooking({ name, phone: "", age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending });
-    // Carry viewPhone ("" in mock) so the Pay now chip that follows resolves
-    // the just-created payment_pending hold without re-asking for a number.
-    // slot/name stay in state too, so a payCounter/reviewFree tap afterward
-    // can re-book the same slot without asking the patient anything again.
-    return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.payCounter, c.reviewFree, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: appt.phone, slot: state.slot, name } };
+    // slot/name/viewPhone stay in the completion state so a payCounter or
+    // reviewFree tap afterward can re-book the same slot without asking the
+    // patient anything again (and a returning phone in mock auto-claims to
+    // counter-pay, so no pay chips are shown to it).
+    return bookingDoneReply(t, c, appt, state.slot, name, appt.phone, [c.avail, c.about, c.done]);
   }
 
   // completing a booking (DB mode): this input is the patient's phone number
@@ -826,10 +855,10 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       }
       if (!res.ok) throw new Error("booking failed");
       const { appointment: appt } = body as { appointment: Appt };
-      // Carry the just-entered phone into viewPhone so the Pay now chip that
-      // follows the confirmation resolves the unpaid hold without re-asking.
-      // slot/name stay in state too, for the payCounter/reviewFree rebook path.
-      return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.payCounter, c.reviewFree, c.avail, c.about, c.done], state: { stage: "idle", viewPhone: input.trim(), slot: state.slot, name: state.name } };
+      // slot/name/viewPhone carry through the completion so a payCounter or
+      // reviewFree tap afterward can re-book the same slot without re-asking.
+      // A returning phone auto-claims to counter-pay (no pay chips, no prompt).
+      return bookingDoneReply(t, c, appt, state.slot, state.name, input.trim(), [c.avail, c.about, c.done]);
     } catch (err) {
       console.error("bot: booking failed", err);
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
@@ -1219,7 +1248,7 @@ export function flowBookFailMsg(lang: Lang): string { return P[lang].flowBookFai
 // on the number — the patient should finish that payment, not book a second slot.
 export function flowPendingHoldMsg(lang: Lang): string { return P[lang].pendingHold; }
 // The mandatory pay prompt sent right after a WhatsApp Flow booking
-// confirmation — the slot is held 30 minutes while payment is pending.
+// confirmation — the slot is held 15 minutes while payment is pending.
 export function flowPayPrompt(lang: Lang): string { return P[lang].payPrompt; }
 // The matching "Pay now" button label for that prompt (per-language chip label),
 // so the Flow follow-up carries a real tappable button, not just the word.
@@ -1315,8 +1344,9 @@ export async function botReplyServer(
       // Appointment page. The chip routes into the shared pay intent below.
       // slot/name/viewPhone stay in state for the payCounter/reviewFree rebook
       // path — viewPhone remembers bookPhone since it can differ from the
-      // WhatsApp sender's own number.
-      return { reply: [t.confirm(appt.token, state.slot.label, appt.fee), t.payPrompt], chips: [c.payNow, c.payCounter, c.reviewFree, c.avail, c.about, c.location, c.done], state: { stage: "idle", slot: state.slot, name: state.name, viewPhone: bookPhone } };
+      // WhatsApp sender's own number. A returning phone auto-claims to
+      // counter-pay: no pay chips, no prompt.
+      return bookingDoneReply(t, c, appt, state.slot, state.name, bookPhone, [c.avail, c.about, c.location, c.done]);
     } catch (err) {
       if (err instanceof PendingHoldError) {
         // A payment_pending hold already sits on this number. Don't stack a

@@ -39,8 +39,8 @@ export async function createPaymentLink(
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   const contact = normalizeIndianPhone(appt.phone);
 
-  // The slot is held for 30 minutes from BOOKING (the payment-timeout cron
-  // cancels the row at createdAt + 30m), so the link must expire at that same
+  // The slot is held for 15 minutes from BOOKING (the payment-timeout cron
+  // cancels the row at createdAt + 15m), so the link must expire at that same
   // moment — never later. A link that outlives the hold lets a patient pay
   // after the cron freed the slot: money captured against a cancelled
   // appointment, unrecordable and unrefundable. No artificial floor — a tap
@@ -48,7 +48,7 @@ export async function createPaymentLink(
   // correct, because the slot is freed then. If the hold has already elapsed
   // there is nothing left to pay for, so bail rather than mint a link for a
   // freed slot.
-  const holdDeadlineSec = Math.floor(new Date(appt.createdAt).getTime() / 1000) + 1800;
+  const holdDeadlineSec = Math.floor(new Date(appt.createdAt).getTime() / 1000) + 900;
   if (holdDeadlineSec <= Math.floor(Date.now() / 1000)) {
     console.error("Razorpay payment link skipped: booking hold already expired");
     return null;

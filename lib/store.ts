@@ -279,17 +279,22 @@ export function addBooking(input: {
   }
   const reg = loadPatients();
   const existing = phone ? reg[phone] : undefined;
-  let fee: number = existing ? clinic.returningFee : clinic.consultationFee;
-  if (input.claim === "returning_unverified") fee = clinic.returningFee;
-  else if (input.claim === "review_free") fee = 0;
+  // Mirror dbAddBooking: an explicit claim wins; a matched returning phone is
+  // auto-claimed as returning_unverified so they pay at the counter instead of
+  // online. "review_free" is ₹0 with nothing ever collected.
+  const claim: "returning_unverified" | "review_free" | null =
+    input.claim ?? (existing ? "returning_unverified" : null);
+  let fee: number = claim === "review_free" ? 0 : existing ? clinic.returningFee : clinic.consultationFee;
+  if (claim === "returning_unverified") fee = clinic.returningFee;
+  else if (claim === "review_free") fee = 0;
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,
     age: input.age, gender: input.gender ?? null, date: input.date, time: input.time,
-    status: input.claim ? "reserved" : "payment_pending", source: input.source ?? "website", fee,
-    paid: input.claim === "review_free", paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
-    notes: null, patientCode, claimType: input.claim ?? null,
-    paymentDeadlineAt: input.claim ? null : Date.now() + PAYMENT_WINDOW_MS,
+    status: claim ? "reserved" : "payment_pending", source: input.source ?? "website", fee,
+    paid: claim === "review_free", paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, createdAt: Date.now(),
+    notes: null, patientCode, claimType: claim,
+    paymentDeadlineAt: claim ? null : Date.now() + PAYMENT_WINDOW_MS,
   };
   write([...nextAll, appt]);
   return appt;

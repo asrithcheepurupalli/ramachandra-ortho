@@ -89,7 +89,7 @@ alter table public.appointments add column if not exists patient_code text;
 -- Mandatory online payment (2026-09-08): new bookings start as payment_pending
 -- (slot held, invisible to queues/admin/doctor). The Razorpay payment_link.paid
 -- webhook flips the row to reserved atomically. A cron running every 5 minutes
--- cancels stale payment_pending rows older than 30 minutes, freeing their slot.
+-- cancels stale payment_pending rows older than 15 minutes, freeing their slot.
 -- No ALTER needed beyond the status comment above — payment_pending is just a
 -- text value in the existing status column; this block is for readability only.
 create index if not exists appointments_date_idx on public.appointments (appt_date);

@@ -83,7 +83,7 @@ export function BookForm() {
   }, []);
 
   // A previous visit's abandoned payment_pending hold (or none if it expired
-  // while away — the 30-min window has passed, so the row is cancelled anyway).
+  // while away — the 15-min window has passed, so the row is cancelled anyway).
   useEffect(() => {
     try {
       const raw = localStorage.getItem(RESUME_KEY);
@@ -348,7 +348,7 @@ export function BookForm() {
             <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
               <p className="text-sm font-semibold text-out">{t("book.done.payRequired")}</p>
               <p className="mt-1 text-xs leading-relaxed text-muted">
-                {t("book.done.deadline", { time: new Date((booked.paymentDeadlineAt ?? booked.createdAt + 30 * 60_000)).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) })}
+                {t("book.done.deadline", { time: new Date((booked.paymentDeadlineAt ?? booked.createdAt + 15 * 60_000)).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) })}
               </p>
             </div>
           ) : (

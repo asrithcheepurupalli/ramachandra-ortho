@@ -232,7 +232,7 @@ function ApptCard({
              card's max-w-lg (512px) a 3-across column is ~152px but the longest
              label needs ~162px, so it wraps to 2-3 lines on every screen. */
           <div className="mt-4 grid grid-cols-1 gap-2">
-            {!appt.paid && (
+            {appt.status === "payment_pending" && (
               <button onClick={() => gate(doPay)} disabled={payBusy} className="press flex w-full items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition disabled:opacity-60">
                 <Wallet className="h-4 w-4" /> {t("myappt.paynow")}
               </button>
