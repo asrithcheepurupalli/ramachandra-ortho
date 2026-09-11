@@ -152,6 +152,9 @@ as $$
   );
 $$;
 grant execute on function public.is_staff(text) to authenticated;
+-- Postgres grants EXECUTE to PUBLIC by default on CREATE FUNCTION; revoke it so
+-- anonymous PostgREST callers can't enumerate staff emails via is_staff().
+revoke execute on function public.is_staff(text) from public;
 
 -- Which portal a signed-in staff email should land on. Returns null for a
 -- non-staff email (mirrors is_staff's "not on the list" case rather than
@@ -166,6 +169,7 @@ as $$
   select role from public.staff_emails where email = lower(check_email)
 $$;
 grant execute on function public.staff_role(text) to authenticated;
+revoke execute on function public.staff_role(text) from public;
 
 -- Row Level Security ─────────────────────────────────────────────────────────
 -- Patient data is never exposed to anonymous visitors. Public booking + slot
