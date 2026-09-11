@@ -121,18 +121,17 @@ function MyAppointmentInner() {
           disabled={loading || !phone.trim()}
           className={`press flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-3 text-sm font-semibold transition ${loading || !phone.trim() ? "cursor-not-allowed bg-line text-muted" : "bg-brand text-white hover:bg-brand-dark"}`}
         >
-          <Search className="h-4 w-4" /> <span className="hidden sm:inline">{t("myappt.find")}</span>
+          {loading ? <span className="spinner" aria-hidden /> : <Search className="h-4 w-4" />} <span className="hidden sm:inline">{loading ? t("myappt.searching") : t("myappt.find")}</span>
         </button>
       </div>
 
-      {loading && <p className="mt-3 text-sm text-muted">{t("myappt.searching")}</p>}
       {err && <p role="alert" className="mt-3 text-sm text-out">{err}</p>}
       {appts && appts.length === 0 && !loading && (
         <p className="mt-3 rounded-xl bg-bg p-4 text-sm text-muted">{t("myappt.none")}</p>
       )}
 
       {appts && appts.length > 0 && (
-        <div className="mt-6 space-y-4">
+        <div className="stage-in mt-6 space-y-4">
           {appts.map((a) => (
             <ApptCard key={a.id} appt={a} t={t} phone={phone} otpEnabled={otpEnabled} verified={verified} onVerified={() => setVerified(true)} onUpdated={updateAppt} />
           ))}
@@ -234,7 +233,7 @@ function ApptCard({
           <div className="mt-4 grid grid-cols-1 gap-2">
             {appt.status === "payment_pending" && (
               <button onClick={() => gate(doPay)} disabled={payBusy} className="press flex w-full items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition disabled:opacity-60">
-                <Wallet className="h-4 w-4" /> {t("myappt.paynow")}
+                {payBusy ? <span className="spinner" aria-hidden /> : <Wallet className="h-4 w-4" />} {t("myappt.paynow")}
               </button>
             )}
             <button onClick={() => gate(() => setMode("reschedule"))} className="press flex w-full items-center justify-center gap-1.5 rounded-full border border-line py-2.5 text-sm font-semibold text-ink">
@@ -333,7 +332,7 @@ function VerifyGate({ t, phone, onVerified, onClose }: {
           disabled={busy}
           className="press mt-3 flex w-full items-center justify-center gap-1.5 rounded-full bg-brand py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
         >
-          <MessageCircle className="h-4 w-4" /> {busy ? t("myappt.otpSending") : t("myappt.otpGet")}
+          {busy ? <span className="spinner" aria-hidden /> : <MessageCircle className="h-4 w-4" />} {busy ? t("myappt.otpSending") : t("myappt.otpGet")}
         </button>
       )}
 
@@ -357,7 +356,7 @@ function VerifyGate({ t, phone, onVerified, onClose }: {
               disabled={busy || code.length !== 6}
               className={`press flex-1 rounded-full py-2.5 text-sm font-semibold transition ${busy || code.length !== 6 ? "cursor-not-allowed bg-line text-muted" : "bg-brand text-white hover:bg-brand-dark"}`}
             >
-              {busy ? t("myappt.otpChecking") : t("myappt.otpVerify")}
+              {busy ? <><span className="spinner" aria-hidden /> {t("myappt.otpChecking")}</> : t("myappt.otpVerify")}
             </button>
             <button onClick={onClose} disabled={busy} className="press rounded-full border border-line px-4 py-2.5 text-sm font-semibold text-ink">
               {t("myappt.cancelNo")}
@@ -490,7 +489,7 @@ function RescheduleFlow({
               disabled={disabled}
               aria-pressed={active}
               onClick={() => { setSelDate(o.date); setSelTime(null); }}
-              className={`press flex min-w-[56px] shrink-0 flex-col items-center rounded-xl border px-2.5 py-2 text-center transition ${active ? "border-brand bg-brand text-white" : disabled ? "border-line bg-surface text-muted/40" : "border-line bg-surface hover:border-brand/40"}`}
+              className={`${active ? "pop" : ""} press flex min-w-[56px] shrink-0 flex-col items-center rounded-xl border px-2.5 py-2 text-center transition ${active ? "border-brand bg-brand text-white" : disabled ? "border-line bg-surface text-muted/40" : "border-line bg-surface hover:border-brand/40"}`}
             >
               <span className="text-[10px] font-medium uppercase">{dayLabel(o, i)}</span>
               <span className="text-base font-bold leading-tight">{o.d.getDate()}</span>
@@ -509,7 +508,7 @@ function RescheduleFlow({
                 key={time}
                 aria-pressed={selTime === time}
                 onClick={() => setSelTime(time)}
-                className={`press rounded-lg border py-2 text-sm font-medium transition ${
+                className={`${selTime === time ? "pop" : ""} press rounded-lg border py-2 text-sm font-medium transition ${
                   selTime === time
                     ? "border-brand bg-brand text-white"
                     : "border-line bg-surface hover:border-brand/40"
@@ -531,7 +530,7 @@ function RescheduleFlow({
           disabled={!selDate || !selTime || busy}
           className={`press flex-1 rounded-full py-2.5 text-sm font-semibold transition ${!selDate || !selTime || busy ? "cursor-not-allowed bg-line text-muted" : "bg-brand text-white hover:bg-brand-dark"}`}
         >
-          {busy ? t("myappt.rescheduling") : t("myappt.rescheduleConfirm")}
+          {busy ? <><span className="spinner" aria-hidden /> {t("myappt.rescheduling")}</> : t("myappt.rescheduleConfirm")}
         </button>
         <button onClick={onCancel} disabled={busy} className="press flex-1 rounded-full border border-line bg-surface py-2.5 text-sm font-semibold text-ink">
           {t("myappt.cancelNo")}

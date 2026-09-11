@@ -323,13 +323,13 @@ export function BookForm() {
     };
 
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-12">
+      <main key="done" className="stage-in mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-12">
         <div className="rounded-3xl border border-line bg-surface p-7 text-center shadow-lift">
           <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-in/12 text-in"><PartyPopper className="h-8 w-8" /></div>
           <h1 className="mt-5 text-2xl font-semibold">{t("book.done.title")}</h1>
           <div className="mt-5 rounded-2xl bg-brand-tint p-5">
             <div className="text-xs font-semibold uppercase tracking-wider text-brand">{t("book.done.token")}</div>
-            <div className="mt-1 text-5xl font-bold text-brand-dark">#{booked.token}</div>
+            <div className="token-pop mt-1 text-5xl font-bold text-brand-dark">#{booked.token}</div>
           </div>
           <dl className="mt-5 space-y-2 text-left text-sm">
             <Row icon={User} v={booked.name} />
@@ -364,7 +364,7 @@ export function BookForm() {
           <div className="mt-6 flex flex-col gap-2">
             {!booked.paid && !booked.claimType && (
               <button onClick={doPay} disabled={payBusy} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
-                <Wallet className="h-4 w-4 shrink-0" /> {t("book.done.paynow")}
+                {payBusy ? <span className="spinner" aria-hidden /> : <Wallet className="h-4 w-4 shrink-0" />} {t("book.done.paynow")}
               </button>
             )}
             <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition hover:bg-brand-tint"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
@@ -389,7 +389,7 @@ export function BookForm() {
   /* ── new-or-returning gate ────────────────────────────────────────────── */
   if (stage === "patient") {
     return (
-      <main className="mx-auto w-full max-w-lg px-5 pb-28 pt-6 md:pb-12">
+      <main key="patient" className="stage-in mx-auto w-full max-w-lg px-5 pb-28 pt-6 md:pb-12">
         <div className="flex items-center justify-between gap-3">
           <Link href="/" className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{clinic.shortName}</span></Link>
           <div className="flex shrink-0 items-center rounded-full border border-line bg-surface p-0.5">
@@ -428,7 +428,7 @@ export function BookForm() {
               <label htmlFor="lookup-q" className="sr-only">{t("book.patient.placeholder")}</label>
               <input id="lookup-q" value={lookupQ} onChange={(e) => { setLookupQ(e.target.value); setLookupErr(""); setMatched(null); }} placeholder={t("book.patient.placeholder")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
               <button onClick={lookup} disabled={lookupBusy} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand py-3.5 text-[15px] font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
-                {lookupBusy ? t("book.patient.looking") : <>{t("book.patient.lookup")} <ChevronRight className="h-4 w-4" /></>}
+                {lookupBusy ? <><span className="spinner" aria-hidden /> {t("book.patient.looking")}</> : <>{t("book.patient.lookup")} <ChevronRight className="h-4 w-4" /></>}
               </button>
             </div>
 
@@ -486,7 +486,7 @@ export function BookForm() {
 
   /* ── booking flow ─────────────────────────────────────────────────────── */
   return (
-    <main className="mx-auto w-full max-w-lg px-5 pb-28 pt-6 md:pb-12">
+    <main key="book" className="stage-in mx-auto w-full max-w-lg px-5 pb-28 pt-6 md:pb-12">
       <div className="flex items-center justify-between gap-3">
         <button onClick={() => { setStage("patient"); setPeople(null); setClaim(null); setMatched(null); setSelDate(null); setSelTime(null); }} className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{t("book.patient.back")}</span></button>
         <div className="flex shrink-0 items-center rounded-full border border-line bg-surface p-0.5">
@@ -521,7 +521,7 @@ export function BookForm() {
                   const active = o.date === selDate;
                   return (
                     <button key={o.date} disabled={disabled} aria-pressed={active} onClick={() => { setSelDate(o.date); setSelTime(null); }}
-                      className={`press flex min-w-[64px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 text-center transition ${active ? "border-brand bg-brand text-white" : disabled ? "border-line bg-bg text-muted/40" : "border-line bg-surface hover:border-brand/40"}`}>
+                      className={`press flex min-w-[64px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 text-center transition ${active ? "pop border-brand bg-brand text-white" : disabled ? "border-line bg-bg text-muted/40" : "border-line bg-surface hover:border-brand/40"}`}>
                       <span className="text-[11px] font-medium uppercase">{dayLabel(o, i)}</span>
                       <span className="text-lg font-bold leading-tight">{o.d.getDate()}</span>
                       <span className={`text-[10px] ${active ? "text-white/80" : "text-muted"}`}>{disabled ? t("book.closed") : `${o.slots.length}`}</span>
@@ -546,7 +546,7 @@ export function BookForm() {
                   onClick={() => setSelTime(time)}
                   className={`press rounded-xl border py-2.5 text-sm font-medium transition ${
                     selTime === time
-                      ? "border-brand bg-brand text-white"
+                      ? "pop border-brand bg-brand text-white"
                       : "border-line hover:border-brand/40"
                   }`}
                 >
@@ -577,7 +577,7 @@ export function BookForm() {
                   aria-pressed={form.gender === g}
                   onClick={() => setForm({ ...form, gender: g })}
                   className={`press rounded-xl border py-3 text-[15px] font-medium transition ${
-                    form.gender === g ? "border-brand bg-brand text-white" : "border-line bg-bg text-ink hover:border-brand/40"
+                    form.gender === g ? "pop border-brand bg-brand text-white" : "border-line bg-bg text-ink hover:border-brand/40"
                   }`}
                 >
                   {g === "M" ? t("book.male") : t("book.female")}
@@ -606,8 +606,14 @@ export function BookForm() {
       {/* action — sticky on mobile, inline on desktop */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/90 px-5 py-3 backdrop-blur-md md:static md:mt-6 md:border-0 md:bg-transparent md:p-0" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
         <div className="mx-auto max-w-lg">
-          <button onClick={() => confirm()} disabled={!canBook} className={`press flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-semibold transition ${canBook ? "bg-brand text-white hover:bg-brand-dark" : "cursor-not-allowed bg-line text-muted"}`}>
-            {canBook ? <>{t("book.confirm")}{selTime && selDate ? ` · ${fmt(selTime)}` : ""} <ChevronRight className="h-4 w-4" /></> : <>{t("book.pickslot")}</>}
+          <button onClick={() => confirm()} disabled={!canBook} className={`press flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-semibold transition ${selDate && selTime ? "bg-brand text-white hover:bg-brand-dark" : "cursor-not-allowed bg-line text-muted"}`}>
+            {submitting ? (
+              <><span className="spinner" aria-hidden /> {t("book.confirm")}</>
+            ) : canBook ? (
+              <>{t("book.confirm")}{selTime && selDate ? ` · ${fmt(selTime)}` : ""} <ChevronRight className="h-4 w-4" /></>
+            ) : (
+              <>{t("book.pickslot")}</>
+            )}
           </button>
         </div>
       </div>

@@ -268,6 +268,7 @@
                                     },
                                     "payload": {
                                         "age": "${data.age}",
+                                        "gender": "${data.gender}",
                                         "date": "${data.date}",
                                         "time": "${data.time}",
                                         "name": "${form.name}",
@@ -424,6 +425,7 @@
                             },
                             "payload": {
                                 "age": "${data.age}",
+                                "gender": "${data.gender}",
                                 "date": "${data.date}",
                                 "time": "${data.time}",
                                 "name": "${data.name}",

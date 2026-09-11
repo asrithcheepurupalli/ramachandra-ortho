@@ -76,7 +76,7 @@ export function RCChat() {
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed inset-x-3 top-16 bottom-3 z-[60] flex flex-col overflow-hidden rounded-3xl border border-line bg-bg shadow-lift md:inset-auto md:right-6 md:bottom-6 md:top-auto md:h-[600px] md:max-h-[85vh] md:w-[384px]">
+        <div className="panel-in fixed inset-x-3 top-16 bottom-3 z-[60] flex flex-col overflow-hidden rounded-3xl border border-line bg-bg shadow-lift md:inset-auto md:right-6 md:bottom-6 md:top-auto md:h-[600px] md:max-h-[85vh] md:w-[384px]">
           {/* header */}
           <div className="flex items-center gap-3 bg-brand px-4 py-3 text-white">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15"><Bot className="h-5 w-5" /></span>
