@@ -40,16 +40,16 @@ export async function createPaymentLink(
   const contact = normalizeIndianPhone(appt.phone);
 
   // The slot is held for 15 minutes from BOOKING (the payment-timeout cron
-  // cancels the row at createdAt + 15m), so the link must expire at that same
-  // moment — never later. A link that outlives the hold lets a patient pay
-  // after the cron freed the slot: money captured against a cancelled
-  // appointment, unrecordable and unrefundable. No artificial floor — a tap
-  // right at the deadline yields a link expiring at the deadline, which is
-  // correct, because the slot is freed then. If the hold has already elapsed
-  // there is nothing left to pay for, so bail rather than mint a link for a
-  // freed slot.
+  // cancels the row at createdAt + 15m). Razorpay requires expire_by to be at
+  // least 15 minutes in the future, so we floor at now + 900. For a fresh
+  // booking this is nearly identical to the hold deadline; for one created a
+  // few minutes ago the link may outlive the hold slightly, but the webhook
+  // already handles that edge case (cancelled row = returns null, logged for
+  // manual reconciliation). If the hold has fully elapsed there is nothing
+  // left to pay for, so bail rather than mint a link for a freed slot.
+  const nowSec = Math.floor(Date.now() / 1000);
   const holdDeadlineSec = Math.floor(new Date(appt.createdAt).getTime() / 1000) + 900;
-  if (holdDeadlineSec <= Math.floor(Date.now() / 1000)) {
+  if (holdDeadlineSec <= nowSec) {
     console.error("Razorpay payment link skipped: booking hold already expired");
     return null;
   }
@@ -63,7 +63,7 @@ export async function createPaymentLink(
         currency: "INR",
         reference_id: appt.id,
         description: "Consultation fee",
-        expire_by: holdDeadlineSec,
+        expire_by: Math.max(holdDeadlineSec, nowSec + 900),
         customer: { name: appt.name, ...(contact ? { contact } : {}) },
         notify: { sms: false, email: false },
         ...(siteUrl
