@@ -183,6 +183,27 @@ function rowToAppt(r: DbApptRow): Appt {
   };
 }
 
+// Creates the patient row for a phone if it doesn't exist yet. The upsert
+// targets the patients phone unique index: a returning phone gets its existing
+// row back (id + ROC code), a first insert gets a fresh ROC-#### via the
+// patients_code_trigger. Patients are created ONLY from a confirmed booking —
+// dbAddBooking defers a new phone until the booking is real (the payment
+// webhook flipping payment_pending→reserved, or a claim booking landing
+// straight in reserved), so an unpaid hold that times out NEVER leaves a
+// patient row behind. The appointment keeps a name/phone snapshot regardless.
+async function ensurePatient(
+  name: string,
+  phone: string
+): Promise<{ id: string | null; patientCode: string | null }> {
+  const { data: patient, error } = await supabaseAdmin()
+    .from("patients")
+    .upsert({ name, phone }, { onConflict: "phone" })
+    .select("id, patient_code")
+    .single();
+  if (error) throw error;
+  return { id: patient?.id ?? null, patientCode: patient?.patient_code ?? null };
+}
+
 // A patient booking a specific date + time (from the website or WhatsApp).
 // replacePending: when true, cancel any existing payment_pending row for this
 // phone before inserting (the patient is choosing to start over rather than
@@ -220,10 +241,8 @@ export async function dbAddBooking(input: {
   // A phone holding an unpaid booking can't book a second slot. The first
   // booking sits in payment_pending (slot held, Razorpay link out) until the
   // webhook reserves it or the 15-min payment-timeout cron frees it; allowing
-  // a second booking meanwhile would hold two slots for nothing and — because
-  // the patients upsert below already ran on the first attempt — would charge
-  // the returning fee (₹350) against a phone that never paid its first ₹400.
-  // When replacePending is true (patient chose "Start over"), cancel the old
+  // a second booking meanwhile would hold two slots for nothing. When
+  // replacePending is true (patient chose "Start over"), cancel the old
   // row instead of refusing. (The WhatsApp sender books under their own number
   // by default, and the site submits the number on the form, so the phone here
   // is the same one the hold sits under.)
@@ -272,7 +291,21 @@ export async function dbAddBooking(input: {
           .select("*")
           .maybeSingle();
         if (convErr) throw convErr;
-        if (converted) return rowToAppt(converted);
+        if (converted) {
+          // The hold was created patientless (deferred at booking, see above);
+          // converting it into a confirmed claim booking IS a confirmation, so
+          // promote the phone into patients now and stamp the code onto the row.
+          if (phone && !converted.patient_id) {
+            const created = await ensurePatient(name, phone);
+            const { error: backErr } = await db
+              .from("appointments")
+              .update({ patient_id: created.id, patient_code: created.patientCode })
+              .eq("id", converted.id);
+            if (backErr) throw backErr;
+            return rowToAppt({ ...converted, patient_id: created.id, patient_code: created.patientCode });
+          }
+          return rowToAppt(converted);
+        }
       } else {
         // Hold for a different slot (defensive — the UI never produces this)
         // or no claim set: cancel so the fresh booking below can proceed.
@@ -311,14 +344,15 @@ export async function dbAddBooking(input: {
       fee = clinic.returningFee;
       counterPay = true;
     } else {
-      const { data: patient, error: patientErr } = await db
-        .from("patients")
-        .upsert({ name, phone }, { onConflict: "phone" })
-        .select("id, patient_code")
-        .single();
-      if (patientErr) throw patientErr;
-      patientId = patient?.id ?? null;
-      patientCode = patient?.patient_code ?? null;
+      // No patient record yet — defer creation until the booking CONFIRMS.
+      // Patients exist for confirmed visits only: an unpaid hold that the
+      // payment-timeout cron cancels must not leave a patient row behind
+      // (that would mislabel an abandoned phone as "returning" and inflate
+      // the patient list). ensurePatient creates the row the moment the
+      // booking becomes real — the webhook flipping this hold to reserved,
+      // or a claim booking landing straight in reserved below.
+      patientId = null;
+      patientCode = null;
     }
   }
 
@@ -331,6 +365,17 @@ export async function dbAddBooking(input: {
     input.claim ?? (counterPay ? "returning_unverified" : undefined);
   if (claim === "returning_unverified") fee = clinic.returningFee;
   else if (claim === "review_free") fee = 0;
+
+  // A claimed booking is confirmed at insert (status "reserved" below — no
+  // Razorpay step, no hold to wait on), so if it's the phone's first-ever
+  // booking this is a genuinely confirmed patient: create the row now so the
+  // appointment carries the ROC code. A non-claim hold stays patientless until
+  // the payment webhook confirms it (see dbMarkPaidByPaymentLink).
+  if (claim && !patientId && phone) {
+    const created = await ensurePatient(name, phone);
+    patientId = created.id;
+    patientCode = created.patientCode;
+  }
 
   // Bookings start payment_pending (not reserved): the slot is held + the
   // Razorpay link has a reference_id, but nothing shows in any queue until
@@ -579,7 +624,30 @@ export async function dbMarkPaidByPaymentLink(
     .select("*")
     .maybeSingle();
   if (error) throw error;
-  return data ? rowToAppt(data) : null;
+  if (!data) return null;
+  // A payment_pending hold can exist without a patient row (patients are
+  // created only on confirmation, see dbAddBooking) — this paid flip to
+  // reserved IS that confirmation, so promote the phone into patients now and
+  // stamp the code onto the appointment. The backfill must not fail the
+  // webhook: a non-2xx makes Razorpay retry, and the retry hits the paid:false
+  // guard above as a harmless no-op, so an exception here would leave a real,
+  // paid appointment permanently patientless. The money is recorded either way;
+  // log loudly for a manual fix when the backfill itself fails.
+  if (data.phone && !data.patient_id) {
+    try {
+      const created = await ensurePatient(data.name, data.phone);
+      const { error: backErr } = await db
+        .from("appointments")
+        .update({ patient_id: created.id, patient_code: created.patientCode })
+        .eq("id", data.id);
+      if (backErr) throw backErr;
+      return rowToAppt({ ...data, patient_id: created.id, patient_code: created.patientCode });
+    } catch (err) {
+      console.error("dbMarkPaidByPaymentLink: patient backfill failed after payment", err);
+      await report({ source: "payments/webhook", message: "Payment recorded but patient row backfill failed", severity: "critical", info: { apptId: data.id, phone: data.phone } });
+    }
+  }
+  return rowToAppt(data);
 }
 
 // Records that a paid appointment was refunded (a Razorpay refund id + the
