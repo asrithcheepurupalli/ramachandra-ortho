@@ -64,7 +64,7 @@ const longDate = (date: string, withWeekday = true) =>
     year: "numeric",
   });
 
-async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<boolean> {
+async function sendEmail({ to, subject, html }: { to: string | string[]; subject: string; html: string }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 
@@ -259,6 +259,7 @@ export async function sendBugdeskEmail(opts: {
   items: BugdeskEmailItem[];
 }): Promise<boolean> {
   const adminEmail = clinic.contact.adminEmail;
+  const devEmail = "asrithcheepurupalli@made-by-ac.com";
   if (!adminEmail || !opts.items.length) return false;
 
   const isAlert = opts.kind === "alert";
@@ -272,9 +273,9 @@ export async function sendBugdeskEmail(opts: {
   const countLabel = opts.items.length === 1 ? "1 issue" : `${opts.items.length} issues`;
 
   return sendEmail({
-    to: adminEmail,
+    to: [adminEmail, devEmail],
     subject: isAlert
-      ? `Bug alert: ${head.source}· ${head.message}`.slice(0, 120)
+      ? `Bug alert: ${head.source} · ${head.message}`.slice(0, 120)
       : `Bug desk digest · ${countLabel}`,
     html: shell({
       chipText: isAlert ? "System alert" : "Bug desk",
