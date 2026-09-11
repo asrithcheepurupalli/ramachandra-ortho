@@ -95,7 +95,7 @@ async function persist(
 }
 
 // WhatsApp copy for a critical alert. WhatsApp's own bold syntax (*x*) for the
-// header, plain facts underneath — short enough to read on lock screen. No
+// header, plain facts underneath, short enough to read on lock screen. No
 // en dashes (the humanizer rule applies to this surface too).
 const bugWhatsAppBody = (item: BugdeskEmailItem): string =>
   [
