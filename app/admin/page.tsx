@@ -112,7 +112,7 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-bone text-ink flex">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-60 shrink-0 flex-col border-r border-line bg-paper">
+      <aside className="hidden md:flex w-64 shrink-0 flex-col border-r border-line bg-paper">
         <div className="px-5 py-5 border-b border-line">
           <div className="font-display text-lg leading-tight">Ramachandra<span className="text-brand"> Ortho</span></div>
           <div className="text-xs text-muted">Clinic admin</div>
@@ -120,7 +120,7 @@ export default function Admin() {
         <nav className="flex-1 p-3 space-y-1">
           {NAV.map((n) => (
             <button key={n.id} onClick={() => setTab(n.id)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${tab === n.id ? "bg-brand text-white" : "text-muted hover:bg-brand-tint/60 hover:text-ink"}`}>
+              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-[15px] font-medium transition ${tab === n.id ? "bg-brand text-white" : "text-muted hover:bg-brand-tint/60 hover:text-ink"}`}>
               <n.icon className="h-[18px] w-[18px]" /> {n.label}
             </button>
           ))}
@@ -147,7 +147,7 @@ export default function Admin() {
                 <button key={n.id} onClick={() => setTab(n.id)} className={`rounded-lg p-2 ${tab === n.id ? "bg-brand text-white" : "text-muted"}`}><n.icon className="h-4 w-4" /></button>
               ))}
             </div>
-            <h1 className="font-display text-xl capitalize hidden sm:block">{tab}</h1>
+            <h1 className="font-display text-2xl capitalize hidden sm:block">{tab}</h1>
           </div>
           <div className="flex items-center gap-2">
             <DoctorStatus />
@@ -157,15 +157,15 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className={`${tab === "calendar" ? "p-0" : "p-4 md:p-8"}`}>
+        <div className={`${tab === "calendar" ? "p-0" : "p-4 md:p-8 xl:p-10"}`}>
           {!mounted || !scheduleLoaded ? (
-            <div className="text-sm text-muted p-4 md:p-8">Loading…</div>
+            <div className="text-sm text-muted p-4 md:p-8 xl:p-10">Loading…</div>
           ) : tab === "today" ? (
             <Today appts={appts} patch={patchAppt} />
           ) : tab === "schedule" ? (
             <Schedule />
           ) : tab === "calendar" ? (
-            <div className="p-4 md:p-8"><CalendarView appts={appts} /></div>
+            <div className="p-4 md:p-8 xl:p-10"><CalendarView appts={appts} /></div>
           ) : tab === "patients" ? (
             <Patients appts={appts} />
           ) : tab === "revenue" ? (
@@ -189,7 +189,7 @@ function DoctorStatus() {
   const label = s.state === "in" ? "In consult now" : s.state === "soon" ? `In at ${fmt(s.opensAt)}` : "Not in today";
   const color = s.state === "in" ? "var(--color-in)" : s.state === "soon" ? "var(--color-accent)" : "var(--color-out)";
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 text-sm">
+    <div className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm">
       <span className="h-2 w-2 rounded-full" style={{ background: color }} />
       <span className="text-muted">Doctor:</span> <span className="font-semibold">{label}</span>
     </div>
@@ -214,7 +214,7 @@ function AvailabilityControl() {
     { m: "out", label: "Away today", active: "bg-out text-white" },
   ];
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <div className="flex items-center gap-2 text-sm font-semibold">
           <span className="pulse-dot h-2.5 w-2.5 rounded-full" style={{ color, background: color }} />
@@ -228,7 +228,7 @@ function AvailabilityControl() {
             if (hasSupabase()) dbSetAvailabilityOverride(o.m).catch((err) => console.error("admin: could not set availability", err));
             else setAvailabilityOverride(o.m);
           }}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition sm:text-sm ${mode === o.m ? o.active : "text-muted hover:text-ink"}`}>
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${mode === o.m ? o.active : "text-muted hover:text-ink"}`}>
             {o.label}
           </button>
         ))}
@@ -248,10 +248,10 @@ function DateNav({ date, setDate }: { date: string; setDate: (d: string) => void
   };
   return (
     <div className="flex items-center gap-1.5">
-      <button onClick={() => shift(-1)} title="Previous day" className="rounded-lg border border-line p-1.5 text-muted hover:bg-line/40 hover:text-ink"><ChevronLeft className="h-4 w-4" /></button>
-      <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm font-medium outline-none focus:border-brand" />
-      <button onClick={() => shift(1)} title="Next day" className="rounded-lg border border-line p-1.5 text-muted hover:bg-line/40 hover:text-ink"><ChevronRight className="h-4 w-4" /></button>
-      {!isToday && <button onClick={() => setDate(todayStr)} className="ml-1 rounded-full bg-brand-tint px-2.5 py-1.5 text-xs font-semibold text-brand hover:bg-brand hover:text-white">Today</button>}
+      <button onClick={() => shift(-1)} title="Previous day" className="rounded-lg border border-line p-2 text-muted hover:bg-line/40 hover:text-ink"><ChevronLeft className="h-[18px] w-[18px]" /></button>
+      <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium outline-none focus:border-brand" />
+      <button onClick={() => shift(1)} title="Next day" className="rounded-lg border border-line p-2 text-muted hover:bg-line/40 hover:text-ink"><ChevronRight className="h-[18px] w-[18px]" /></button>
+      {!isToday && <button onClick={() => setDate(todayStr)} className="ml-1 rounded-full bg-brand-tint px-3 py-2 text-xs font-semibold text-brand hover:bg-brand hover:text-white">Today</button>}
     </div>
   );
 }
@@ -302,7 +302,7 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
         <DateNav date={date} setDate={setDate} />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Appointments" value={String(active.length)} icon={CalendarCog} />
         <Stat label="In queue" value={String(inQueue.length)} icon={Clock} />
         <Stat label="Now serving" value={serving ? `#${serving.token}` : "—"} icon={CircleDot} accent />
@@ -321,20 +321,20 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* queue */}
         <div className="lg:col-span-2 rounded-2xl border border-line bg-paper">
-          <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+          <div className="flex items-center justify-between border-b border-line px-6 py-4">
             <div className="flex items-center gap-2">
               <h2 className="font-semibold">{isToday ? "Live queue" : "Queue"}</h2>
               {isToday && next && <span className="text-xs text-muted">next up: <b className="text-ink">#{next.token} {next.name}</b></span>}
             </div>
             {isToday && (
-              <button onClick={callNext} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-brand-dark">
+              <button onClick={callNext} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">
                 <PhoneCall className="h-4 w-4" /> Call next
               </button>
             )}
           </div>
           <ul className="divide-y divide-line">
             {list.map((a) => <QueueRow key={a.id} a={a} patch={patch} />)}
-            {list.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">No appointments on this date.</li>}
+            {list.length === 0 && <li className="px-6 py-10 text-center text-sm text-muted">No appointments on this date.</li>}
           </ul>
         </div>
 
@@ -391,8 +391,8 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
       });
   };
   return (
-    <li className={`flex items-center gap-3 px-5 py-3 ${a.status === "consulting" ? "bg-in/[0.04]" : ""}`}>
-      <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg font-mono text-sm font-semibold ${a.status === "done" ? "bg-muted/10 text-muted" : "bg-brand text-white"}`}>{a.token}</div>
+    <li className={`flex items-center gap-3 px-6 py-3.5 ${a.status === "consulting" ? "bg-in/[0.04]" : ""}`}>
+      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg font-mono text-sm font-semibold ${a.status === "done" ? "bg-muted/10 text-muted" : "bg-brand text-white"}`}>{a.token}</div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate font-medium">{a.name}</span>
@@ -429,13 +429,13 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
           <button onClick={() => changePaid(a.id, a, patch)} title={`Collect ${money(a.fee)} in cash`} className="shrink-0 rounded-full border border-dashed border-out/40 px-2.5 py-0.5 text-[11px] font-medium text-out hover:bg-out/5">Collect</button>
         ) : null}
         {["reserved", "confirmed", "waiting"].includes(a.status) && (
-          <button onClick={() => changeStatus(a.id, "consulting", a.status, patch)} title="Start consult" className="rounded-lg border border-line p-1.5 text-brand hover:bg-brand-tint"><Play className="h-4 w-4" /></button>
+          <button onClick={() => changeStatus(a.id, "consulting", a.status, patch)} title="Start consult" className="rounded-lg border border-line p-2 text-brand hover:bg-brand-tint"><Play className="h-[18px] w-[18px]" /></button>
         )}
         {a.status === "consulting" && (
-          <button onClick={() => changeStatus(a.id, "done", a.status, patch)} title="Mark done" className="rounded-lg border border-line p-1.5 text-in hover:bg-in/10"><Check className="h-4 w-4" /></button>
+          <button onClick={() => changeStatus(a.id, "done", a.status, patch)} title="Mark done" className="rounded-lg border border-line p-2 text-in hover:bg-in/10"><Check className="h-[18px] w-[18px]" /></button>
         )}
         {a.status !== "done" && a.status !== "cancelled" && (
-          <button onClick={cancel} title="Cancel" className="rounded-lg border border-line p-1.5 text-muted hover:text-out hover:bg-out/10"><X className="h-4 w-4" /></button>
+          <button onClick={cancel} title="Cancel" className="rounded-lg border border-line p-2 text-muted hover:text-out hover:bg-out/10"><X className="h-[18px] w-[18px]" /></button>
         )}
       </div>
     </li>
@@ -461,15 +461,15 @@ function WalkIn() {
       <h2 className="flex items-center gap-2 font-semibold"><Footprints className="h-4 w-4 text-brand" /> Walk-in / reserve</h2>
       <p className="mt-1 text-xs text-muted">Patient at the desk? Add them to today&apos;s queue and issue a token.</p>
       <form onSubmit={submit} className="mt-3 space-y-2">
-        <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Patient name" className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
-        <input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="Phone (optional)" inputMode="tel" className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
-        <input type="number" value={f.age || ""} onChange={(e) => setF({ ...f, age: e.target.value ? +e.target.value : 0 })} placeholder="Age" min="1" max="150" required className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
-        <select value={f.gender} onChange={(e) => setF({ ...f, gender: e.target.value as "" | "M" | "F" })} className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand">
+        <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Patient name" className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand" />
+        <input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="Phone (optional)" inputMode="tel" className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand" />
+        <input type="number" value={f.age || ""} onChange={(e) => setF({ ...f, age: e.target.value ? +e.target.value : 0 })} placeholder="Age" min="1" max="150" required className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand" />
+        <select value={f.gender} onChange={(e) => setF({ ...f, gender: e.target.value as "" | "M" | "F" })} className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand">
           <option value="">Gender (optional)</option>
           <option value="M">Male</option>
           <option value="F">Female</option>
         </select>
-        <button className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand py-2.5 text-sm font-semibold text-white hover:bg-brand-dark"><Plus className="h-4 w-4" /> Add to queue</button>
+        <button className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand py-3 text-sm font-semibold text-white hover:bg-brand-dark"><Plus className="h-4 w-4" /> Add to queue</button>
       </form>
       {done && <div className="mt-2 rounded-lg bg-in/10 px-3 py-2 text-sm text-in">Added · token <b>#{done}</b> issued.</div>}
     </div>
@@ -577,7 +577,7 @@ function Broadcast({ appts }: { appts: Appt[] }) {
       <p className="mt-1.5 text-xs text-muted"><b className="text-ink">{dateLabel(scopeDate)}</b>, {candidates.length} patient{candidates.length === 1 ? "" : "s"} with a phone number on file.</p>
 
       {candidates.length > 0 ? (
-        <ul className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-xl border border-line bg-white p-2">
+        <ul className="mt-2 max-h-72 space-y-1 overflow-y-auto rounded-xl border border-line bg-white p-2">
           {candidates.map((a) => (
             <li key={a.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-line/40">
               <input type="checkbox" checked={!!sel[a.id]} onChange={() => toggle(a.id)} className="h-4 w-4 shrink-0 accent-[var(--color-brand)]" />
@@ -599,18 +599,18 @@ function Broadcast({ appts }: { appts: Appt[] }) {
 
       <div className="mt-3 grid grid-cols-1 gap-1.5">
         <div className="flex items-center gap-1.5">
-          <button disabled={sending} onClick={() => applyPreset(presets[0])} className="flex-1 rounded-lg border border-line py-2 text-sm font-medium hover:border-accent/50 disabled:opacity-50">Running late</button>
+          <button disabled={sending} onClick={() => applyPreset(presets[0])} className="flex-1 rounded-lg border border-line py-2.5 text-sm font-medium hover:border-accent/50 disabled:opacity-50">Running late</button>
           <input type="number" value={mins} onChange={(e) => setMins(+e.target.value)} className="w-16 rounded-lg border border-line bg-white px-2 py-2 text-sm" />
           <span className="text-xs text-muted">min</span>
         </div>
-        <button disabled={sending} onClick={() => applyPreset(presets[1])} className="rounded-lg border border-line py-2 text-sm font-medium hover:border-accent/50 disabled:opacity-50">{presets[1].label}</button>
-        <button disabled={sending} onClick={() => applyPreset(presets[2])} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-out/30 py-2 text-sm font-medium text-out hover:bg-out/5 disabled:opacity-50"><TriangleAlert className="h-4 w-4" /> {presets[2].label}</button>
+        <button disabled={sending} onClick={() => applyPreset(presets[1])} className="rounded-lg border border-line py-2.5 text-sm font-medium hover:border-accent/50 disabled:opacity-50">{presets[1].label}</button>
+        <button disabled={sending} onClick={() => applyPreset(presets[2])} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-out/30 py-2.5 text-sm font-medium text-out hover:bg-out/5 disabled:opacity-50"><TriangleAlert className="h-4 w-4" /> {presets[2].label}</button>
       </div>
 
-      <textarea value={msg} onChange={(e) => { setMsg(e.target.value.slice(0, 400)); setKind("notice"); }} rows={3} placeholder="Type a message, or tap a preset above to fill this in…" className="mt-3 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
+      <textarea value={msg} onChange={(e) => { setMsg(e.target.value.slice(0, 400)); setKind("notice"); }} rows={3} placeholder="Type a message, or tap a preset above to fill this in…" className="mt-3 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand" />
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-muted">{msg.length}/400</span>
-        <button onClick={send} disabled={sending || selCount === 0 || !msg.trim()} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-40">
+        <button onClick={send} disabled={sending || selCount === 0 || !msg.trim()} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-dark disabled:opacity-40">
           <Send className="h-3.5 w-3.5" /> {sending ? "Sending…" : `Send to ${selCount}`}
         </button>
       </div>
@@ -633,9 +633,9 @@ function Broadcast({ appts }: { appts: Appt[] }) {
 
 function Stat({ label, value, icon: Icon, accent }: { label: string; value: string; icon: typeof Users; accent?: boolean }) {
   return (
-    <div className={`rounded-2xl border p-4 ${accent ? "border-brand/30 bg-brand text-white" : "border-line bg-paper"}`}>
+    <div className={`rounded-2xl border p-5 ${accent ? "border-brand/30 bg-brand text-white" : "border-line bg-paper"}`}>
       <div className={`flex items-center gap-2 text-xs ${accent ? "text-white/80" : "text-muted"}`}><Icon className="h-4 w-4" /> {label}</div>
-      <div className="mt-2 font-display text-3xl">{value}</div>
+      <div className="mt-2.5 font-display text-4xl leading-none">{value}</div>
     </div>
   );
 }
@@ -671,8 +671,8 @@ function Schedule() {
   const reset = () => setWeekly(defaultWeeklyHours());
 
   return (
-    <div className="max-w-3xl space-y-4">
-      <div className="rounded-2xl border border-line bg-paper p-5">
+    <div className="max-w-4xl space-y-4">
+      <div className="rounded-2xl border border-line bg-paper p-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-semibold">Weekly consulting hours</h2>
@@ -685,16 +685,16 @@ function Schedule() {
         </div>
         <div className="mt-4 divide-y divide-line">
           {[1, 2, 3, 4, 5, 6, 0].map((d) => (
-            <div key={d} className="flex items-start gap-4 py-3">
-              <div className="w-12 pt-1.5 text-sm font-semibold text-ink">{DAY_LABELS[d]}</div>
+            <div key={d} className="flex items-start gap-5 py-4">
+              <div className="w-16 pt-1.5 text-sm font-semibold text-ink">{DAY_LABELS[d]}</div>
               <div className="flex-1 space-y-2">
                 {weekly[d].length === 0 && <div className="py-1.5 text-sm text-muted">Closed</div>}
                 {weekly[d].map((w, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <input type="time" value={w.start} onChange={(e) => setWin(d, i, "start", e.target.value)} className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm" />
+                    <input type="time" value={w.start} onChange={(e) => setWin(d, i, "start", e.target.value)} className="rounded-lg border border-line bg-white px-3 py-2 text-sm" />
                     <span className="text-muted">-</span>
-                    <input type="time" value={w.end} onChange={(e) => setWin(d, i, "end", e.target.value)} className="rounded-lg border border-line bg-white px-2 py-1.5 text-sm" />
-                    <button onClick={() => rmWin(d, i)} className="rounded-lg p-1.5 text-muted hover:text-out"><X className="h-4 w-4" /></button>
+                    <input type="time" value={w.end} onChange={(e) => setWin(d, i, "end", e.target.value)} className="rounded-lg border border-line bg-white px-3 py-2 text-sm" />
+                    <button onClick={() => rmWin(d, i)} className="rounded-lg p-2 text-muted hover:text-out"><X className="h-[18px] w-[18px]" /></button>
                   </div>
                 ))}
                 <button onClick={() => addWin(d)} className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"><Plus className="h-3 w-3" /> Add window</button>
@@ -736,7 +736,7 @@ function ExceptionsEditor({ ex, setEx }: { ex: Record<string, Exception>; setEx:
   const remove = (d: string) => setEx((e) => { const n = { ...e }; delete n[d]; return n; });
 
   return (
-    <div className="rounded-2xl border border-line bg-paper p-5">
+    <div className="rounded-2xl border border-line bg-paper p-6">
       <h2 className="font-semibold">Holidays &amp; date overrides</h2>
       <p className="text-xs text-muted">Mark a specific date closed (festival, doctor leave). Overrides the weekly hours above for just that date. Remember to hit Save.</p>
 
@@ -753,9 +753,9 @@ function ExceptionsEditor({ ex, setEx }: { ex: Record<string, Exception>; setEx:
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm" />
-        <input value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Note (optional, e.g. Diwali)" className="min-w-[10rem] flex-1 rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand" />
-        <button onClick={add} disabled={!newDate} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand-tint disabled:opacity-50"><Plus className="h-3.5 w-3.5" /> Add</button>
+        <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="rounded-lg border border-line bg-white px-3 py-2 text-sm" />
+        <input value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Note (optional, e.g. Diwali)" className="min-w-[10rem] flex-1 rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
+        <button onClick={add} disabled={!newDate} className="inline-flex items-center gap-1 rounded-lg border border-line px-4 py-2 text-sm font-medium text-brand hover:bg-brand-tint disabled:opacity-50"><Plus className="h-3.5 w-3.5" /> Add</button>
       </div>
     </div>
   );
@@ -807,13 +807,13 @@ function SlotToggles({ weekly, ex, setEx }: { weekly: WeeklyHours; ex: Record<st
     });
 
   return (
-    <div className="rounded-2xl border border-line bg-paper p-5">
+    <div className="rounded-2xl border border-line bg-paper p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-semibold">Block times for a day</h2>
           <p className="text-xs text-muted">Tap a slot to block or unblock it for that date. A blocked time is refused everywhere, the website and WhatsApp. Bookings already on a blocked time stay as they are. Remember to hit Save.</p>
         </div>
-        <input type="date" value={pick} min={today} onChange={(e) => setPick(e.target.value)} className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm" />
+        <input type="date" value={pick} min={today} onChange={(e) => setPick(e.target.value)} className="rounded-lg border border-line bg-white px-3 py-2 text-sm" />
       </div>
 
       <div className="mt-4">
@@ -833,7 +833,7 @@ function SlotToggles({ weekly, ex, setEx }: { weekly: WeeklyHours; ex: Record<st
                     onClick={() => flip(t)}
                     aria-pressed={off}
                     title={off ? "Tap to unblock" : "Tap to block"}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${off ? "bg-out text-white" : "border border-line bg-white text-ink hover:bg-line/40"}`}
+                    className={`rounded-full px-4 py-2 text-xs font-medium transition ${off ? "bg-out text-white" : "border border-line bg-white text-ink hover:bg-line/40"}`}
                   >
                     {fmt(t)}
                   </button>
@@ -868,26 +868,44 @@ function Patients({ appts }: { appts: Appt[] }) {
     return [...by.values()].filter((p) => (p.name + p.phone).toLowerCase().includes(q.toLowerCase()));
   }, [appts, q]);
   return (
-    <div className="max-w-3xl">
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search patients…" className="mb-4 w-full max-w-sm rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
-      <div className="rounded-2xl border border-line bg-paper divide-y divide-line">
-        {list.map((p) => (
-          <div key={p.last.id} className="flex items-center gap-3 px-5 py-3">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-tint text-sm font-semibold text-brand">{p.name[0]}</span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate font-medium">{p.name}</span>
-                {p.last.patientCode && <span className="font-mono text-[11px] text-muted">{p.last.patientCode}</span>}
-              </div>
-              <div className="text-xs text-muted">{p.phone || "no phone"}{ageGenderLabel(p.last)}</div>
-            </div>
-            <span className="rounded-full bg-brand-tint px-2.5 py-1 text-xs font-medium text-brand">{p.visits} visit{p.visits > 1 ? "s" : ""}</span>
-            {p.phone && <InviteButton phone={p.phone} />}
-          </div>
-        ))}
-        {list.length === 0 && <div className="px-5 py-8 text-center text-sm text-muted">No patients.</div>}
+    <div className="space-y-4">
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search patients…" className="w-full max-w-md rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand" />
+      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-line bg-bone/60 text-left text-[11px] uppercase tracking-wide text-muted">
+              <th className="px-6 py-3.5 font-semibold">Patient</th>
+              <th className="px-6 py-3.5 font-semibold">Phone</th>
+              <th className="px-6 py-3.5 font-semibold">Visits</th>
+              <th className="px-6 py-3.5 font-semibold">Last visit</th>
+              <th className="px-6 py-3.5 text-right font-semibold">Notify</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {list.map((p) => (
+              <tr key={p.last.id} className="transition hover:bg-bone/40">
+                <td className="px-6 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-tint text-sm font-semibold text-brand">{p.name[0]}</span>
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">{p.name}</div>
+                      {p.last.patientCode && <div className="font-mono text-[11px] text-muted">{p.last.patientCode}</div>}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-3 text-muted">{p.phone || <span className="text-muted/60">no phone</span>}{ageGenderLabel(p.last)}</td>
+                <td className="px-6 py-3">
+                  <span className="rounded-full bg-brand-tint px-2.5 py-1 text-xs font-medium text-brand">{p.visits} visit{p.visits > 1 ? "s" : ""}</span>
+                </td>
+                <td className="px-6 py-3 text-ink">{dateLabel(p.last.date)}</td>
+                <td className="px-6 py-3 text-right">{p.phone && <InviteButton phone={p.phone} />}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {list.length === 0 && <div className="px-6 py-10 text-center text-sm text-muted">No patients.</div>}
       </div>
-      <p className="mt-3 text-xs text-muted">Basic patient records (beta). Full history, prescriptions and reports come later.</p>
+      <p className="text-xs text-muted">Basic patient records (beta). Full history, prescriptions and reports come later.</p>
     </div>
   );
 }
@@ -939,29 +957,52 @@ function Revenue({ appts }: { appts: Appt[] }) {
     s, n: collected.filter((a) => a.source === s).length,
   }));
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-lg">{isToday ? "Today" : dateLabel(date)}</h2>
         <DateNav date={date} setDate={setDate} />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Stat label="Collected" value={money(total)} icon={IndianRupee} accent />
         <Stat label="Consults paid" value={String(collected.length)} icon={Check} />
         {bySource.map((b) => (
           <Stat key={b.s} label={sourceMeta[b.s].label} value={String(b.n)} icon={sourceMeta[b.s].icon} />
         ))}
       </div>
-      <div className="rounded-2xl border border-line bg-paper">
-        <div className="border-b border-line px-5 py-3.5 font-semibold">Collections {isToday ? "today" : `on ${dateLabel(date)}`}</div>
-        <ul className="divide-y divide-line">
-          {list.map((a) => (
-            <li key={a.id} className="flex items-center justify-between px-5 py-3 text-sm">
-              <span className="flex items-center gap-2"><span className="font-mono text-xs text-muted">#{a.token}</span> {a.name}{a.refundedAt != null && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Refunded</span>}</span>
-              <span className={`font-medium ${a.refundedAt != null ? "text-muted line-through" : ""}`}>{money(a.fee)}</span>
-            </li>
-          ))}
-          {list.length === 0 && <li className="px-5 py-8 text-center text-sm text-muted">No collections on this date.</li>}
-        </ul>
+      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+        <div className="flex items-center justify-between border-b border-line px-6 py-4">
+          <div className="font-semibold">Collections {isToday ? "today" : `on ${dateLabel(date)}`}</div>
+          <div className="text-sm font-medium text-in">{money(total)} net collected</div>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-line bg-bone/60 text-left text-[11px] uppercase tracking-wide text-muted">
+              <th className="px-6 py-3 font-semibold">Token</th>
+              <th className="px-6 py-3 font-semibold">Patient</th>
+              <th className="px-6 py-3 font-semibold">Source</th>
+              <th className="px-6 py-3 text-right font-semibold">Amount</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {list.map((a) => {
+              const S = sourceMeta[a.source];
+              return (
+                <tr key={a.id} className="transition hover:bg-bone/40">
+                  <td className="px-6 py-3 font-mono text-xs text-muted">#{a.token}</td>
+                  <td className="px-6 py-3">
+                    <span className="font-medium">{a.name}</span>
+                    {a.refundedAt != null && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Refunded</span>}
+                  </td>
+                  <td className="px-6 py-3"><span className="inline-flex items-center gap-1.5 text-muted"><S.icon className="h-3.5 w-3.5" />{S.label}</span></td>
+                  <td className={`px-6 py-3 text-right font-medium ${a.refundedAt != null ? "text-muted line-through" : ""}`}>{money(a.fee)}</td>
+                </tr>
+              );
+            })}
+            {list.length === 0 && (
+              <tr><td colSpan={4} className="px-6 py-10 text-center text-sm text-muted">No collections on this date.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
       <p className="text-xs text-muted">Beta: consultation fees only. Procedures, UPI reconciliation and trends come later.</p>
     </div>
@@ -1020,12 +1061,12 @@ function BugDesk() {
   const criticalOpen = rows.filter((r) => !r.resolved && r.severity === "critical").length;
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <div className="max-w-4xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-lg">
           Bug desk
           {openCount > 0 && (
-            <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${criticalOpen ? "bg-coral-tint text-brand" : "bg-brand-tint text-accent"}`}>
+            <span className={`ml-2 rounded-full px-2.5 py-1 text-xs font-medium ${criticalOpen ? "bg-accent-tint text-accent" : "bg-brand-tint text-brand"}`}>
               {criticalOpen > 0 ? `${criticalOpen} critical · ${openCount} open` : `${openCount} open`}
             </span>
           )}
@@ -1033,7 +1074,7 @@ function BugDesk() {
         <div className="flex gap-1.5">
           {(["all", "critical", "warning"] as const).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize transition ${filter === f ? "bg-brand text-white" : "border border-line bg-paper text-muted hover:text-ink"}`}>
+              className={`rounded-full px-4 py-2 text-xs font-medium capitalize transition ${filter === f ? "bg-brand text-white" : "border border-line bg-paper text-muted hover:text-ink"}`}>
               {f === "all" ? "All" : f}
             </button>
           ))}
@@ -1044,37 +1085,50 @@ function BugDesk() {
       {loading && <p className="text-sm text-muted">Loading&hellip;</p>}
 
       {!loading && open.length === 0 ? (
-        <div className="rounded-2xl border border-line bg-paper px-5 py-8 text-center text-sm text-muted">
+        <div className="rounded-2xl border border-line bg-paper px-6 py-10 text-center text-sm text-muted">
           {loadError ? "Bug desk unavailable." : filter === "all" ? "No issues logged. Quiet is good." : `No ${filter} issues.`}
         </div>
       ) : (
-        <ul className="divide-y divide-line rounded-2xl border border-line bg-paper">
-          {open.map((r) => (
-            <li key={r.fingerprint} className="px-5 py-3.5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${r.severity === "critical" ? "bg-coral-tint text-brand" : "bg-brand-tint text-accent"}`}>
+        <div className="overflow-hidden rounded-2xl border border-line bg-paper">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line bg-bone/60 text-left text-[11px] uppercase tracking-wide text-muted">
+                <th className="px-6 py-3.5 font-semibold">Severity</th>
+                <th className="px-6 py-3.5 font-semibold">Issue</th>
+                <th className="px-6 py-3.5 font-semibold">Last seen</th>
+                <th className="px-6 py-3.5 text-right font-semibold">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {open.map((r) => (
+                <tr key={r.fingerprint} className={`transition hover:bg-bone/40 ${r.resolved ? "opacity-60" : ""}`}>
+                  <td className="px-6 py-3.5">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${r.severity === "critical" ? "bg-accent-tint text-accent" : "bg-brand-tint text-brand"}`}>
                       {r.severity === "critical" ? "Critical" : "Warning"}
                     </span>
-                    <span className="truncate font-mono text-xs text-muted">{r.source}</span>
-                    {r.resolved && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Resolved</span>}
-                  </div>
-                  <p className="mt-1 text-sm break-words">{r.message}</p>
-                  <p className="mt-1 text-xs text-muted">
-                    {r.count > 1 ? `${r.count} occurrences` : "Once"} &middot; last seen {bugLastSeen(r.last_seen)}
-                    {r.count > 1 && <>&ensp;&middot;&ensp;first {bugLastSeen(r.first_seen)}</>}
-                    {r.alerted_at && <>&ensp;&middot;&ensp;<span className="text-brand">alerted</span></>}
-                  </p>
-                </div>
-                <button onClick={() => toggle(r)}
-                  className={`shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-medium transition ${r.resolved ? "text-muted hover:text-ink" : "text-ink hover:bg-brand-tint/60"}`}>
-                  {r.resolved ? "Reopen" : "Resolve"}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+                    <div className="mt-1 font-mono text-xs text-muted">{r.source}</div>
+                  </td>
+                  <td className="px-6 py-3.5">
+                    <p className="break-words">{r.message}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {r.count > 1 ? `${r.count} occurrences` : "Once"}
+                      {r.count > 1 && <> &middot; first {bugLastSeen(r.first_seen)}</>}
+                      {r.alerted_at && <> &middot; <span className="text-brand">alerted</span></>}
+                    </p>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-3.5 text-muted">{bugLastSeen(r.last_seen)}</td>
+                  <td className="px-6 py-3.5 text-right">
+                    {r.resolved && <span className="mr-2.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Resolved</span>}
+                    <button onClick={() => toggle(r)}
+                      className={`shrink-0 rounded-lg border border-line px-3.5 py-1.5 text-xs font-medium transition ${r.resolved ? "text-muted hover:text-ink" : "text-ink hover:bg-brand-tint/60"}`}>
+                      {r.resolved ? "Reopen" : "Resolve"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <p className="text-xs text-muted">Critical errors email the desk instantly (once per hour per issue); everything surfaces in the 6-hourly digest until resolved. An issue that keeps recurring keeps its count climbing.</p>
     </div>

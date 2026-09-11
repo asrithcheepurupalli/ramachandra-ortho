@@ -169,7 +169,7 @@ export function CalendarView({ appts }: CalendarViewProps) {
   const slotCard = (appt: Appt) => {
     const meta = STATUS_META[appt.status] ?? STATUS_META.reserved;
     return (
-      <div className="flex items-start gap-2.5 rounded-xl border border-line bg-white px-3 py-2.5">
+      <div className="flex items-start gap-2.5 rounded-xl border border-line bg-white px-4 py-3">
         <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${meta.dot}`} />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold leading-snug text-ink">{appt.name}</div>
@@ -191,7 +191,7 @@ export function CalendarView({ appts }: CalendarViewProps) {
   return (
     <div className="space-y-5">
       {/* ── Day view — the primary surface ── */}
-      <section className="rounded-2xl border border-line bg-paper p-4 md:p-6">
+      <section className="rounded-2xl border border-line bg-paper p-6">
         {/* Date + day navigation */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
@@ -239,7 +239,7 @@ export function CalendarView({ appts }: CalendarViewProps) {
         </div>
 
         {/* Quick stats */}
-        <div className="mt-4 grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
           {stat(<CalendarDays className="h-4 w-4" />, "Appointments", String(dayAppts.length), "text-ink")}
           {stat(<CheckCircle2 className="h-4 w-4" />, "Paid", String(paidCount), "text-in")}
           {stat(<IndianRupee className="h-4 w-4" />, "Fee total", `${clinic.currency}${revenue}`, "text-brand-dark")}
@@ -275,13 +275,13 @@ export function CalendarView({ appts }: CalendarViewProps) {
                       const appt = dayAppts.find((a) => a.time === slot);
                       return (
                         <div key={slot} className="flex items-center gap-3 md:gap-4">
-                          <div className="w-14 shrink-0 text-right text-[11px] font-medium tabular-nums text-muted">
+                          <div className="w-16 shrink-0 text-right text-[11px] font-medium tabular-nums text-muted">
                             {fmt(slot)}
                           </div>
                           {appt ? (
                             <div className="min-w-0 flex-1">{slotCard(appt)}</div>
                           ) : (
-                            <div className="flex h-8 min-w-0 flex-1 items-center rounded-xl px-3 text-[11px] font-medium text-brand/40">
+                            <div className="flex h-10 min-w-0 flex-1 items-center rounded-xl px-3 text-[11px] font-medium text-brand/40">
                               Free
                               <span className="mx-2 h-px flex-1 border-b border-dashed border-line" />
                             </div>
@@ -322,7 +322,7 @@ export function CalendarView({ appts }: CalendarViewProps) {
       </section>
 
       {/* ── Month view — compact navigator ── */}
-      <section className="rounded-2xl border border-line bg-paper p-4 md:p-5">
+      <section className="rounded-2xl border border-line bg-paper p-5">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-muted">
             {monthStart.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
@@ -370,7 +370,7 @@ export function CalendarView({ appts }: CalendarViewProps) {
                 key={i}
                 disabled={!day}
                 onClick={() => day && selectAndShow(dateStr(day))}
-                className={`relative flex h-9 flex-col items-center justify-center rounded-lg text-xs transition ${
+                className={`relative flex h-10 flex-col items-center justify-center rounded-lg text-xs transition lg:h-11 ${
                   !day
                     ? ""
                     : isSel
