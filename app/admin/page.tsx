@@ -16,7 +16,8 @@ import {
 } from "@/lib/store";
 import {
   statusAt, fmt, weekdayName, defaultWeeklyHours, applySchedule, setOverride,
-  weeklyHours, exceptions, overrideRef, ymd, windowsFor, type WeeklyHours, type Exception,
+  weeklyHours, exceptions, overrideRef, ymd, windowsFor, allSlotsFor, isPastLeadTime,
+  type WeeklyHours, type Exception,
 } from "@/lib/schedule";
 import { hasSupabase, supabaseBrowser } from "@/lib/supabase";
 import {
@@ -705,9 +706,22 @@ function Schedule() {
       </div>
 
       <ExceptionsEditor ex={ex} setEx={setEx} />
+      <SlotToggles weekly={weekly} ex={ex} setEx={setEx} />
     </div>
   );
 }
+
+// One-line human summary of a date's exception, for the overrides list.
+// A date can carry more than one kind of edit (closed + disabled, or custom
+// hours + disabled), so each is listed in turn instead of a single hardcoded
+// label.
+const exceptionSummary = (e: Exception): string => {
+  const parts: string[] = [];
+  if (e.closed) parts.push(`Closed${e.note ? ` · ${e.note}` : ""}`);
+  if (e.windows?.length) parts.push(`Hours: ${e.windows.map((w) => `${fmt(w.start)} to ${fmt(w.end)}`).join(", ")}`);
+  if (e.disabled?.length) parts.push(`Blocked: ${e.disabled.map(fmt).join(", ")}`);
+  return parts.join(" · ");
+};
 
 function ExceptionsEditor({ ex, setEx }: { ex: Record<string, Exception>; setEx: Dispatch<SetStateAction<Record<string, Exception>>> }) {
   const [newDate, setNewDate] = useState("");
@@ -732,7 +746,7 @@ function ExceptionsEditor({ ex, setEx }: { ex: Record<string, Exception>; setEx:
           <div key={d} className="flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm">
             <CalendarOff className="h-4 w-4 shrink-0 text-out" />
             <span className="font-medium">{dateLabel(d)}</span>
-            <span className="text-muted truncate">Closed{ex[d].note ? ` · ${ex[d].note}` : ""}</span>
+            <span className="text-muted truncate">{exceptionSummary(ex[d])}</span>
             <button onClick={() => remove(d)} title="Remove" className="ml-auto shrink-0 rounded-lg p-1 text-muted hover:text-out"><X className="h-4 w-4" /></button>
           </div>
         ))}
@@ -742,6 +756,95 @@ function ExceptionsEditor({ ex, setEx }: { ex: Record<string, Exception>; setEx:
         <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm" />
         <input value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Note (optional, e.g. Diwali)" className="min-w-[10rem] flex-1 rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand" />
         <button onClick={add} disabled={!newDate} className="inline-flex items-center gap-1 rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand-tint disabled:opacity-50"><Plus className="h-3.5 w-3.5" /> Add</button>
+      </div>
+    </div>
+  );
+}
+
+// Per-day slot blocks. The admin picks a date and taps the day's slots to
+// block or unblock them; a blocked time accepts no new bookings from any
+// surface (the filter lives in allSlotsFor). Existing bookings on a blocked
+// time stay as they are. Edits land in the same `ex` map the weekly-hours
+// editor and ExceptionsEditor share, so the existing Save persists them.
+function SlotToggles({ weekly, ex, setEx }: { weekly: WeeklyHours; ex: Record<string, Exception>; setEx: Dispatch<SetStateAction<Record<string, Exception>>> }) {
+  const today = ymd(new Date());
+  const [pick, setPick] = useState(today);
+  const blocked = new Set(ex[pick]?.disabled ?? []);
+
+  // The slots this date would offer right now, from the live editor state, so
+  // edits to the weekly hours above or a holiday override re-map the pills.
+  // For today, hide times already past the booking cutoff — they mirror what
+  // the server would refuse.
+  const slots = useMemo(() => {
+    const s = allSlotsFor(new Date(pick + "T00:00:00"), { weekly, exceptions: ex, override: null });
+    return pick === ymd(new Date())
+      ? s.filter((t) => !isPastLeadTime(pick, t, new Date()))
+      : s;
+  }, [pick, weekly, ex]);
+
+  // Always build a fresh exception object — the value objects in `ex` alias
+  // the shared schedule singleton, so an in-place edit would dirty production
+  // before Save. Removing the last blocked time also clears the `disabled`
+  // key, and drops the whole date entry if nothing else remains.
+  const flip = (t: string) =>
+    setEx((e) => {
+      const cur = e[pick];
+      const has = (cur?.disabled ?? []).includes(t);
+      const next = has
+        ? (cur?.disabled ?? []).filter((x) => x !== t)
+        : [...(cur?.disabled ?? []), t].sort();
+      if (next.length === 0) {
+        if (!cur) return e;
+        const { disabled, ...rest } = cur;
+        if (Object.keys(rest).length === 0) {
+          const n = { ...e };
+          delete n[pick];
+          return n;
+        }
+        return { ...e, [pick]: rest };
+      }
+      return { ...e, [pick]: { ...cur, disabled: next } };
+    });
+
+  return (
+    <div className="rounded-2xl border border-line bg-paper p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">Block times for a day</h2>
+          <p className="text-xs text-muted">Tap a slot to block or unblock it for that date. A blocked time is refused everywhere, the website and WhatsApp. Bookings already on a blocked time stay as they are. Remember to hit Save.</p>
+        </div>
+        <input type="date" value={pick} min={today} onChange={(e) => setPick(e.target.value)} className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm" />
+      </div>
+
+      <div className="mt-4">
+        <p className="text-sm text-ink">{dateLabel(pick)}</p>
+        {slots.length === 0 ? (
+          <div className="mt-2 rounded-lg border border-dashed border-line bg-bone/60 px-3 py-4 text-center text-sm text-muted">
+            {ex[pick]?.closed ? "This date is marked closed." : "No bookable slots this day."}
+          </div>
+        ) : (
+          <>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {slots.map((t) => {
+                const off = blocked.has(t);
+                return (
+                  <button
+                    key={t}
+                    onClick={() => flip(t)}
+                    aria-pressed={off}
+                    title={off ? "Tap to unblock" : "Tap to block"}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${off ? "bg-out text-white" : "border border-line bg-white text-ink hover:bg-line/40"}`}
+                  >
+                    {fmt(t)}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs text-muted">
+              {slots.length - blocked.size} of {slots.length} slots open this day.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

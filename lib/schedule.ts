@@ -42,8 +42,11 @@ export function defaultWeeklyHours(): WeeklyHours {
 // Date-specific overrides. key = "YYYY-MM-DD".
 //   closed: true            → doctor away that day (e.g. a Saturday he can't make)
 //   windows: Window[]       → custom hours that day (e.g. an open Saturday)
+//   disabled: string[]      → "HH:MM" times blocked for just that date. No new
+//                             booking can land on one from any surface; bookings
+//                             that were already on the time stay valid.
 //   note: string            → shown to patients ("At surgery until 5 PM")
-export type Exception = { closed?: boolean; windows?: Window[]; note?: string };
+export type Exception = { closed?: boolean; windows?: Window[]; disabled?: string[]; note?: string };
 export const exceptions: Record<string, Exception> = {};
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -182,15 +185,22 @@ export function statusAt(now = new Date(), s: SchedState = liveState()): Status 
   return { state: "out", next: nextOpen(now, s), note };
 }
 
-// Every slot time in a date's windows. Slot capacity is unlimited, so this
-// is the one and only slot list every surface (website, bot, Flow endpoint)
-// renders from — there's no separate "open vs. taken" split to filter by.
+// Every bookable slot time in a date's windows. Slot capacity is unlimited,
+// so this is the one and only slot list every surface (website, bot, Flow
+// endpoint) renders from — there's no separate "open vs. taken" split to
+// filter by. Times blocked via that date's exception `disabled` list are
+// dropped here, so they vanish from every picker and fail every validation.
 export function allSlotsFor(date: Date, s: SchedState = liveState()): string[] {
   const out: string[] = [];
   for (const w of windowsFor(date, s)) {
     for (let m = toMin(w.start); m < toMin(w.end); m += clinic.slotMinutes) {
       out.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
     }
+  }
+  const dis = s.exceptions[ymd(date)]?.disabled;
+  if (dis?.length) {
+    const set = new Set(dis);
+    return out.filter((t) => !set.has(t));
   }
   return out;
 }

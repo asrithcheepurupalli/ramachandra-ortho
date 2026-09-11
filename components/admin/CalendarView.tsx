@@ -109,14 +109,18 @@ export function CalendarView({ appts }: CalendarViewProps) {
 
   const sessions = useMemo(() => {
     const wins = windowsFor(selectedDay);
-    const slots = allSlotsFor(selectedDay);
+    // The day axis is the bookable slots plus any time that already has an
+    // appointment, so a slot blocked (via the schedule's per-date toggles)
+    // after a patient booked it still shows that booking, while an empty
+    // blocked slot simply stops appearing as an open row.
+    const axis = [...new Set([...allSlotsFor(selectedDay), ...dayAppts.map((a) => a.time)])].sort();
     const groups: Array<{ label: string; window: Window; startMin: number; slots: string[] }> = [];
     for (const win of wins) {
       const [sh, sm] = win.start.split(":").map(Number);
       const startMin = sh * 60 + sm;
       const [eh, em] = win.end.split(":").map(Number);
       const endMin = eh * 60 + em;
-      const inWindow = slots.filter((t) => {
+      const inWindow = axis.filter((t) => {
         const [h, m] = t.split(":").map(Number);
         const mins = h * 60 + m;
         return mins >= startMin && mins < endMin;
@@ -126,7 +130,7 @@ export function CalendarView({ appts }: CalendarViewProps) {
       groups.push({ label, window: win, startMin, slots: inWindow });
     }
     return groups;
-  }, [selectedDay]);
+  }, [selectedDay, dayAppts]);
 
   const openSlots = useMemo(
     () =>
