@@ -148,7 +148,15 @@ export async function dbLookupPatient(query: string): Promise<PatientRecord | nu
   return null;
 }
 
-function rowToAppt(r: any): Appt {
+type DbApptRow = {
+  id: string; token: number; name: string; phone: string | null; age: number | null;
+  gender: "M" | "F" | null; appt_date: string; appt_time: string; status: string;
+  source: string; fee: number; paid: boolean; paid_via: string | null;
+  razorpay_payment_id: string | null; razorpay_refund_id: string | null;
+  refunded_at: string | null; reminder_sent_at: string | null; created_at: string;
+  notes: string | null; patient_code: string | null; claim_type: string | null;
+};
+function rowToAppt(r: DbApptRow): Appt {
   return {
     id: r.id,
     token: r.token,
@@ -158,11 +166,11 @@ function rowToAppt(r: any): Appt {
     gender: r.gender ?? null,
     date: r.appt_date,
     time: r.appt_time,
-    status: r.status,
-    source: r.source,
+    status: r.status as ApptStatus,
+    source: r.source as Source,
     fee: r.fee,
     paid: r.paid,
-    paidVia: r.paid_via ?? null,
+    paidVia: r.paid_via as "razorpay" | "cash" | null,
     paymentId: r.razorpay_payment_id ?? null,
     refundId: r.razorpay_refund_id ?? null,
     refundedAt: r.refunded_at ? new Date(r.refunded_at).getTime() : null,
@@ -170,7 +178,7 @@ function rowToAppt(r: any): Appt {
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
     patientCode: r.patient_code ?? null,
-    claimType: r.claim_type ?? null,
+    claimType: r.claim_type as "returning_unverified" | "review_free" | null,
     paymentDeadlineAt: null, // server-side: expiry is enforced by the payment-timeout cron against created_at
   };
 }

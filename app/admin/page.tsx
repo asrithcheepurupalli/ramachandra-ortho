@@ -1036,7 +1036,9 @@ function BugDesk() {
   const [loadError, setLoadError] = useState(false);
 
   const load = () => {
-    setLoading(true);
+    // No setLoading(true) here: useState(true) initializes loading, and calling
+    // setState synchronously inside the effect body triggers the React Compiler
+    // react-hooks/set-state-in-effect rule.
     fetch("/api/admin/bugdesk")
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
       .then((d) => { setRows(d.rows ?? []); setLoadError(false); })

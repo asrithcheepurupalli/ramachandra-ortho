@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Calendar as CalendarIcon, Users, IndianRupee, ArrowLeft, LogOut, RotateCcw,
@@ -211,7 +211,9 @@ function DoctorCalendar({ appts }: { appts: Appt[] }) {
 function DayApptRow({ a }: { a: Appt }) {
   const [notes, setLocalNotes] = useState(a.notes ?? "");
   const [saved, setSaved] = useState(true);
-  useEffect(() => { setLocalNotes(a.notes ?? ""); setSaved(true); }, [a.id, a.notes]);
+  // State is initialized from props on mount; key={a.id} in the parent remounts
+  // fresh when switching dates, so no effect is needed. Removing this avoids
+  // clobbering the user's in-progress draft on realtime prop updates.
   const S = sourceMeta[a.source];
 
   const commit = () => {
@@ -328,7 +330,7 @@ function RevenueAnalysis({ appts }: { appts: Appt[] }) {
   const active = inRange.filter((a) => a.status !== "cancelled");
   // Net, not gross: a refunded row's money came in then went out, so it's
   // excluded from "collected" the same way lib/store.ts's revenue math treats it.
-  const collected = inRange.filter((a) => a.paid && a.refundedAt == null);
+  const collected = useMemo(() => inRange.filter((a) => a.paid && a.refundedAt == null), [inRange]);
   const total = collected.reduce((s, a) => s + a.fee, 0);
   const dateList = useMemo(() => dateRangeList(start, end), [start, end]);
   const avgPerDay = total / dateList.length;

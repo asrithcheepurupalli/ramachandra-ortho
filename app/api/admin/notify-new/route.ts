@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   if (!(await requireStaff())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: any;
+  let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {

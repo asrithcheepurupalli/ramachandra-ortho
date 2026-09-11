@@ -1,0 +1,39 @@
+# CI: lint + test + typecheck + build on every push/PR. The cron workflows
+# already run in this repo; this one guards the code that ships. Runs the same
+# checks a developer runs locally, so a broken build or a failing test surfaces
+# on the PR instead of after main auto-deploys to production.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# One run per PR at a time — a new push cancels the stale run it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build

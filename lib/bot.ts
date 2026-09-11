@@ -32,7 +32,10 @@ async function reportBotError(
     try {
       await fetch(`${clinic.url}/api/bugdesk/report`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${process.env.CRON_SECRET ?? ""}`,
+        },
         body: JSON.stringify({
           source,
           message,

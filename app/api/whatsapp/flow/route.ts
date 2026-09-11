@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   const { payload, aesKey, iv } = decrypted;
 
   try {
-    const { action, screen, data } = payload as { action: string; screen?: string; data?: Record<string, any> };
+    const { action, screen, data } = payload as { action: string; screen?: string; data?: Record<string, unknown> };
 
     if (data?.error) {
       console.error("WhatsApp Flow client error notification", data);
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     if (action === "data_exchange" && screen === "APPOINTMENT") {
       const sched = await dbLoadSchedule();
-      const date: string | undefined = data?.date;
+      const date: string | undefined = typeof data?.date === "string" ? data.date : undefined;
       const dateOptions = await liveOpenDates(sched);
       const time = date ? liveTimeSlots(date, sched) : [];
 

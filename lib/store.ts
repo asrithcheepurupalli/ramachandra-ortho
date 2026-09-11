@@ -65,7 +65,7 @@ function savePatients(reg: PatientRegistry) {
 }
 // Smallest unused ROC-#### sequence number, monotonic across the registry.
 function nextPatientCode(reg: PatientRegistry): string {
-  let n = Object.values(reg).reduce((m, p) => {
+  const n = Object.values(reg).reduce((m, p) => {
     const hit = /^ROC-(\d{4})$/.exec(p.patientCode);
     return hit ? Math.max(m, Number(hit[1])) : m;
   }, 0);

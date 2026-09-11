@@ -151,7 +151,7 @@ as $$
     select 1 from public.staff_emails where email = lower(check_email)
   );
 $$;
-grant execute on function public.is_staff(text) to anon, authenticated;
+grant execute on function public.is_staff(text) to authenticated;
 
 -- Which portal a signed-in staff email should land on. Returns null for a
 -- non-staff email (mirrors is_staff's "not on the list" case rather than
@@ -165,7 +165,7 @@ stable
 as $$
   select role from public.staff_emails where email = lower(check_email)
 $$;
-grant execute on function public.staff_role(text) to anon, authenticated;
+grant execute on function public.staff_role(text) to authenticated;
 
 -- Row Level Security ─────────────────────────────────────────────────────────
 -- Patient data is never exposed to anonymous visitors. Public booking + slot

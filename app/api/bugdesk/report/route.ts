@@ -12,12 +12,21 @@ import { isRateLimited } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  // Gate on CRON_SECRET so unauthenticated visitors can't trigger critical
+  // email alerts. Same pattern as the cron routes.
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   if (await isRateLimited(`bugdesk:ingest:${ip}`, 60, 60 * 60 * 1000)) {
     return NextResponse.json({ error: "Too many reports" }, { status: 429 });
   }
 
-  let body: any;
+  let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
@@ -32,7 +41,7 @@ export async function POST(req: NextRequest) {
     source,
     message,
     severity: severity === "critical" ? "critical" : "warning",
-    info: info && typeof info === "object" ? info : undefined,
+    info: info && typeof info === "object" ? (info as Record<string, unknown>) : undefined,
   });
 
   return NextResponse.json({ ok: true }, { status: 200 });

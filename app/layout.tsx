@@ -5,6 +5,11 @@ import "./globals.css";
 import { clinic } from "@/clinic.config";
 import { weeklyHours, type Window } from "@/lib/schedule";
 
+// Startup check: catch a missing OTP template before patients notice.
+if (process.env.NODE_ENV === "production" && !process.env.META_TEMPLATE_OTP) {
+  console.error("META_TEMPLATE_OTP is not set -- patient self-service (cancel/reschedule/pay) has no OTP gate");
+}
+
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 const title = `${clinic.name} · Orthopedic Surgeon in ${clinic.location.city}`;

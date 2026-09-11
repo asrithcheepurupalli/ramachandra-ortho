@@ -17,7 +17,7 @@ export type FlowRequestBody = {
 };
 
 export function decryptFlowRequest(body: FlowRequestBody): {
-  payload: any;
+  payload: unknown;
   aesKey: Buffer;
   iv: Buffer;
 } {

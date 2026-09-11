@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   if (isRateLimited(ip)) return NextResponse.json({ error: "Too many requests. Please try again in a bit." }, { status: 429 });
 
-  let body: any;
+  let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
   const { id, phone, date, time } = body ?? {};
   if (typeof id !== "string" || !id) return NextResponse.json({ error: "id is required" }, { status: 400 });

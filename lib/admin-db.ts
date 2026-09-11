@@ -14,10 +14,18 @@ import {
   onScheduleChange, notifyScheduleChange, defaultWeeklyHours,
   type WeeklyHours, type Exception, type Override, type SchedState,
 } from "@/lib/schedule";
-import { useAppts, type Appt, type Source } from "@/lib/store";
+import { useAppts, type Appt, type ApptStatus, type Source } from "@/lib/store";
 import { normalizePhone } from "@/lib/phone";
 
-function rowToAppt(r: any): Appt {
+type DbApptRow = {
+  id: string; token: number; name: string; phone: string | null; age: number | null;
+  gender: "M" | "F" | null; appt_date: string; appt_time: string; status: string;
+  source: string; fee: number; paid: boolean; paid_via: string | null;
+  razorpay_payment_id: string | null; razorpay_refund_id: string | null;
+  refunded_at: string | null; reminder_sent_at: string | null; created_at: string;
+  notes: string | null; patient_code: string | null; claim_type: string | null;
+};
+function rowToAppt(r: DbApptRow): Appt {
   return {
     id: r.id,
     token: r.token,
@@ -27,11 +35,11 @@ function rowToAppt(r: any): Appt {
     gender: r.gender ?? null,
     date: r.appt_date,
     time: r.appt_time,
-    status: r.status,
-    source: r.source,
+    status: r.status as ApptStatus,
+    source: r.source as Source,
     fee: r.fee,
     paid: r.paid,
-    paidVia: r.paid_via ?? null,
+    paidVia: r.paid_via as "razorpay" | "cash" | null,
     paymentId: r.razorpay_payment_id ?? null,
     refundId: r.razorpay_refund_id ?? null,
     refundedAt: r.refunded_at ? new Date(r.refunded_at).getTime() : null,
@@ -39,7 +47,7 @@ function rowToAppt(r: any): Appt {
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
     patientCode: r.patient_code ?? null,
-    claimType: r.claim_type ?? null,
+    claimType: r.claim_type as "returning_unverified" | "review_free" | null,
     paymentDeadlineAt: null,
   };
 }
@@ -65,10 +73,10 @@ function useDbAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void] {
     const channel = db
       .channel("appointments-admin")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "appointments" }, (payload) => {
-        setAppts((prev) => (prev.some((a) => a.id === payload.new.id) ? prev : [...prev, rowToAppt(payload.new)]));
+        setAppts((prev) => (prev.some((a) => a.id === payload.new.id) ? prev : [...prev, rowToAppt(payload.new as DbApptRow)]));
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "appointments" }, (payload) => {
-        setAppts((prev) => prev.map((a) => (a.id === payload.new.id ? rowToAppt(payload.new) : a)));
+        setAppts((prev) => prev.map((a) => (a.id === payload.new.id ? rowToAppt(payload.new as DbApptRow) : a)));
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "appointments" }, (payload) => {
         setAppts((prev) => prev.filter((a) => a.id !== payload.old.id));

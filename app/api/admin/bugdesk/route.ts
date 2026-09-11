@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "mock-mode: nothing to resolve" }, { status: 400 });
   }
 
-  let body: any;
+  let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
   const { fingerprint, resolved } = body ?? {};
   if (typeof fingerprint !== "string" || !fingerprint.trim()) {
