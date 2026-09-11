@@ -105,6 +105,34 @@
                 "time_enabled": {
                     "type": "boolean",
                     "__example__": false
+                },
+                "gender": {
+                    "type": "string",
+                    "__example__": "M"
+                },
+                "gender_options": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "M",
+                            "title": "Male"
+                        },
+                        {
+                            "id": "F",
+                            "title": "Female"
+                        }
+                    ]
                 }
             },
             "layout": {
@@ -124,10 +152,17 @@
                         "children": [
                             {
                                 "type": "TextInput",
-                                "label": "Age (optional)",
+                                "label": "Age",
                                 "name": "age",
                                 "input-type": "number",
-                                "required": false
+                                "required": true
+                            },
+                            {
+                                "type": "Dropdown",
+                                "label": "Gender",
+                                "name": "gender",
+                                "data-source": "${data.gender_options}",
+                                "required": true
                             },
                             {
                                 "type": "Dropdown",
@@ -139,6 +174,7 @@
                                     "name": "data_exchange",
                                     "payload": {
                                         "age": "${form.age}",
+                                        "gender": "${form.gender}",
                                         "date": "${form.date}"
                                     }
                                 }
@@ -162,6 +198,7 @@
                                     },
                                     "payload": {
                                         "age": "${form.age}",
+                                        "gender": "${form.gender}",
                                         "date": "${form.date}",
                                         "time": "${form.time}"
                                     }
@@ -187,6 +224,10 @@
                 "time": {
                     "type": "string",
                     "__example__": "10:00"
+                },
+                "gender": {
+                    "type": "string",
+                    "__example__": "M"
                 }
             },
             "layout": {
@@ -268,6 +309,10 @@
                 "notes": {
                     "type": "string",
                     "__example__": ""
+                },
+                "gender": {
+                    "type": "string",
+                    "__example__": "M"
                 }
             },
             "layout": {
@@ -304,6 +349,7 @@
                                     "name": "complete",
                                     "payload": {
                                         "age": "${data.age}",
+                                        "gender": "${data.gender}",
                                         "date": "${data.date}",
                                         "time": "${data.time}",
                                         "name": "${data.name}",
@@ -344,6 +390,10 @@
                 "notes": {
                     "type": "string",
                     "__example__": ""
+                },
+                "gender": {
+                    "type": "string",
+                    "__example__": "M"
                 }
             },
             "layout": {

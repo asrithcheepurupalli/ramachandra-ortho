@@ -118,6 +118,9 @@ export async function POST(req: NextRequest) {
           name: parsed.name,
           phone: parsed.phone || from,
           age: typeof parsed.age === "number" ? parsed.age : 0,
+          // The flow's gender dropdown submits "M" or "F"; the conversational
+          // bot path doesn't ask, so anything else stays null.
+          gender: parsed.gender === "M" || parsed.gender === "F" ? parsed.gender : null,
           date: parsed.date,
           time: parsed.time,
           source: "whatsapp",

@@ -855,7 +855,13 @@ function Patients({ appts }: { appts: Appt[] }) {
   const [q, setQ] = useState("");
   const list = useMemo(() => {
     const by = new Map<string, { name: string; phone: string; visits: number; last: Appt }>();
+    // Only real bookings count as a patient — holds awaiting payment and
+    // cancelled rows are not visits, so a payment-pending or cancelled test
+    // row must never inflate a patient's visit count or surface a future date
+    // as their "last visit".
+    const confirmed = new Set<ApptStatus>(["reserved", "confirmed", "waiting", "consulting", "done"]);
     for (const a of [...appts].sort((x, y) => y.createdAt - x.createdAt)) {
+      if (!confirmed.has(a.status)) continue;
       // Dedup by phone only — it's the one reliable identity signal. Without a
       // phone on file, two different people can share a name (e.g. two walk-ins
       // named "Ramesh"), so each such visit stays its own row rather than

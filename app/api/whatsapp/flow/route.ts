@@ -19,6 +19,14 @@ import { report, reportError } from "@/lib/bugdesk";
 
 const DAYS_AHEAD = 14;
 
+// Static options for the APPOINTMENT screen's gender dropdown. Kept here so
+// the flow endpoint (not the flow JSON's own example data) is what populates
+// it live, exactly like date/time come from dbLoadSchedule.
+const GENDER_OPTIONS = [
+  { id: "M", title: "Male" },
+  { id: "F", title: "Female" },
+];
+
 async function liveOpenDates(sched: SchedState): Promise<{ id: string; title: string }[]> {
   const out: { id: string; title: string }[] = [];
   const now = nowIST();
@@ -96,7 +104,7 @@ export async function POST(req: NextRequest) {
       return encryptedReply(
         {
           screen: "APPOINTMENT",
-          data: { date: await liveOpenDates(sched), time: [], time_enabled: false },
+          data: { date: await liveOpenDates(sched), time: [], time_enabled: false, gender_options: GENDER_OPTIONS },
         },
         aesKey,
         iv
@@ -113,7 +121,7 @@ export async function POST(req: NextRequest) {
         return encryptedReply(
           {
             screen: "APPOINTMENT",
-            data: { date: dateOptions, time: [], time_enabled: false },
+            data: { date: dateOptions, time: [], time_enabled: false, gender_options: GENDER_OPTIONS },
             error_message: "No slots left that day — please pick another date.",
           },
           aesKey,
@@ -121,7 +129,7 @@ export async function POST(req: NextRequest) {
         );
       }
       return encryptedReply(
-        { screen: "APPOINTMENT", data: { date: dateOptions, time, time_enabled: time.length > 0 } },
+        { screen: "APPOINTMENT", data: { date: dateOptions, time, time_enabled: time.length > 0, gender_options: GENDER_OPTIONS } },
         aesKey,
         iv
       );
