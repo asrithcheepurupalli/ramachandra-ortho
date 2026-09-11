@@ -219,7 +219,9 @@ export function BookForm() {
   const timeSlots = useMemo(() => {
     return [...(selDay?.slots ?? [])].sort((a, b) => toMin(a) - toMin(b));
   }, [selDay]);
-  const canBook = !!(selDate && selTime && form.name.trim() && form.phone.trim() && form.age > 0 && (form.gender === "M" || form.gender === "F")) && !submitting;
+  // The continue button needs day + time only; confirm() validates the
+  // details on tap and points at any missing field with an inline error.
+  const canBook = !!(selDate && selTime) && !submitting;
 
   const dayLabel = (o: DayOpt, i: number) =>
     i === 0 ? t("book.today") : i === 1 ? t("book.tomorrow") : weekdayName(o.d).slice(0, 3);
