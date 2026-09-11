@@ -101,7 +101,10 @@ export async function POST(req: NextRequest) {
     // id redelivered. Without this a slow response (or the 500 branch below)
     // can double-process the same inbound message, e.g. a duplicate booking
     // from a single Flow submission.
-    const { lang, state, lastWamid } = await dbLoadWaSession(from);
+    const [{ lang, state, lastWamid }, sched] = await Promise.all([
+      dbLoadWaSession(from),
+      dbLoadSchedule(),
+    ]);
     if (wamid && wamid === lastWamid) return new NextResponse("OK", { status: 200 });
 
     // Submission from the live "Appointment" WhatsApp Flow (see
@@ -208,7 +211,6 @@ export async function POST(req: NextRequest) {
         ? waState.lastChips[Number(asChipNumber[1]) - 1]
         : text;
 
-    const sched = await dbLoadSchedule();
     const result = await botReplyServer(effectiveInput, lang, waState, from, backend, sched, "whatsapp");
 
     const newState: WaState = { ...result.state, lastChips: result.chips };

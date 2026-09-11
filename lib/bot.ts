@@ -199,15 +199,17 @@ const fromMinutes = (min: number) => `${String(Math.floor(min / 60)).padStart(2,
 // Bisects a window into evenly-sized sub-ranges so each holds at most
 // MAX_CHIPS open slots — e.g. a 15-slot 10-12:30 window becomes two ~7-8
 // slot ranges. Returns [w] unchanged when it's already short enough.
+// Boundaries snap to the clinic's slot grid (fractional-minute divisions
+// like "11:23" from a flat (end-start)/parts split used to break the grid).
 function splitWindow(w: Window, slotCount: number): Window[] {
   const parts = Math.ceil(slotCount / MAX_CHIPS);
   if (parts <= 1) return [w];
+  const grid = clinic.slotMinutes;
   const start = toMinutes(w.start), end = toMinutes(w.end);
-  const step = (end - start) / parts;
   const out: Window[] = [];
   for (let i = 0; i < parts; i++) {
-    const s = Math.round(start + step * i);
-    const e = i === parts - 1 ? end : Math.round(start + step * (i + 1));
+    const s = i === 0 ? start : start + Math.round((slotCount * i) / parts) * grid;
+    const e = i === parts - 1 ? end : start + Math.round((slotCount * (i + 1)) / parts) * grid;
     out.push({ start: fromMinutes(s), end: fromMinutes(e) });
   }
   return out;
