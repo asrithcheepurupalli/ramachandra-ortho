@@ -41,14 +41,19 @@ export async function createPaymentLink(
 
   // The slot is held for 15 minutes from BOOKING (the payment-timeout cron
   // cancels the row at createdAt + 15m). Razorpay requires expire_by to be at
-  // least 15 minutes in the future, so we floor at now + 900. For a fresh
-  // booking this is nearly identical to the hold deadline; for one created a
-  // few minutes ago the link may outlive the hold slightly, but the webhook
+  // least 15 minutes in the future, so we floor at now + 900 — plus a 60s
+  // buffer. The bare +900 floor is rejected in practice: Razorpay validates
+  // expire_by against ITS clock a moment after we compute now, so exactly
+  // now+900 arrives as a hair under 15:00. Probed live: +900 → 400, +905 →
+  // 200. The 60s margin clears clock skew and normal request latency. A fresh
+  // booking then expires ~1 minute past the hold deadline; for one created a
+  // few minutes ago the link can outlive the hold by more, but the webhook
   // already handles that edge case (cancelled row = returns null, logged for
   // manual reconciliation). If the hold has fully elapsed there is nothing
   // left to pay for, so bail rather than mint a link for a freed slot.
   const nowSec = Math.floor(Date.now() / 1000);
   const holdDeadlineSec = Math.floor(new Date(appt.createdAt).getTime() / 1000) + 900;
+  const linkFloorSec = nowSec + 900 + 60;
   if (holdDeadlineSec <= nowSec) {
     console.error("Razorpay payment link skipped: booking hold already expired");
     return null;
@@ -63,7 +68,7 @@ export async function createPaymentLink(
         currency: "INR",
         reference_id: appt.id,
         description: "Consultation fee",
-        expire_by: Math.max(holdDeadlineSec, nowSec + 900),
+        expire_by: Math.max(holdDeadlineSec, linkFloorSec),
         customer: { name: appt.name, ...(contact ? { contact } : {}) },
         notify: { sms: false, email: false },
         ...(siteUrl
