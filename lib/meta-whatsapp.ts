@@ -271,6 +271,25 @@ export function sendWelcomeBookingLink(phone: string) {
   return sendTemplate(phone, process.env.META_TEMPLATE_WELCOME, [], templateLang("META_TEMPLATE_LANG_WELCOME"));
 }
 
+// Fired automatically by the /api/cron/review-nudge cron (same day, 3h after a
+// `done` visit's slot). Asks how the visit went and hands over the clinic's
+// Google review link. The body carries the patient's name ({{1}}); the "Leave a
+// review" URL button is STATIC (the reviewUrl is baked into the approved
+// template), so no urlButtonValue — the classic templates' rule that the button
+// component only appears for a parameterized URL button.
+export function sendReviewNudge(phone: string, name: string) {
+  return sendTemplate(phone, process.env.META_TEMPLATE_REVIEW_NUDGE, [name], templateLang("META_TEMPLATE_LANG_REVIEW_NUDGE"));
+}
+
+// Fired daily by the /api/cron/free-visit-nudge cron (8:00 AM IST) to patients
+// who consulted within the last 10 days but haven't booked their free follow-up
+// review visit. Body carries the patient's name ({{1}}); the CTA is to reply
+// "Free review visit" in the chat (which the bot routes into a claim booking),
+// so the template ships no button.
+export function sendFreeReviewNudge(phone: string, name: string) {
+  return sendTemplate(phone, process.env.META_TEMPLATE_FREE_REVIEW_NUDGE, [name], templateLang("META_TEMPLATE_LANG_FREE_REVIEW_NUDGE"));
+}
+
 // Patient-verification code, sent outside any conversation window so it must
 // be a template. This is the ownership proof for cancel / reschedule / pay —
 // the code lands on the SIM that owns the appointment, which is the point.

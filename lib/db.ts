@@ -105,6 +105,7 @@ type DbApptRow = {
   razorpay_payment_id: string | null; razorpay_refund_id: string | null;
   refunded_at: string | null; reminder_sent_at: string | null; created_at: string;
   notes: string | null; patient_code: string | null; claim_type: string | null;
+  review_nudge_sent_at: string | null; free_visit_reminder_sent_at: string | null;
 };
 function rowToAppt(r: DbApptRow): Appt {
   return {
@@ -125,6 +126,8 @@ function rowToAppt(r: DbApptRow): Appt {
     refundId: r.razorpay_refund_id ?? null,
     refundedAt: r.refunded_at ? new Date(r.refunded_at).getTime() : null,
     reminderSentAt: r.reminder_sent_at ? new Date(r.reminder_sent_at).getTime() : null,
+    reviewNudgeSentAt: r.review_nudge_sent_at ? new Date(r.review_nudge_sent_at).getTime() : null,
+    freeVisitReminderSentAt: r.free_visit_reminder_sent_at ? new Date(r.free_visit_reminder_sent_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
     patientCode: r.patient_code ?? null,
@@ -672,6 +675,101 @@ export async function dbClearReminderSent(id: string): Promise<void> {
     .update({ reminder_sent_at: null })
     .eq("id", id);
   if (error) throw error;
+}
+
+// The post-visit review-nudge cron's idempotency guard — the same conditional
+// update as dbMarkReminderSent, on review_nudge_sent_at: only the row still
+// carrying NULL flips, so overlapping ticks can never double-nudge a visit.
+// Returns whether THIS caller set the flag — the caller sends only then.
+export async function dbMarkReviewNudgeSent(id: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ review_nudge_sent_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("review_nudge_sent_at", null)
+    .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+// Called by the review-nudge cron when a send failed, so a later tick retries.
+export async function dbClearReviewNudgeSent(id: string): Promise<void> {
+  const { error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ review_nudge_sent_at: null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// The free-review-visit nudge cron's idempotency guard — same conditional
+// update on free_visit_reminder_sent_at, stamped on the EARNING consultation
+// appointment (the `done` visit), so a patient who consulted and hasn't booked
+// their free review is nudged exactly once.
+export async function dbMarkFreeVisitNudgeSent(id: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ free_visit_reminder_sent_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("free_visit_reminder_sent_at", null)
+    .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
+// Called by the free-visit-nudge cron when a send failed, so a later tick retries.
+export async function dbClearFreeVisitNudgeSent(id: string): Promise<void> {
+  const { error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ free_visit_reminder_sent_at: null })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// The free-visit-nudge cron nudges a patient ONCE, not once per visit: when a
+// send succeeds, this retires the phone's other in-window `done` visits too
+// (same conditional update, exceptId kept out), so an older sibling can't
+// surface as "newest un-nudged" on a later run and re-nudge the same patient.
+export async function dbRetireFreeVisitNudges(phone: string, startDate: string, exceptId: string): Promise<void> {
+  const { error } = await supabaseAdmin()
+    .from("appointments")
+    .update({ free_visit_reminder_sent_at: new Date().toISOString() })
+    .in("phone", phoneMatchVariants(phone))
+    .eq("status", "done")
+    .gte("appt_date", startDate)
+    .is("free_visit_reminder_sent_at", null)
+    .neq("id", exceptId);
+  if (error) throw error;
+}
+
+// Completed appointments across a date range — the free-visit-nudge cron's
+// scan window (the last 10 days of `done` visits). The codebase's first range
+// query on appt_date; all reads are `select("*")`, so new columns flow through.
+export async function dbDoneAppointmentsBetween(startDate: string, endDate: string): Promise<Appt[]> {
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .select("*")
+    .eq("status", "done")
+    .gte("appt_date", startDate)
+    .lte("appt_date", endDate);
+  if (error) throw error;
+  return (data ?? []).map(rowToAppt);
+}
+
+// Whether a phone already holds an upcoming free-review booking (reserved →
+// consulting, i.e. not cancelled). The free-visit-nudge cron skips a patient
+// who has already booked their free visit; if they booked and then cancelled,
+// the check returns false and they're still eligible to be nudged.
+export async function dbHasFutureFreeBooking(phone: string, fromDate: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin()
+    .from("appointments")
+    .select("id")
+    .in("phone", phoneMatchVariants(phone))
+    .eq("claim_type", "review_free")
+    .in("status", ["reserved", "confirmed", "waiting", "consulting"])
+    .gte("appt_date", fromDate)
+    .limit(1);
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
 }
 
 // The doctor daily-digest cron's idempotency guard — a conditional insert

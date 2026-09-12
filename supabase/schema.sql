@@ -78,6 +78,17 @@ alter table public.appointments add column if not exists paid_via text;
 -- reminder was sent. NULL = not yet reminded; the cron's idempotency guard is
 -- a conditional update on this being NULL, so a row is reminded exactly once.
 alter table public.appointments add column if not exists reminder_sent_at timestamptz;
+-- Post-visit review nudge cron (app/api/cron/review-nudge): the instant the
+-- automatic "how was your visit? leave a Google review" nudge was sent (same
+-- day, 3h after the slot, once status = done). NULL = not yet nudged; the same
+-- conditional-update idempotency guard, so a visit is nudged exactly once.
+alter table public.appointments add column if not exists review_nudge_sent_at timestamptz;
+-- Free-review-visit nudge cron (app/api/cron/free-visit-nudge): the instant the
+-- automatic "you have a free follow-up review visit within 10 days, book it"
+-- nudge was sent for a consultation appointment. NULL = not yet nudged; the
+-- same conditional-update idempotency guard, so a consulted patient who hasn't
+-- booked their free review is nudged exactly once.
+alter table public.appointments add column if not exists free_visit_reminder_sent_at timestamptz;
 -- Doctor's free-text clinical note, written from the doctor portal only.
 -- Never surfaced on the website/WhatsApp side — clinical content stays
 -- internal to staff.
