@@ -129,7 +129,7 @@ export async function dbAddWalkIn(input: { name: string; phone: string; age: num
 
   let patientId: string | null = null;
   let patientCode: string | null = null;
-  let fee: number = clinic.consultationFee;
+  const fee: number = clinic.consultationFee;
   if (phone) {
     const { data: existing, error: existingErr } = await db
       .from("patients")

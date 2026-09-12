@@ -106,12 +106,13 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
   return (
     <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "border-b border-line bg-bg/85 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.02)]" : "bg-transparent"}`}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 md:px-8 h-16">
-        <Link href="/" className="focus-ring flex min-w-0 items-center gap-2 group">
+        <Link href="/" className="focus-ring flex items-center gap-1.5 md:gap-2 group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-mark.png" alt="" width={401} height={320} className="h-10 w-auto shrink-0 transition group-hover:scale-105" />
-          {/* truncate so a long brand name yields row space to the lang toggle
-              ("తెలుగు/हिंदी") beside it instead of crowding it off-screen */}
-          <span className="truncate whitespace-nowrap text-[15px] md:text-base font-semibold leading-none">Ramachandra <span className="text-brand">Ortho<span className="hidden sm:inline"> Care</span></span></span>
+          <img src="/logo-mark.png" alt="" width={401} height={320} className="h-8 w-auto md:h-10 shrink-0 transition group-hover:scale-105" />
+          {/* Full name always on one line — on phones the logo and font step
+              down together so "Ramachandra Ortho" fits beside the lang toggle
+              instead of being squeezed off or ellipsized. */}
+          <span className="whitespace-nowrap text-sm md:text-base font-semibold leading-none">Ramachandra <span className="text-brand">Ortho<span className="hidden sm:inline"> Care</span></span></span>
         </Link>
         <div className="flex items-center gap-1.5 md:gap-2">
           <div className="hidden md:flex items-center gap-1 mr-1">

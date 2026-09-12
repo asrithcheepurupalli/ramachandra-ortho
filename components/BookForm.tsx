@@ -197,24 +197,28 @@ export function BookForm() {
     return () => { cancelled = true; };
   }, []);
 
-  // Entering the day step after going back to the patient entry resets
-  // selDate to null (the back button clears it), and the load effect above has
-  // already run once — so re-selecting a card would leave the day picker empty
-  // unless we re-default it here to today.
-  useEffect(() => {
-    if (stage !== "book" || selDate || daysLoading || days.length === 0) return;
+  // Entering the day step after going back to the patient entry clears selDate
+  // (the back button), and the load effect above has already run once. Default
+  // the picker by derivation instead of writing it back: an effect that calls
+  // setSelDate synchronously just to re-default trips the set-state-in-effect
+  // gate, and a stored default that is never actually picked would then be
+  // persisted into the session as if the patient chose it.
+  const effDate = useMemo(() => {
+    if (selDate) return selDate;
+    if (daysLoading || days.length === 0) return null;
     const todayKey = ymd(new Date());
-    const openToday = days.find((x) => x.date === todayKey && x.slots.length > 0);
-    setSelDate(openToday ? todayKey : (days.find((x) => x.slots.length > 0)?.date ?? null));
-  }, [stage, selDate, days, daysLoading]);
+    return days.find((x) => x.date === todayKey && x.slots.length > 0)?.date
+      ?? days.find((x) => x.slots.length > 0)?.date
+      ?? null;
+  }, [selDate, days, daysLoading]);
 
-  const selDay = useMemo(() => days.find((x) => x.date === selDate), [days, selDate]);
+  const selDay = useMemo(() => days.find((x) => x.date === effDate), [days, effDate]);
   const timeSlots = useMemo(() => {
     return [...(selDay?.slots ?? [])].sort((a, b) => toMin(a) - toMin(b));
   }, [selDay]);
   // The continue button needs day + time only; confirm() validates the
   // details on tap and points at any missing field with an inline error.
-  const canBook = !!(selDate && selTime) && !submitting;
+  const canBook = !!(effDate && selTime) && !submitting;
 
   const dayLabel = (o: DayOpt, i: number) =>
     i === 0 ? t("book.today") : i === 1 ? t("book.tomorrow") : weekdayName(o.d).slice(0, 3);
@@ -225,7 +229,7 @@ export function BookForm() {
     if (normalizePhone(form.phone).length !== 10) { setErr(t("book.badphone")); return; }
     if (form.age <= 0 || form.age > 150) { setErr(t("book.needage")); return; }
     if (form.gender !== "M" && form.gender !== "F") { setErr(t("book.needgender")); return; }
-    if (!selDate || !selTime || submitting) return;
+    if (!effDate || !selTime || submitting) return;
 
     setPendingHold(false);
     setDuplicateSlot(false);
@@ -235,7 +239,7 @@ export function BookForm() {
         const res = await fetch("/api/book", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, date: selDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }),
+          body: JSON.stringify({ ...form, date: effDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -265,7 +269,7 @@ export function BookForm() {
       }
     } else {
       try {
-        setBooked(addBooking({ ...form, gender: form.gender || null, date: selDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }));
+        setBooked(addBooking({ ...form, gender: form.gender || null, date: effDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }));
       } catch (err) {
         // MOCK_MODE mirrors the API: a same-slot duplicate surfaces the same
         // inline banner the live path shows.
@@ -512,7 +516,7 @@ export function BookForm() {
                 ))
               : days.map((o, i) => {
                   const disabled = o.slots.length === 0;
-                  const active = o.date === selDate;
+                  const active = o.date === effDate;
                   return (
                     <button key={o.date} disabled={disabled} aria-pressed={active} onClick={() => { setSelDate(o.date); setSelTime(null); }}
                       className={`press flex min-w-[64px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 text-center transition ${active ? "pop border-brand bg-brand text-white" : disabled ? "border-line bg-bg text-muted/40" : "border-line bg-surface hover:border-brand/40"}`}>
@@ -594,12 +598,12 @@ export function BookForm() {
               </div>
             </div>
           )}
-          {duplicateSlot && selDate && selTime && (
+          {duplicateSlot && effDate && selTime && (
             <div className="mt-3 rounded-xl border border-accent/40 bg-accent-tint p-4">
               <p className="text-sm font-semibold text-out">{t("book.duplicate.title")}</p>
               <p className="mt-1 text-xs leading-relaxed text-muted">
                 {t("book.duplicate.detail", {
-                  date: new Date(selDate + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }),
+                  date: new Date(effDate + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }),
                   time: fmt(selTime),
                 })}
               </p>
@@ -619,11 +623,11 @@ export function BookForm() {
       {/* action — sticky on mobile, inline on desktop */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/90 px-5 py-3 backdrop-blur-md md:static md:mt-6 md:border-0 md:bg-transparent md:p-0" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
         <div className="mx-auto max-w-lg">
-          <button onClick={() => confirm()} disabled={!canBook} className={`press flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-semibold transition ${selDate && selTime ? "bg-brand text-white hover:bg-brand-dark" : "cursor-not-allowed bg-line text-muted"}`}>
+          <button onClick={() => confirm()} disabled={!canBook} className={`press flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-semibold transition ${effDate && selTime ? "bg-brand text-white hover:bg-brand-dark" : "cursor-not-allowed bg-line text-muted"}`}>
             {submitting ? (
               <><span className="spinner" aria-hidden /> {t("book.confirm")}</>
             ) : canBook ? (
-              <>{t("book.confirm")}{selTime && selDate ? ` · ${fmt(selTime)}` : ""} <ChevronRight className="h-4 w-4" /></>
+              <>{t("book.confirm")}{selTime && effDate ? ` · ${fmt(selTime)}` : ""} <ChevronRight className="h-4 w-4" /></>
             ) : (
               <>{t("book.pickslot")}</>
             )}
