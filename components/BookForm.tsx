@@ -7,7 +7,7 @@ import {
   ChevronRight, PartyPopper, Ticket, Wallet, BadgeCheck,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
-import { tr, langLabels } from "@/lib/i18n";
+import { tr, langLabels, langShort } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
 import { addBooking, hydrateSchedule, togglePaid, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
@@ -371,12 +371,19 @@ export function BookForm() {
                 {payBusy ? <span className="spinner" aria-hidden /> : <Wallet className="h-4 w-4 shrink-0" />} {t("book.done.paynow")}
               </button>
             )}
-            <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition hover:bg-brand-tint"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
             {/* My Appointment won't show a payment_pending row (it's not real
-                until paid), so the "View appointment" link would dead-end on
-                the empty state. Offer it once payment confirmed the slot — or
-                for a claim booking, which is already "reserved" and real. */}
-            {(booked.paid || booked.claimType) && <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full border border-line px-3 py-3 text-center text-sm font-semibold text-ink">{t("book.done.view")}</Link>}
+                until paid), so the "View appointment" link runs only once
+                payment confirmed the slot — or for a claim booking, which is
+                already "reserved" and real. It's the primary action in this
+                cluster the moment the booking is real, so it leads — filled
+                brand, same weight as Pay now does for an unpaid one — rather
+                than hiding as a third outline link under WhatsApp. */}
+            {(booked.paid || booked.claimType) && (
+              <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark">
+                <CalendarDays className="h-4 w-4 shrink-0" /> {t("book.done.view")}
+              </Link>
+            )}
+            <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition hover:bg-brand-tint"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
             {/* Stacked full-width, not a flex-1 side-by-side row. Telugu/Hindi
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}
@@ -399,7 +406,10 @@ export function BookForm() {
           <Link href="/" className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{clinic.shortName}</span></Link>
           <div className="flex shrink-0 items-center rounded-full border border-line bg-surface p-0.5">
             {(Object.keys(langLabels) as Lang[]).map((l) => (
-              <button key={l} onClick={() => setLang(l)} className={`press rounded-full px-2.5 py-1 text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted"}`}>{langLabels[l]}</button>
+              <button key={l} onClick={() => setLang(l)} aria-label={langLabels[l]} className={`press rounded-full px-1.5 py-1 text-[11px] md:px-2.5 md:text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted"}`}>
+                <span className="md:hidden">{langShort[l]}</span>
+                <span className="hidden md:inline">{langLabels[l]}</span>
+              </button>
             ))}
           </div>
         </div>
@@ -476,7 +486,10 @@ export function BookForm() {
         <button onClick={() => { setStage("patient"); setClaim(null); setSelDate(null); setSelTime(null); }} className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{t("book.patient.back")}</span></button>
         <div className="flex shrink-0 items-center rounded-full border border-line bg-surface p-0.5">
           {(Object.keys(langLabels) as Lang[]).map((l) => (
-            <button key={l} onClick={() => setLang(l)} className={`press rounded-full px-2.5 py-1 text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted"}`}>{langLabels[l]}</button>
+            <button key={l} onClick={() => setLang(l)} aria-label={langLabels[l]} className={`press rounded-full px-1.5 py-1 text-[11px] md:px-2.5 md:text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted"}`}>
+              <span className="md:hidden">{langShort[l]}</span>
+              <span className="hidden md:inline">{langLabels[l]}</span>
+            </button>
           ))}
         </div>
       </div>

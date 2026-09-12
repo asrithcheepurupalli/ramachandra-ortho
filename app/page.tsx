@@ -10,7 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
-import { tr, langLabels } from "@/lib/i18n";
+import { tr, langLabels, langShort } from "@/lib/i18n";
 import { serviceGroups } from "@/lib/services";
 import { reviews, type Review } from "@/lib/reviews";
 import { DoctorPhoto } from "@/components/DoctorPhoto";
@@ -106,10 +106,12 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
   return (
     <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "border-b border-line bg-bg/85 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.02)]" : "bg-transparent"}`}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 md:px-8 h-16">
-        <Link href="/" className="focus-ring flex items-center gap-2 group">
+        <Link href="/" className="focus-ring flex min-w-0 items-center gap-2 group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-mark.png" alt="" width={401} height={320} className="h-10 w-auto shrink-0 transition group-hover:scale-105" />
-          <span className="whitespace-nowrap text-[15px] md:text-base font-semibold leading-none">Ramachandra <span className="text-brand">Ortho<span className="hidden sm:inline"> Care</span></span></span>
+          {/* truncate so a long brand name yields row space to the lang toggle
+              ("తెలుగు/हिंदी") beside it instead of crowding it off-screen */}
+          <span className="truncate whitespace-nowrap text-[15px] md:text-base font-semibold leading-none">Ramachandra <span className="text-brand">Ortho<span className="hidden sm:inline"> Care</span></span></span>
         </Link>
         <div className="flex items-center gap-1.5 md:gap-2">
           <div className="hidden md:flex items-center gap-1 mr-1">
@@ -139,8 +141,9 @@ function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
   return (
     <div className="flex items-center rounded-full border border-line bg-surface/70 p-0.5">
       {(Object.keys(langLabels) as Lang[]).map((l) => (
-        <button key={l} onClick={() => setLang(l)} className={`focus-ring press rounded-full px-2.5 py-1 text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted hover:text-ink"}`}>
-          {langLabels[l]}
+        <button key={l} onClick={() => setLang(l)} aria-label={langLabels[l]} className={`focus-ring press rounded-full px-2 py-1 text-[11px] md:px-2.5 md:text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted hover:text-ink"}`}>
+          <span className="md:hidden">{langShort[l]}</span>
+          <span className="hidden md:inline">{langLabels[l]}</span>
         </button>
       ))}
     </div>

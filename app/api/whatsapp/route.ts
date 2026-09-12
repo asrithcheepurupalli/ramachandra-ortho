@@ -183,8 +183,13 @@ export async function POST(req: NextRequest) {
       return new NextResponse("OK", { status: 200 });
     }
 
+    // Inbound text from the three shapes a patient can send: a typed message
+    // (text), a quick-reply button tapped on a template (button — the label
+    // text, e.g. "Cancel appointment" on META_TEMPLATE_CONFIRM_V2), or a reply
+    // button / list item tapped on one of our interactive messages. All three
+    // reach intent detection by their label text below.
     const text: string | undefined =
-      message.text?.body ?? message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title;
+      message.text?.body ?? message.button?.text ?? message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title;
     if (!text) return new NextResponse("OK", { status: 200 });
 
     const waState = state as WaState;
