@@ -1,6 +1,6 @@
-// Covers task #45/#36: the shared limiter backing /api/patients/lookup and
-// /api/book must actually track state across calls (unlike the old
-// in-memory-per-instance Map), and must reset once its window has elapsed.
+// Covers task #45/#36: the shared limiter backing the booking endpoints must
+// actually track state across calls (unlike the old in-memory-per-instance
+// Map), and must reset once its window has elapsed.
 import { describe, it, expect, vi } from "vitest";
 import { makeMockDb, mockDbHolder } from "./mock-db";
 

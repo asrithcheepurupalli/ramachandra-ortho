@@ -23,9 +23,9 @@ const backend: Backend = {
     try { await sendRescheduledEmail(appt); } catch (err) { console.error("whatsapp reschedule: email notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
     return appt;
   },
-  // Claim bookings (payCounter / reviewFree) skip Razorpay, so there's no
-  // webhook to fire the staff notification the way a paid booking gets it —
-  // send it here instead, right after the claim booking is created.
+  // Claim bookings (reviewFree) skip Razorpay, so there's no webhook to fire
+  // the staff notification the way a paid booking gets it — send it here
+  // instead, right after the claim booking is created.
   notifyClaimBooking: async (appt) => {
     try { await sendNewAppointmentEmail(appt); } catch (err) { console.error("whatsapp: claim email notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
   },

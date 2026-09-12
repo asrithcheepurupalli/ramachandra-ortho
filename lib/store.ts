@@ -39,7 +39,7 @@ export type Appt = {
   createdAt: number;
   notes: string | null; // doctor's free-text clinical note, written from the doctor portal only
   patientCode: string | null; // human-readable patient ID (ROC-####), null when not matched
-  claimType: "returning_unverified" | "review_free" | null; // self-declared payment exemption, verified at the counter; null for ordinary bookings
+  claimType: "returning_unverified" | "review_free" | null; // self-declared exemption (free review visit); null for ordinary bookings
   paymentDeadlineAt: number | null; // epoch ms; 15 min window for payment_pending bookings, null for walk-ins / legacy
 };
 
@@ -47,8 +47,8 @@ const KEY = "roc.appts.v1";
 
 // ── mock patient registry (localStorage) ─────────────────────────────────────
 // Mirrors the Supabase `patients` table (deduped by phone, each with a stable
-// human-readable code). Drives the returning-patient fee + phone lookup in mock
-// mode, exactly like dbLookupPatient does against the DB.
+// human-readable code, the ROC-#### codes). A phone only ever has one stable
+// code; it no longer changes the booking fee, everyone pays the same.
 const PKEY = "roc.patients.v1";
 type PatientEntry = { patientCode: string; name: string; createdAt: number };
 type PatientRegistry = Record<string, PatientEntry>; // keyed by phone
@@ -81,26 +81,6 @@ function ensurePatient(reg: PatientRegistry, phone: string, name: string): Patie
   }
   return reg[phone];
 }
-// Mirrors dbLookupPatient: a code-like query matches the code; otherwise it's
-// treated as a phone (any stored shape via phoneMatchVariants). Returns null
-// when nothing matches.
-export function lookupPatientMock(query: string): { name: string; phone: string; patientCode: string; fee: number } | null {
-  const q = query.trim();
-  if (!q) return null;
-  const reg = loadPatients();
-  if (/[a-zA-Z]/.test(q)) {
-    const norm = q.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-    for (const [phone, p] of Object.entries(reg)) {
-      if (p.patientCode.toUpperCase() === norm) return { name: p.name, phone, patientCode: p.patientCode, fee: clinic.returningFee };
-    }
-  }
-  const variants = phoneMatchVariants(q);
-  for (const v of variants) {
-    if (reg[v]) return { name: reg[v].name, phone: v, patientCode: reg[v].patientCode, fee: clinic.returningFee };
-  }
-  return null;
-}
-
 const rid = () => Math.random().toString(36).slice(2, 9);
 
 // ── seed: a realistic OPD day so the dashboard is alive on first load ────────
@@ -228,12 +208,12 @@ export function addWalkIn(input: { name: string; phone: string; age: number; gen
   const today = ymd(new Date());
   const todays = all.filter((a) => a.date === today);
   const token = (todays.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
-  // Returning-fee decision: a phone already in the registry pays the returning
-  // rate (mirrors the server's patients-table check in dbAddBooking).
+  // One flat consultation fee for everyone; an existing registry entry only
+  // keeps its stable patient code (mirrors dbAddBooking).
   const phone = normalizePhone(input.phone);
   const reg = loadPatients();
   const existing = phone ? reg[phone] : undefined;
-  const fee = existing ? clinic.returningFee : clinic.consultationFee;
+  const fee = clinic.consultationFee;
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,
@@ -250,12 +230,11 @@ export function addWalkIn(input: { name: string; phone: string; age: number; gen
 // replacePending: when true, cancel any existing payment_pending row for this
 // phone before inserting (the patient is choosing to start over rather than
 // pay the old hold).
-// claim: a self-declared payment exemption ("returning_unverified" or
-// "review_free") — see dbAddBooking. Skips payment_pending/the deadline
-// entirely and lands straight in "reserved".
+// claim: a self-declared payment exemption ("review_free") — see dbAddBooking.
+// Skips payment_pending/the deadline entirely and lands straight in "reserved".
 export function addBooking(input: {
   name: string; phone: string; age: number; gender?: "M" | "F" | null; date: string; time: string; source?: Source; replacePending?: boolean;
-  claim?: "returning_unverified" | "review_free";
+  claim?: "review_free";
 }): Appt {
   if (isPastLeadTime(input.date, input.time, new Date())) throw new InvalidSlotError();
   const all = read();
@@ -263,8 +242,7 @@ export function addBooking(input: {
   const token = (dayAppts.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
   const phone = normalizePhone(input.phone);
   // Mirror dbAddBooking's pending-hold guard: a phone with an unpaid hold can't
-  // book a second slot (it would hold two slots and wrongly charge the
-  // returning fee against a first visit that was never paid).
+  // book a second slot (one unpaid hold, then the webhook confirms it).
   if (phone && all.some((a) => a.phone === phone && a.status === "payment_pending")) {
     if (!input.replacePending) throw new PendingHoldError();
   }
@@ -279,14 +257,11 @@ export function addBooking(input: {
   }
   const reg = loadPatients();
   const existing = phone ? reg[phone] : undefined;
-  // Mirror dbAddBooking: an explicit claim wins; a matched returning phone is
-  // auto-claimed as returning_unverified so they pay at the counter instead of
-  // online. "review_free" is ₹0 with nothing ever collected.
-  const claim: "returning_unverified" | "review_free" | null =
-    input.claim ?? (existing ? "returning_unverified" : null);
-  let fee: number = claim === "review_free" ? 0 : existing ? clinic.returningFee : clinic.consultationFee;
-  if (claim === "returning_unverified") fee = clinic.returningFee;
-  else if (claim === "review_free") fee = 0;
+  // Mirror dbAddBooking: only "review_free" remains a self-declared exemption
+  // (₹0, nothing ever collected). Everyone pays the flat consultation fee;
+  // an existing registry phone just keeps its patient code.
+  const claim: "review_free" | null = input.claim ?? null;
+  const fee = claim === "review_free" ? 0 : clinic.consultationFee;
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,

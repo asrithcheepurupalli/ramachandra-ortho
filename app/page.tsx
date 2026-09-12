@@ -494,7 +494,7 @@ function FAQ({ t }: { t: T }) {
   const [open, setOpen] = useState<number | null>(null);
   const items = [
     { q: t("faq.q1"), a: t("faq.a1") },
-    { q: t("faq.q2"), a: t("faq.a2", { fee: `${clinic.currency}${clinic.consultationFee}`, ret: `${clinic.currency}${clinic.returningFee}` }) },
+    { q: t("faq.q2"), a: t("faq.a2", { fee: `${clinic.currency}${clinic.consultationFee}` }) },
     { q: t("faq.q3"), a: t("faq.a3") },
     { q: t("faq.q4"), a: t("faq.a4") },
     { q: t("faq.q5"), a: t("faq.a5") },

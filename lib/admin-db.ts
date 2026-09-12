@@ -138,10 +138,9 @@ export async function dbAddWalkIn(input: { name: string; phone: string; age: num
       .maybeSingle();
     if (existingErr) throw existingErr;
     if (existing) {
-      // Returning patient — pays the returning rate and keeps their code.
+      // Known patient — keeps their code; same flat fee as everyone else.
       patientId = existing.id;
       patientCode = existing.patient_code ?? null;
-      fee = clinic.returningFee;
     } else {
       const { data: patient, error: patientErr } = await db
         .from("patients")

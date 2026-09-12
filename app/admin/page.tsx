@@ -397,9 +397,6 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
         <div className="flex items-center gap-2">
           <span className="truncate font-medium">{a.name}</span>
           {a.patientCode && <span className="shrink-0 font-mono text-[11px] text-muted">{a.patientCode}</span>}
-          {a.claimType === "returning_unverified" && (
-            <span title="Self-declared returning patient, not matched against any record" className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Verify at counter</span>
-          )}
           {a.claimType === "review_free" && (
             <span title="Self-declared free review visit, within 10 days of a prior appointment" className="shrink-0 rounded-full bg-in/15 px-2 py-0.5 text-[11px] font-medium text-in">Free review</span>
           )}

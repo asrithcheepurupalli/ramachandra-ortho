@@ -9,7 +9,7 @@ import {
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
-import { addBooking, hydrateSchedule, togglePaid, lookupPatientMock, type Appt } from "@/lib/store";
+import { addBooking, hydrateSchedule, togglePaid, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 import { normalizePhone } from "@/lib/phone";
 
@@ -19,7 +19,7 @@ const waLink = (msg: string) => `https://wa.me/${clinic.contact.whatsapp.replace
 // Progress persistence. sessionStorage keeps an in-progress booking (stage,
 // picked day/time, entered details) alive across refresh and back-navigation
 // within the tab. localStorage holds the last unpaid payment_pending hold so a
-// returning patient can jump straight back to paying and confirming it.
+// patient who leaves can jump straight back to paying and confirming it.
 const SESSION_KEY = "ortho_book_session";
 const RESUME_KEY = "ortho_resume_payment";
 const PAY_WINDOW_MS = 15 * 60 * 1000;
@@ -42,20 +42,15 @@ export function BookForm() {
   const [payErr, setPayErr] = useState("");
   const [pendingHold, setPendingHold] = useState(false);
 
-  // New-vs-returning gate: the flow starts on a "new or returning?" step, then
-  // moves to the slot picker. Returning patients look up their record by ID or
-  // phone so the name locks and the fee reflects the returning rate.
+  // The flow starts on a short entry step: one flat consultation fee for
+  // everyone, a resume card if an earlier booking is waiting to be paid, and a
+  // free-review shortcut for patients back within 10 days. No new/returning
+  // distinction, no patient lookup — every booking is the same ₹400 online.
   const [stage, setStage] = useState<"patient" | "book" | "done">("patient");
-  const [people, setPeople] = useState<"new" | "returning" | null>(null);
-  const [lookupQ, setLookupQ] = useState("");
-  const [lookupBusy, setLookupBusy] = useState(false);
-  const [lookupErr, setLookupErr] = useState("");
-  const [matched, setMatched] = useState<{ name: string; phone: string; patientCode: string; fee: number } | null>(null);
-  // Self-declared payment exemption: no old-patient record exists to check
-  // either claim against, so both are trusted at booking time and verified in
-  // person at the counter (see AGENTS context). Skips payment_pending/Razorpay
-  // entirely — the booking lands straight in "reserved".
-  const [claim, setClaim] = useState<"returning_unverified" | "review_free" | null>(null);
+  // Self-declared payment exemption: "review_free" (a follow-up visit within
+  // the review window) skips payment_pending/Razorpay entirely — the booking
+  // lands straight in "reserved" at ₹0.
+  const [claim, setClaim] = useState<"review_free" | null>(null);
 
   // Last unpaid hold, shown as the resume-payment banner on a returning visit.
   const [resume, setResume] = useState<Appt | null>(null);
@@ -72,10 +67,7 @@ export function BookForm() {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating state from sessionStorage on mount
       if (s.lang) setLang(s.lang);
       if (s.stage === "patient" || s.stage === "book") setStage(s.stage);
-      if (s.people === "new" || s.people === "returning") setPeople(s.people);
-      if (s.claim === "returning_unverified" || s.claim === "review_free") setClaim(s.claim);
-      if (s.matched && typeof s.matched === "object") setMatched(s.matched);
-      if (typeof s.lookupQ === "string") setLookupQ(s.lookupQ);
+      if (s.claim === "review_free") setClaim(s.claim);
       if (s.form && typeof s.form === "object") setForm(s.form);
       if (typeof s.selDate === "string") { setSelDate(s.selDate); didRestoreRef.current = true; }
       if (typeof s.selTime === "string") setSelTime(s.selTime);
@@ -102,14 +94,14 @@ export function BookForm() {
   useEffect(() => {
     if (booked) return;
     try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ lang, stage, people, claim, matched, lookupQ, form, selDate, selTime }));
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ lang, stage, claim, form, selDate, selTime }));
     } catch { /* storage full / private mode — resume degrades to nothing */ }
-  }, [lang, stage, people, claim, matched, lookupQ, form, selDate, selTime, booked]);
+  }, [lang, stage, claim, form, selDate, selTime, booked]);
 
   // A booking landing on the confirmation screen unpaid is a resume candidate:
   // remember it so a patient who abandons the tab can come back and pay. A
-  // paid, claimed (counter-pay/free, no online payment ever applies), or
-  // absent booking drops it (clearResume handles the paid paths).
+  // paid, claimed (free review, no online payment ever applies), or absent
+  // booking drops it (clearResume handles the paid paths).
   useEffect(() => {
     if (booked && stage === "done" && !booked.paid && !booked.claimType) {
       try { localStorage.setItem(RESUME_KEY, JSON.stringify(booked)); } catch {}
@@ -122,44 +114,6 @@ export function BookForm() {
     setBooked(resume);
     setStage("done");
     if (typeof window !== "undefined") window.scrollTo(0, 0);
-  };
-
-  // Returning patient found: prefill the details and lock the name (the record
-  // is the source of truth). Phone is left editable in case a patient now uses
-  // a different number, but the fee is still decided server-side from the phone
-  // that's actually on the booking.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- prefill from matched patient record
-    if (matched) setForm((f) => ({ ...f, name: matched.name, phone: matched.phone }));
-  }, [matched]);
-
-  const lookup = async () => {
-    const q = lookupQ.trim();
-    if (!q) { setLookupErr(t("book.patient.placeholder")); return; }
-    setLookupBusy(true); setLookupErr("");
-    try {
-      let res;
-      if (hasSupabase()) {
-        const r = await fetch("/api/patients/lookup", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: q }),
-        });
-        const data = await r.json();
-        if (!r.ok) { setLookupErr(data.error ?? t("book.patient.err")); return; }
-        res = data;
-      } else {
-        res = { found: !!lookupPatientMock(q), patient: lookupPatientMock(q) ?? undefined };
-      }
-      if (res.found && res.patient) {
-        setMatched(res.patient);
-      } else {
-        setMatched(null);
-        setLookupErr(t("book.patient.nomatch"));
-      }
-    } catch {
-      setLookupErr(t("book.patient.err"));
-    } finally {
-      setLookupBusy(false);
-    }
   };
 
   useEffect(() => {
@@ -339,12 +293,7 @@ export function BookForm() {
             {booked.patientCode && <Row icon={BadgeCheck} v={`${t("book.patient.code")}: ${booked.patientCode}`} />}
           </dl>
           {booked.patientCode && <p className="mt-3 rounded-xl bg-brand-tint px-3 py-2 text-xs text-brand">{t("book.patient.saveid", { code: booked.patientCode })}</p>}
-          {booked.claimType === "returning_unverified" ? (
-            <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
-              <p className="text-sm font-semibold text-out">{t("book.done.counterPay", { cur: clinic.currency, fee: booked.fee })}</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted">{t("book.done.counterPaySub")}</p>
-            </div>
-          ) : !booked.paid ? (
+          {!booked.paid ? (
             <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
               <p className="text-sm font-semibold text-out">{t("book.done.payRequired")}</p>
               <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -377,7 +326,7 @@ export function BookForm() {
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}
             <div className="grid grid-cols-1 gap-2">
-              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setPeople(null); setClaim(null); setMatched(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: 0, gender: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
+              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setClaim(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: 0, gender: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
               <Link href="/" className="press w-full rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
             </div>
           </div>
@@ -386,8 +335,9 @@ export function BookForm() {
     );
   }
 
-  /* ── new-or-returning gate ────────────────────────────────────────────── */
+  /* ── entry ────────────────────────────────────────────────────────────── */
   if (stage === "patient") {
+    const startBooking = () => { setClaim(null); setStage("book"); };
     return (
       <main key="patient" className="stage-in mx-auto w-full max-w-lg px-5 pb-28 pt-6 md:pb-12">
         <div className="flex items-center justify-between gap-3">
@@ -400,7 +350,7 @@ export function BookForm() {
         </div>
 
         <h1 className="mt-6 text-3xl font-semibold tracking-tight">{t("book.title")}</h1>
-        <p className="mt-2 text-[15px] text-muted">{t("book.patient.sub")}</p>
+        <p className="mt-2 text-[15px] text-muted">{t("book.patient.sub", { cur: clinic.currency, fee: clinic.consultationFee })}</p>
 
         {resume && (
           <button onClick={resumePay} className="press mt-5 w-full rounded-3xl border border-accent/40 bg-accent-tint p-5 text-left transition hover:border-accent/60">
@@ -420,66 +370,22 @@ export function BookForm() {
           </button>
         )}
 
-        {people === "returning" ? (
-          <div className="mt-7 rounded-3xl border border-line bg-surface p-5 md:p-6">
-            <h2 className="text-lg font-semibold">{t("book.patient.find")}</h2>
-            <p className="mt-1 text-sm text-muted">{t("book.patient.findsup")}</p>
-            <div className="mt-4 space-y-2">
-              <label htmlFor="lookup-q" className="sr-only">{t("book.patient.placeholder")}</label>
-              <input id="lookup-q" value={lookupQ} onChange={(e) => { setLookupQ(e.target.value); setLookupErr(""); setMatched(null); }} placeholder={t("book.patient.placeholder")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
-              <button onClick={lookup} disabled={lookupBusy} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand py-3.5 text-[15px] font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
-                {lookupBusy ? <><span className="spinner" aria-hidden /> {t("book.patient.looking")}</> : <>{t("book.patient.lookup")} <ChevronRight className="h-4 w-4" /></>}
-              </button>
+        <div className="mt-7 space-y-3">
+          <button onClick={startBooking} className="press w-full rounded-3xl border border-line bg-surface p-5 text-left transition hover:border-brand/40">
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"><User className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold">{t("book.patient.new")}</div>
+                <div className="text-sm text-muted">{t("book.patient.newsub", { cur: clinic.currency, fee: clinic.consultationFee })}</div>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
             </div>
+          </button>
 
-            {matched ? (
-              <div className="mt-4 rounded-2xl bg-brand-tint p-4">
-                <div className="text-sm font-semibold text-brand">{t("book.patient.welcome", { name: matched.name })}</div>
-                <div className="mt-1 text-xs text-brand/80">{t("book.patient.code")}: <b>{matched.patientCode}</b> · {clinic.currency}{clinic.returningFee}</div>
-                <button onClick={() => setStage("book")} className="press mt-4 w-full rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark">{t("cta.bookShort")} <ChevronRight className="ml-1 inline h-4 w-4" /></button>
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-out" role="alert">{lookupErr}</p>
-            )}
-
-            <button onClick={() => { setPeople(null); setMatched(null); setLookupQ(""); setLookupErr(""); }} className="press mt-4 text-sm font-semibold text-brand">{t("book.patient.actuallynew")}</button>
-
-            {/* Self-declared escape hatch: no pre-launch patient data exists to
-                match against, so a returning patient who doesn't find their
-                record can still book, at the counter-pay rate, verified in
-                person — rather than dead-ending on lookupErr. */}
-            {lookupErr && (
-              <button onClick={() => { setClaim("returning_unverified"); setStage("book"); }} className="press mt-3 w-full rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3 text-left text-sm font-semibold text-out transition hover:border-accent/60">
-                {t("book.patient.unverified", { cur: clinic.currency, fee: clinic.returningFee })}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="mt-7 space-y-3">
-            <button onClick={() => { setPeople("new"); setStage("book"); }} className="press w-full rounded-3xl border border-line bg-surface p-5 text-left transition hover:border-brand/40">
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"><User className="h-5 w-5" /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold">{t("book.patient.new")}</div>
-                  <div className="text-sm text-muted">{t("book.patient.newsub", { cur: clinic.currency, fee: clinic.consultationFee })}</div>
-                </div>
-                <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
-              </div>
-            </button>
-            <button onClick={() => setPeople("returning")} className="press w-full rounded-3xl border border-line bg-surface p-5 text-left transition hover:border-brand/40">
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"><BadgeCheck className="h-5 w-5" /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold">{t("book.patient.returning")}</div>
-                  <div className="text-sm text-muted">{t("book.patient.returningsub", { cur: clinic.currency, fee: clinic.returningFee })}</div>
-                </div>
-                <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
-              </div>
-            </button>
-            <p className="pt-1 text-center text-xs text-muted">{t("book.patient.hint", { cur: clinic.currency, fee: clinic.returningFee, reg: clinic.consultationFee })}</p>
-            <button onClick={() => { setClaim("review_free"); setStage("book"); }} className="press w-full text-center text-sm font-semibold text-brand">{t("book.patient.reviewlink")}</button>
-          </div>
-        )}
+          {/* Free-review shortcut: a follow-up visit within 10 days of a prior
+              appointment books straight in at ₹0, no online payment. */}
+          <button onClick={() => { setClaim("review_free"); setStage("book"); }} className="press w-full text-center text-sm font-semibold text-brand">{t("book.patient.reviewlink")}</button>
+        </div>
       </main>
     );
   }
@@ -488,17 +394,13 @@ export function BookForm() {
   return (
     <main key="book" className="stage-in mx-auto w-full max-w-lg px-5 pb-28 pt-6 md:pb-12">
       <div className="flex items-center justify-between gap-3">
-        <button onClick={() => { setStage("patient"); setPeople(null); setClaim(null); setMatched(null); setSelDate(null); setSelTime(null); }} className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{t("book.patient.back")}</span></button>
+        <button onClick={() => { setStage("patient"); setClaim(null); setSelDate(null); setSelTime(null); }} className="press inline-flex min-w-0 items-center gap-1.5 text-sm text-muted hover:text-ink"><ArrowLeft className="h-4 w-4 shrink-0" /> <span className="truncate">{t("book.patient.back")}</span></button>
         <div className="flex shrink-0 items-center rounded-full border border-line bg-surface p-0.5">
           {(Object.keys(langLabels) as Lang[]).map((l) => (
             <button key={l} onClick={() => setLang(l)} className={`press rounded-full px-2.5 py-1 text-xs font-medium transition ${lang === l ? "bg-brand text-white" : "text-muted"}`}>{langLabels[l]}</button>
           ))}
         </div>
       </div>
-
-      {people === "returning" && matched && (
-        <div className="mt-5 rounded-2xl bg-brand-tint px-4 py-3 text-sm text-brand">{t("book.patient.welcome", { name: matched.name })} · {t("book.patient.code")}: <b>{matched.patientCode}</b></div>
-      )}
 
       <h1 className="mt-6 text-3xl font-semibold tracking-tight">{t("book.title")}</h1>
       <p className="mt-2 text-[15px] text-muted">{t("book.sub")}</p>
@@ -563,7 +465,7 @@ export function BookForm() {
           <Label icon={User} n="3">{t("book.details")}</Label>
           <div className="mt-3 space-y-2">
             <label htmlFor="book-name" className="sr-only">{t("book.name")}</label>
-            <input id="book-name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErr(""); }} placeholder={t("book.name")} readOnly={people === "returning" && !!matched} aria-describedby={err ? "book-error" : undefined} aria-invalid={!!err} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface read-only:opacity-70" />
+            <input id="book-name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErr(""); }} placeholder={t("book.name")} aria-describedby={err ? "book-error" : undefined} aria-invalid={!!err} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-phone" className="sr-only">{t("book.phone")}</label>
             <input id="book-phone" value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErr(""); }} placeholder={t("book.phone")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-age" className="sr-only">{t("book.age")}</label>

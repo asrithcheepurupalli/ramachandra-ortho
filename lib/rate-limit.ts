@@ -1,11 +1,10 @@
 // DB-backed rate limiter shared across serverless instances. The prior
-// approach on both /api/patients/lookup and /api/book was an in-memory Map —
-// reset on every cold start and never shared between concurrent instances, so
-// it only ever throttled a single warm instance. That's not a real limit
-// against a distributed or sustained attempt: patient-lookup enumeration (a
-// public, unauthenticated endpoint that returns a real name given a guessed
-// phone number or patient code) only needs requests spread across a couple of
-// instances to sail past it.
+// approach on /api/book (and the old /api/patients/lookup) was an in-memory
+// Map — reset on every cold start and never shared between concurrent
+// instances, so it only ever throttled a single warm instance. That's not a
+// real limit against a distributed or sustained attempt: brute-forcing a
+// booking endpoint only needs requests spread across a couple of instances to
+// sail past it.
 //
 // This trades perfect atomicity for simplicity: two concurrent requests can
 // both read the same counter before either writes, so a burst can land a

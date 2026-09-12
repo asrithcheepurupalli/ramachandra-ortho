@@ -26,8 +26,7 @@ export const clinic = {
   },
   rating: { score: 4.8, count: 123, source: "Google", reviewUrl: "https://g.page/r/Cfu45jtjzYAuEB0/review" },
 
-  consultationFee: 400,   // new patients
-  returningFee: 350,      // returning patients with a patient record on file
+  consultationFee: 400,   // the one flat fee, every booking
   currency: "₹",
 
   contact: {

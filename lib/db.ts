@@ -98,56 +98,6 @@ export async function dbActiveAppointmentsByPhone(phone: string, includePending 
   return (data ?? []).map(rowToAppt);
 }
 
-export type PatientRecord = {
-  name: string;
-  phone: string;
-  patientCode: string;
-  fee: number; // returningFee — a matched patient pays the returning rate
-};
-
-// Public patient lookup for the booking flow's "returning patient" step. The
-// query is either a readable patient code (ROC-0001, case/space/dash-tolerant)
-// or a phone number (any of its stored shapes — see phoneMatchVariants). A code
-// match wins on ambiguity. Returns null when nothing matches.
-export async function dbLookupPatient(query: string): Promise<PatientRecord | null> {
-  const db = supabaseAdmin();
-  const q = query.trim();
-  if (!q) return null;
-
-  if (/[a-zA-Z]/.test(q)) {
-    const { data: byCode } = await db
-      .from("patients")
-      .select("name, phone, patient_code")
-      .ilike("patient_code", q.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())
-      .maybeSingle();
-    if (byCode?.patient_code) {
-      return {
-        name: byCode.name,
-        phone: byCode.phone ?? "",
-        patientCode: byCode.patient_code,
-        fee: clinic.returningFee,
-      };
-    }
-    // Fall through — a "code-looking" query might actually be a phone (no hit
-    // above), so don't bail out. Letters present but unmatched → still try phone.
-  }
-
-  const { data: byPhone } = await db
-    .from("patients")
-    .select("name, phone, patient_code")
-    .in("phone", phoneMatchVariants(q))
-    .maybeSingle();
-  if (byPhone?.patient_code) {
-    return {
-      name: byPhone.name,
-      phone: byPhone.phone ?? "",
-      patientCode: byPhone.patient_code,
-      fee: clinic.returningFee,
-    };
-  }
-  return null;
-}
-
 type DbApptRow = {
   id: string; token: number; name: string; phone: string | null; age: number | null;
   gender: "M" | "F" | null; appt_date: string; appt_time: string; status: string;
@@ -209,14 +159,15 @@ async function ensurePatient(
 // phone before inserting (the patient is choosing to start over rather than
 // pay the old hold).
 //
-// claim: a self-declared payment exemption ("returning_unverified" or
-// "review_free" — see AGENTS context: the clinic has no pre-launch patient
-// data to check these against, so both are trusted at booking time and
-// verified in person at the counter). A claimed booking skips payment_pending
-// and Razorpay entirely and lands straight in "reserved".
+// claim: a self-declared payment exemption ("review_free" — the clinic has no
+// pre-launch patient data to check it against, so it's trusted at booking time
+// and verified in person at the counter). A claimed booking skips
+// payment_pending and Razorpay entirely and lands straight in "reserved".
+// (There is no "returning patient" fee — that tier was removed by request;
+// every booking pays the flat consultation fee online.)
 export async function dbAddBooking(input: {
   name: string; phone: string; age: number; gender?: "M" | "F" | null; date: string; time: string; source?: Source; replacePending?: boolean;
-  claim?: "returning_unverified" | "review_free";
+  claim?: "review_free";
 }): Promise<Appt> {
   const db = supabaseAdmin();
   const name = input.name.trim();
@@ -277,7 +228,7 @@ export async function dbAddBooking(input: {
           .update({
             status: "reserved",
             claim_type: input.claim,
-            fee: input.claim === "review_free" ? 0 : clinic.returningFee,
+            fee: input.claim === "review_free" ? 0 : clinic.consultationFee,
             paid: input.claim === "review_free",
             source: input.source ?? "website",
             name: input.name,
@@ -320,17 +271,16 @@ export async function dbAddBooking(input: {
     }
   }
 
-  // Returning-patient fee: the patients table (deduped by phone) is the source
-  // of truth. Query BEFORE the upsert so we know whether a phone already had a
-  // record — the upsert's ON CONFLICT swallows that distinction. A blank phone
-  // can't be matched, so it's always charged the new-patient rate. A matched
-  // returning phone is also marked counterPay: returning customers pay at the
-  // desk, no online payment (the user asked to remove online payment for them
-  // entirely), which auto-claims the booking to returning_unverified below.
+  // Patient record: the patients table (deduped by phone) is the source of
+  // truth for the ROC code — a returning phone keeps the same patient row, so
+  // their visit history and code stay together. Query BEFORE the upsert so we
+  // know whether a phone already had a record (the upsert's ON CONFLICT
+  // swallows that distinction). A blank phone can't be matched, so it never
+  // gets a code here. (The discounted "returning patient" fee that used to
+  // live here was removed by request — every booking pays the flat rate.)
   let patientId: string | null = null;
   let patientCode: string | null = null;
   let fee: number = clinic.consultationFee;
-  let counterPay = false;
   if (phone) {
     const { data: existing, error: existingErr } = await db
       .from("patients")
@@ -341,8 +291,6 @@ export async function dbAddBooking(input: {
     if (existing) {
       patientId = existing.id;
       patientCode = existing.patient_code ?? null;
-      fee = clinic.returningFee;
-      counterPay = true;
     } else {
       // No patient record yet — defer creation until the booking CONFIRMS.
       // Patients exist for confirmed visits only: an unpaid hold that the
@@ -356,15 +304,12 @@ export async function dbAddBooking(input: {
     }
   }
 
-  // The final claim: an explicit self-declared claim wins (trusted at the
-  // clinic's own rate and verified in person — there's no old-patient record to
-  // check it against); without one, a matched returning phone is auto-claimed
-  // as returning_unverified so they pay at the counter instead of online.
-  // "review_free" is ₹0 with nothing ever collected.
-  const claim: "returning_unverified" | "review_free" | undefined =
-    input.claim ?? (counterPay ? "returning_unverified" : undefined);
-  if (claim === "returning_unverified") fee = clinic.returningFee;
-  else if (claim === "review_free") fee = 0;
+  // The final claim: an explicit "review_free" claim is trusted at booking time
+  // (verified in person — there's no pre-launch record to check it against) and
+  // books at ₹0, skipping payment. Every other booking pays the flat
+  // consultation fee online.
+  const claim = input.claim;
+  if (claim === "review_free") fee = 0;
 
   // A claimed booking is confirmed at insert (status "reserved" below — no
   // Razorpay step, no hold to wait on), so if it's the phone's first-ever
@@ -379,9 +324,9 @@ export async function dbAddBooking(input: {
 
   // Bookings start payment_pending (not reserved): the slot is held + the
   // Razorpay link has a reference_id, but nothing shows in any queue until
-  // the webhook flips it to reserved. A claimed booking (claim set) skips
-  // that entirely — there's no Razorpay step for a counter-pay or free claim,
-  // so it goes straight to "reserved", `paid` true only for the free claim.
+  // the webhook flips it to reserved. A free-review claim skips that entirely
+  // — there's no Razorpay step, so it goes straight to "reserved" with
+  // `paid` true (₹0, nothing ever collected).
   // Slot capacity is unlimited, so there's no race to guard against there
   // anymore — but the per-day token sequence can still collide under
   // concurrent inserts (two patients both computing "next token" before
