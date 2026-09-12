@@ -59,6 +59,7 @@ export function BookForm() {
   // Marks that we restored from sessionStorage, so the day-load effect below
   // leaves a restored selDate alone instead of defaulting it to the first open day.
   const didRestoreRef = useRef(false);
+  const restoredDateRef = useRef<string | null>(null); // date restored from the last session, for validation against the fresh day list
 
   // Restore an in-progress booking from the tab's session storage.
   useEffect(() => {
@@ -71,7 +72,7 @@ export function BookForm() {
       if (s.stage === "patient" || s.stage === "book") setStage(s.stage);
       if (s.claim === "review_free" || s.claim === "returning_unverified") setClaim(s.claim);
       if (s.form && typeof s.form === "object") setForm(s.form);
-      if (typeof s.selDate === "string") { setSelDate(s.selDate); didRestoreRef.current = true; }
+      if (typeof s.selDate === "string") { setSelDate(s.selDate); restoredDateRef.current = s.selDate; didRestoreRef.current = true; }
       if (typeof s.selTime === "string") setSelTime(s.selTime);
     } catch { /* corrupt session — start fresh */ }
   }, []);
@@ -162,14 +163,36 @@ export function BookForm() {
       }
       if (cancelled) return;
       setDays(list);
-      if (!didRestoreRef.current) {
-        setSelDate(list.find((x) => x.slots.length > 0)?.date ?? null);
+      // Default the day picker to TODAY so the time slots are visible the
+      // moment the day step opens, no click needed. If today is a closed day,
+      // or every remaining slot has already passed its lead time, fall back to
+      // the first day with bookable slots. A still-valid date restored from an
+      // earlier session is kept; a stale one (yesterday, a holiday now closed)
+      // is dropped in favour of today's default.
+      const restoredStillValid =
+        didRestoreRef.current && !!restoredDateRef.current &&
+        list.some((x) => x.date === restoredDateRef.current && x.slots.length > 0);
+      if (!restoredStillValid) {
+        const todayKey = ymd(new Date());
+        const openToday = list.find((x) => x.date === todayKey && x.slots.length > 0);
+        setSelDate(openToday ? todayKey : (list.find((x) => x.slots.length > 0)?.date ?? null));
       }
       setDaysLoading(false);
     };
     load();
     return () => { cancelled = true; };
   }, []);
+
+  // Entering the day step after going back to the patient entry resets
+  // selDate to null (the back button clears it), and the load effect above has
+  // already run once — so re-selecting a card would leave the day picker empty
+  // unless we re-default it here to today.
+  useEffect(() => {
+    if (stage !== "book" || selDate || daysLoading || days.length === 0) return;
+    const todayKey = ymd(new Date());
+    const openToday = days.find((x) => x.date === todayKey && x.slots.length > 0);
+    setSelDate(openToday ? todayKey : (days.find((x) => x.slots.length > 0)?.date ?? null));
+  }, [stage, selDate, days, daysLoading]);
 
   const selDay = useMemo(() => days.find((x) => x.date === selDate), [days, selDate]);
   const timeSlots = useMemo(() => {
