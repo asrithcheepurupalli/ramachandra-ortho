@@ -144,7 +144,7 @@
                     },
                     {
                         "type": "TextBody",
-                        "text": "Clinic is open Mon–Sat, closed Sunday. Pick a date to see real open times."
+                        "text": "Clinic is open Mon-Sat, closed Sunday. Pick a date to see real open times."
                     },
                     {
                         "type": "Form",
@@ -254,7 +254,7 @@
                                 "type": "TextArea",
                                 "label": "Anything the doctor should know?",
                                 "name": "notes",
-                                "helper-text": "Optional — e.g. old reports, ongoing medication",
+                                "helper-text": "Optional. e.g. old reports, ongoing medication",
                                 "required": false
                             },
                             {
@@ -406,7 +406,7 @@
                     },
                     {
                         "type": "TextBody",
-                        "text": "This is a request for a token, not a fixed time slot — we'll message you back on WhatsApp with the exact time once the desk confirms it against the day's schedule.\n\nPlease arrive a few minutes before your preferred window. If you miss your turn, it's automatically moved to the next working day, no need to rebook.\n\nPlans changed? Reply Cancel in this chat and we'll release your token.\n\nConsultation fee is payable at the clinic."
+                        "text": "This is a request for a token, not a fixed time slot. We'll message you back on WhatsApp with the exact time once the desk confirms it against the day's schedule.\n\nPlease arrive a few minutes before your preferred window. If you miss your turn, it's automatically moved to the next working day, no need to rebook.\n\nPlans changed? Reply Cancel in this chat and we'll release your token.\n\nConsultation fee is payable at the clinic."
                     },
                     {
                         "type": "OptIn",
