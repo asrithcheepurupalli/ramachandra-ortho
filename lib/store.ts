@@ -234,7 +234,7 @@ export function addWalkIn(input: { name: string; phone: string; age: number; gen
 // Skips payment_pending/the deadline entirely and lands straight in "reserved".
 export function addBooking(input: {
   name: string; phone: string; age: number; gender?: "M" | "F" | null; date: string; time: string; source?: Source; replacePending?: boolean;
-  claim?: "review_free";
+  claim?: "returning_unverified" | "review_free";
 }): Appt {
   if (isPastLeadTime(input.date, input.time, new Date())) throw new InvalidSlotError();
   const all = read();
@@ -257,11 +257,12 @@ export function addBooking(input: {
   }
   const reg = loadPatients();
   const existing = phone ? reg[phone] : undefined;
-  // Mirror dbAddBooking: only "review_free" remains a self-declared exemption
-  // (₹0, nothing ever collected). Everyone pays the flat consultation fee;
-  // an existing registry phone just keeps its patient code.
-  const claim: "review_free" | null = input.claim ?? null;
-  const fee = claim === "review_free" ? 0 : clinic.consultationFee;
+  // Mirror dbAddBooking: "review_free" is a self-declared exemption (₹0,
+  // nothing ever collected); "returning_unverified" keeps a reduced ₹350 fee
+  // but pays at the clinic (paid stays false). An existing registry phone just
+  // keeps its patient code.
+  const claim: "returning_unverified" | "review_free" | null = input.claim ?? null;
+  const fee = claim === "review_free" ? 0 : claim === "returning_unverified" ? clinic.returningFee : clinic.consultationFee;
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,

@@ -26,7 +26,8 @@ export const clinic = {
   },
   rating: { score: 4.8, count: 123, source: "Google", reviewUrl: "https://g.page/r/Cfu45jtjzYAuEB0/review" },
 
-  consultationFee: 400,   // the one flat fee, every booking
+  consultationFee: 400,   // new patients: flat fee, paid online to confirm
+  returningFee: 350,      // returning patients: reduced fee, collected at the clinic counter, never online
   currency: "₹",
 
   contact: {

@@ -11,8 +11,8 @@ import { sendNewAppointmentEmail } from "@/lib/mailer";
 
 type Source = "website" | "whatsapp" | "walkin";
 const isSource = (v: unknown): v is Source => v === "website" || v === "whatsapp" || v === "walkin";
-type Claim = "review_free";
-const isClaim = (v: unknown): v is Claim => v === "review_free";
+type Claim = "returning_unverified" | "review_free";
+const isClaim = (v: unknown): v is Claim => v === "returning_unverified" || v === "review_free";
 const isGender = (v: unknown): v is "M" | "F" => v === "M" || v === "F";
 
 const RATE_LIMIT = 40;

@@ -42,15 +42,17 @@ export function BookForm() {
   const [payErr, setPayErr] = useState("");
   const [pendingHold, setPendingHold] = useState(false);
 
-  // The flow starts on a short entry step: one flat consultation fee for
-  // everyone, a resume card if an earlier booking is waiting to be paid, and a
-  // free-review shortcut for patients back within 10 days. No new/returning
-  // distinction, no patient lookup — every booking is the same ₹400 online.
+  // The flow starts on a short entry step with three choices: a new patient
+  // pays the flat ₹400 consultation fee online; a returning patient books at a
+  // reduced ₹350 but pays at the clinic counter, never online (the desk
+  // verifies and collects it, and the admin queue marks it "Returning
+  // patient"); a free-review visit within 10 days books at ₹0.
   const [stage, setStage] = useState<"patient" | "book" | "done">("patient");
-  // Self-declared payment exemption: "review_free" (a follow-up visit within
-  // the review window) skips payment_pending/Razorpay entirely — the booking
-  // lands straight in "reserved" at ₹0.
-  const [claim, setClaim] = useState<"review_free" | null>(null);
+  // Self-declared payment exemption: claim bookings (returning_unverified,
+  // review_free) skip payment_pending/Razorpay entirely — the booking lands
+  // straight in "reserved". A returning patient pays the reduced fee at the
+  // clinic; a free review pays nothing.
+  const [claim, setClaim] = useState<"returning_unverified" | "review_free" | null>(null);
 
   // Last unpaid hold, shown as the resume-payment banner on a returning visit.
   const [resume, setResume] = useState<Appt | null>(null);
@@ -67,7 +69,7 @@ export function BookForm() {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating state from sessionStorage on mount
       if (s.lang) setLang(s.lang);
       if (s.stage === "patient" || s.stage === "book") setStage(s.stage);
-      if (s.claim === "review_free") setClaim(s.claim);
+      if (s.claim === "review_free" || s.claim === "returning_unverified") setClaim(s.claim);
       if (s.form && typeof s.form === "object") setForm(s.form);
       if (typeof s.selDate === "string") { setSelDate(s.selDate); didRestoreRef.current = true; }
       if (typeof s.selTime === "string") setSelTime(s.selTime);
@@ -293,7 +295,12 @@ export function BookForm() {
             {booked.patientCode && <Row icon={BadgeCheck} v={`${t("book.patient.code")}: ${booked.patientCode}`} />}
           </dl>
           {booked.patientCode && <p className="mt-3 rounded-xl bg-brand-tint px-3 py-2 text-xs text-brand">{t("book.patient.saveid", { code: booked.patientCode })}</p>}
-          {!booked.paid ? (
+          {booked.claimType === "returning_unverified" ? (
+            <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
+              <p className="text-sm font-semibold text-out">{t("book.done.returning", { cur: clinic.currency, fee: booked.fee })}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{t("book.done.returningSub")}</p>
+            </div>
+          ) : !booked.paid ? (
             <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
               <p className="text-sm font-semibold text-out">{t("book.done.payRequired")}</p>
               <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -371,6 +378,7 @@ export function BookForm() {
         )}
 
         <div className="mt-7 space-y-3">
+          {/* New patient: flat consultation fee, paid online to confirm. */}
           <button onClick={startBooking} className="press w-full rounded-3xl border border-line bg-surface p-5 text-left transition hover:border-brand/40">
             <div className="flex items-center gap-3">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"><User className="h-5 w-5" /></span>
@@ -382,9 +390,32 @@ export function BookForm() {
             </div>
           </button>
 
-          {/* Free-review shortcut: a follow-up visit within 10 days of a prior
-              appointment books straight in at ₹0, no online payment. */}
-          <button onClick={() => { setClaim("review_free"); setStage("book"); }} className="press w-full text-center text-sm font-semibold text-brand">{t("book.patient.reviewlink")}</button>
+          {/* Returning patient: reduced fee (₹350), no online payment. The slot
+              confirms under "returning_unverified" (paid:false) and the admin
+              queue marks it to collect ₹{fee} at the clinic counter. */}
+          <button onClick={() => { setClaim("returning_unverified"); setStage("book"); }} className="press w-full rounded-3xl border border-line bg-surface p-5 text-left transition hover:border-brand/40">
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent/15 text-out"><User className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold">{t("book.patient.returning")}</div>
+                <div className="text-sm text-muted">{t("book.patient.returningsub", { cur: clinic.currency, fee: clinic.returningFee })}</div>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+            </div>
+          </button>
+
+          {/* Free-review visit: within 10 days of a prior appointment, books
+              straight in at ₹0 with no online payment. */}
+          <button onClick={() => { setClaim("review_free"); setStage("book"); }} className="press w-full rounded-3xl border border-line bg-surface p-5 text-left transition hover:border-brand/40">
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-in/15 text-in"><BadgeCheck className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold">{t("book.patient.review")}</div>
+                <div className="text-sm text-muted">{t("book.patient.reviewsub", { cur: clinic.currency, fee: clinic.consultationFee })}</div>
+              </div>
+              <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+            </div>
+          </button>
         </div>
       </main>
     );

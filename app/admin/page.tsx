@@ -400,6 +400,9 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
           {a.claimType === "review_free" && (
             <span title="Self-declared free review visit, within 10 days of a prior appointment" className="shrink-0 rounded-full bg-in/15 px-2 py-0.5 text-[11px] font-medium text-in">Free review</span>
           )}
+          {a.claimType === "returning_unverified" && (
+            <span title="Returning patient, fee collected at the clinic counter" className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Returning patient</span>
+          )}
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${statusMeta[a.status].cls}`}>{statusMeta[a.status].label}</span>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted">
@@ -416,6 +419,8 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
           <span title={`Refunded${a.refundId ? " · " + a.refundId : ""}`} className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Refunded</span>
         ) : a.claimType === "review_free" ? (
           <span title="Free review visit, nothing to collect" className="shrink-0 rounded-full bg-muted/10 px-2.5 py-0.5 text-[11px] font-medium text-muted">Free</span>
+        ) : a.claimType === "returning_unverified" ? (
+          <span title={`Collect ${money(a.fee)} at the clinic counter, no online payment`} className="shrink-0 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-700">Collect at clinic</span>
         ) : a.paid && a.paidVia === "razorpay" && a.status === "cancelled" ? (
           <button onClick={recordRefund} title="Record a refund already issued from the Razorpay dashboard" className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100">Mark refunded</button>
         ) : a.paid && a.paidVia === "razorpay" ? (

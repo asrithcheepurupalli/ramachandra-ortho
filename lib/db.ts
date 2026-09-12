@@ -159,15 +159,17 @@ async function ensurePatient(
 // phone before inserting (the patient is choosing to start over rather than
 // pay the old hold).
 //
-// claim: a self-declared payment exemption ("review_free" — the clinic has no
-// pre-launch patient data to check it against, so it's trusted at booking time
-// and verified in person at the counter). A claimed booking skips
-// payment_pending and Razorpay entirely and lands straight in "reserved".
-// (There is no "returning patient" fee — that tier was removed by request;
-// every booking pays the flat consultation fee online.)
+// claim: a self-declared payment exemption. "review_free" (a follow-up visit
+// within the review window) books at ₹0, nothing is collected. "returning_unverified"
+// is a returning patient who pays a reduced ₹350 at the clinic counter, never
+// online — the admin queue flags the row so the desk collects it. In both
+// cases there's no pre-launch patient record to check the
+// self-declaration against, so it's trusted at booking time and verified in
+// person at the desk. A claimed booking skips payment_pending and Razorpay
+// entirely and lands straight in "reserved".
 export async function dbAddBooking(input: {
   name: string; phone: string; age: number; gender?: "M" | "F" | null; date: string; time: string; source?: Source; replacePending?: boolean;
-  claim?: "review_free";
+  claim?: "returning_unverified" | "review_free";
 }): Promise<Appt> {
   const db = supabaseAdmin();
   const name = input.name.trim();
@@ -228,7 +230,7 @@ export async function dbAddBooking(input: {
           .update({
             status: "reserved",
             claim_type: input.claim,
-            fee: input.claim === "review_free" ? 0 : clinic.consultationFee,
+            fee: input.claim === "review_free" ? 0 : clinic.returningFee,
             paid: input.claim === "review_free",
             source: input.source ?? "website",
             name: input.name,
@@ -276,8 +278,8 @@ export async function dbAddBooking(input: {
   // their visit history and code stay together. Query BEFORE the upsert so we
   // know whether a phone already had a record (the upsert's ON CONFLICT
   // swallows that distinction). A blank phone can't be matched, so it never
-  // gets a code here. (The discounted "returning patient" fee that used to
-  // live here was removed by request — every booking pays the flat rate.)
+  // gets a code here. (A returning patient's discounted fee is decided by the
+  // claim below; the online flat rate stays for new patients.)
   let patientId: string | null = null;
   let patientCode: string | null = null;
   let fee: number = clinic.consultationFee;
@@ -304,12 +306,14 @@ export async function dbAddBooking(input: {
     }
   }
 
-  // The final claim: an explicit "review_free" claim is trusted at booking time
-  // (verified in person — there's no pre-launch record to check it against) and
-  // books at ₹0, skipping payment. Every other booking pays the flat
-  // consultation fee online.
+  // The final claim: an explicit claim is trusted at booking time (verified in
+  // person — there's no pre-launch record to check it against). "review_free"
+  // books at ₹0; "returning_unverified" keeps a reduced ₹350 fee but pays at
+  // the clinic (paid stays false, the desk collects it). Every other booking
+  // pays the flat ₹400 online.
   const claim = input.claim;
   if (claim === "review_free") fee = 0;
+  else if (claim === "returning_unverified") fee = clinic.returningFee;
 
   // A claimed booking is confirmed at insert (status "reserved" below — no
   // Razorpay step, no hold to wait on), so if it's the phone's first-ever
@@ -447,6 +451,10 @@ export async function dbGetOrCreatePaymentLink(id: string, phone: string, attemp
   const appt = owned.find((a) => a.id === id);
   if (!appt) throw new Error("not_found");
   if (appt.paid) throw new Error("already_paid");
+  // Claim bookings (returning/Free review) must never be charged online — the
+  // clinic collects them at the counter. Refuse outright so no code path can
+  // mint a Razorpay link for one.
+  if (appt.claimType) throw new Error("claim_no_payment");
 
   const db = supabaseAdmin();
   const { data: row, error } = await db

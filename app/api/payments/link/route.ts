@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
     if (err instanceof Error && err.message === "already_paid") {
       return NextResponse.json({ error: "This appointment is already paid", code: "already_paid" }, { status: 400 });
     }
+    if (err instanceof Error && err.message === "claim_no_payment") {
+      // Returning / Free-review bookings are never charged online.
+      return NextResponse.json({ error: "No online payment needed for this appointment. Pay at the clinic." }, { status: 400 });
+    }
     if (err instanceof Error && err.message === "razorpay_unavailable") {
       // The whole payment provider is down — no link can be minted for anyone.
       await report({ source: "payments/link", message: "Razorpay unavailable — payment links cannot be created", severity: "critical" });

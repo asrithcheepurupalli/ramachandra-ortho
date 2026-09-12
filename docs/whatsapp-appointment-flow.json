@@ -133,6 +133,34 @@
                             "title": "Female"
                         }
                     ]
+                },
+                "patient_options": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string"
+                            },
+                            "title": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "__example__": [
+                        {
+                            "id": "new",
+                            "title": "New patient"
+                        },
+                        {
+                            "id": "returning",
+                            "title": "Returning patient"
+                        },
+                        {
+                            "id": "review",
+                            "title": "Free review visit"
+                        }
+                    ]
                 }
             },
             "layout": {
@@ -150,6 +178,13 @@
                         "type": "Form",
                         "name": "appointment_form",
                         "children": [
+                            {
+                                "type": "Dropdown",
+                                "label": "Patient type",
+                                "name": "patient_type",
+                                "data-source": "${data.patient_options}",
+                                "required": true
+                            },
                             {
                                 "type": "TextInput",
                                 "label": "Age",
@@ -175,7 +210,8 @@
                                     "payload": {
                                         "age": "${form.age}",
                                         "gender": "${form.gender}",
-                                        "date": "${form.date}"
+                                        "date": "${form.date}",
+                                        "patient_type": "${form.patient_type}"
                                     }
                                 }
                             },
@@ -200,7 +236,8 @@
                                         "age": "${form.age}",
                                         "gender": "${form.gender}",
                                         "date": "${form.date}",
-                                        "time": "${form.time}"
+                                        "time": "${form.time}",
+                                        "patient_type": "${form.patient_type}"
                                     }
                                 }
                             }
@@ -228,6 +265,10 @@
                 "gender": {
                     "type": "string",
                     "__example__": "M"
+                },
+                "patient_type": {
+                    "type": "string",
+                    "__example__": "new"
                 }
             },
             "layout": {
@@ -273,7 +314,8 @@
                                         "time": "${data.time}",
                                         "name": "${form.name}",
                                         "phone": "${form.phone}",
-                                        "notes": "${form.notes}"
+                                        "notes": "${form.notes}",
+                                        "patient_type": "${data.patient_type}"
                                     }
                                 }
                             }
@@ -314,6 +356,10 @@
                 "gender": {
                     "type": "string",
                     "__example__": "M"
+                },
+                "patient_type": {
+                    "type": "string",
+                    "__example__": "new"
                 }
             },
             "layout": {
@@ -355,7 +401,8 @@
                                         "time": "${data.time}",
                                         "name": "${data.name}",
                                         "phone": "${data.phone}",
-                                        "notes": "${data.notes}"
+                                        "notes": "${data.notes}",
+                                        "patient_type": "${data.patient_type}"
                                     }
                                 }
                             }
@@ -395,6 +442,10 @@
                 "gender": {
                     "type": "string",
                     "__example__": "M"
+                },
+                "patient_type": {
+                    "type": "string",
+                    "__example__": "new"
                 }
             },
             "layout": {
@@ -406,7 +457,7 @@
                     },
                     {
                         "type": "TextBody",
-                        "text": "This is a request for a token, not a fixed time slot. We'll message you back on WhatsApp with the exact time once the desk confirms it against the day's schedule.\n\nPlease arrive a few minutes before your preferred window. If you miss your turn, it's automatically moved to the next working day, no need to rebook.\n\nPlans changed? Reply Cancel in this chat and we'll release your token.\n\nConsultation fee is payable at the clinic."
+                        "text": "This is a request for a token, not a fixed time slot. We'll message you back on WhatsApp with the exact time once the desk confirms it against the day's schedule.\n\nPlease arrive a few minutes before your preferred window. If you miss your turn, it's automatically moved to the next working day, no need to rebook.\n\nPlans changed? Reply Cancel in this chat and we'll release your token.\n\nConsultation fee: new patients pay ₹400 online after booking, returning patients pay ₹350 at the clinic, and free review visits cost nothing."
                     },
                     {
                         "type": "OptIn",
@@ -430,7 +481,8 @@
                                 "time": "${data.time}",
                                 "name": "${data.name}",
                                 "phone": "${data.phone}",
-                                "notes": "${data.notes}"
+                                "notes": "${data.notes}",
+                                "patient_type": "${data.patient_type}"
                             }
                         }
                     }

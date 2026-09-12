@@ -4,7 +4,7 @@
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
-import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, type Backend, type ServerBotState } from "@/lib/bot";
+import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, flowReturningConfirmMsg, flowFreeConfirmMsg, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail, sendNewAppointmentEmail } from "@/lib/mailer";
 import { SlotTakenError, PendingHoldError } from "@/lib/errors";
@@ -23,7 +23,8 @@ const backend: Backend = {
     try { await sendRescheduledEmail(appt); } catch (err) { console.error("whatsapp reschedule: email notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
     return appt;
   },
-  // Claim bookings (reviewFree) skip Razorpay, so there's no webhook to fire
+  // Claim bookings (returning_unverified / review_free) skip Razorpay, so
+  // there's no webhook to fire
   // the staff notification the way a paid booking gets it — send it here
   // instead, right after the claim booking is created.
   notifyClaimBooking: async (appt) => {
@@ -114,7 +115,16 @@ export async function POST(req: NextRequest) {
     if (message.interactive?.type === "nfm_reply") {
       try {
         const parsed = JSON.parse(message.interactive.nfm_reply.response_json);
-        await dbAddBooking({
+        // The flow's "Patient type" choice decides how the booking confirms:
+        // "new" books as a regular hold that pays online (mandatory pay prompt
+        // below); "returning" and "review" are claim bookings that skip payment
+        // entirely and confirm straight away. The admin queue flags returning
+        // rows so the desk collects the fee at the counter.
+        const flowClaim: "returning_unverified" | "review_free" | undefined =
+          parsed.patient_type === "returning" ? "returning_unverified"
+          : parsed.patient_type === "review" ? "review_free"
+          : undefined;
+        const appt = await dbAddBooking({
           name: parsed.name,
           phone: parsed.phone || from,
           age: typeof parsed.age === "number" ? parsed.age : 0,
@@ -124,14 +134,30 @@ export async function POST(req: NextRequest) {
           date: parsed.date,
           time: parsed.time,
           source: "whatsapp",
+          claim: flowClaim,
         });
-        // No confirmation template until payment lands. The slot is held 15
-        // minutes as payment_pending, so all we send now is the mandatory pay
-        // prompt with a REAL Pay now button (same interactive-reply path the
-        // conversational bot chips use), letting the patient tap rather than
-        // type. The real "appointment confirmed" template (META_TEMPLATE_PAID)
-        // fires from the Razorpay webhook once payment completes.
-        try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); await reportError("whatsapp", err, { severity: "critical", info: { stage: "nfm_reply_pay_prompt", from } }); }
+        if (flowClaim) {
+          // Claim flow submissions land confirmed (reserved) with no Razorpay
+          // step, and no webhook ever fires for them — notify the desk directly
+          // and confirm to the patient in place of the pay prompt. Returning
+          // still carries the "pay at the clinic" note.
+          await backend.notifyClaimBooking(appt);
+          const d = new Date(appt.date + "T00:00:00");
+          const [hh, mm] = appt.time.split(":").map(Number);
+          const ampm = hh >= 12 ? "PM" : "AM";
+          const slotLabel = `${d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} at ${hh % 12 || 12}:${String(mm).padStart(2, "0")} ${ampm}`;
+          try {
+            await sendText(from, flowClaim === "returning_unverified" ? flowReturningConfirmMsg(lang, appt.token, slotLabel, appt.fee) : flowFreeConfirmMsg(lang, appt.token, slotLabel));
+          } catch (err) { console.error("whatsapp flow: claim confirm failed", err); await reportError("whatsapp", err, { severity: "warning", info: { stage: "nfm_reply_claim_confirm", from } }); }
+        } else {
+          // No confirmation template until payment lands. The slot is held 15
+          // minutes as payment_pending, so all we send now is the mandatory pay
+          // prompt with a REAL Pay now button (same interactive-reply path the
+          // conversational bot chips use), letting the patient tap rather than
+          // type. The real "appointment confirmed" template (META_TEMPLATE_PAID)
+          // fires from the Razorpay webhook once payment completes.
+          try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); await reportError("whatsapp", err, { severity: "critical", info: { stage: "nfm_reply_pay_prompt", from } }); }
+        }
       } catch (err) {
         // Held-slot / unpaid-hold conditions are business states, not bugs —
         // patients get their message, the desk hears nothing.
