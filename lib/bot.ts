@@ -144,7 +144,11 @@ type DayChip = { date: string; label: string };
 const MAX_DAY_CHIPS = 7; // a week's worth — plenty of future dates without a giant chip list
 
 function dayLabelForOffset(i: number, d: Date): string {
-  return i === 0 ? "Today" : i === 1 ? "Tomorrow" : weekdayName(d).slice(0, 3);
+  // Weekday chips carry the day-of-month ("Mon 14") so a 7-chip window can
+  // never repeat the same weekday short-name (Sunday closed → Mon..Sat..Mon).
+  // Meta rejects interactive lists whose rows share an id, and the id is the
+  // title text — a bare weekday short-name collides and kills the whole send.
+  return i === 0 ? "Today" : i === 1 ? "Tomorrow" : `${weekdayName(d).slice(0, 3)} ${d.getDate()}`;
 }
 // Recovers the same "Today"/"Tomorrow"/weekday label from a bare date key,
 // for when a date is already known (state.pendingDate) instead of being

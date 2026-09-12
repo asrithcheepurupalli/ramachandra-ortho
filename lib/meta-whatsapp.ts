@@ -107,9 +107,9 @@ export async function sendButtons(phone: string, body: string, options: string[]
       type: "button",
       body: { text: body },
       action: {
-        buttons: options.slice(0, 3).map((title) => ({
+        buttons: options.slice(0, 3).map((title, i) => ({
           type: "reply",
-          reply: { id: title.slice(0, 200), title: title.slice(0, 20) },
+          reply: { id: `b${i}`, title: title.slice(0, 20) },
         })),
       },
     },
@@ -132,7 +132,7 @@ export async function sendList(phone: string, body: string, buttonLabel: string,
       action: {
         button: buttonLabel.slice(0, 20),
         sections: [
-          { rows: options.slice(0, 10).map((title) => ({ id: title.slice(0, 200), title: title.slice(0, 24) })) },
+          { rows: options.slice(0, 10).map((title, i) => ({ id: `r${i}`, title: title.slice(0, 24) })) },
         ],
       },
     },
