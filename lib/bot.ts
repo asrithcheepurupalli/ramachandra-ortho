@@ -10,7 +10,7 @@ import { clinic, type Lang } from "@/clinic.config";
 import { statusAt, fmt, weekdayName, allSlotsFor, windowsFor, ymd, nowIST, BOOKING_LEAD_MIN, type SchedState, type Window } from "@/lib/schedule";
 import { addBooking, togglePaid, activeAppointmentsByPhone, rescheduleBooking, type Source, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
-import { SlotTakenError, PendingHoldError } from "@/lib/errors";
+import { SlotTakenError, PendingHoldError, DuplicateSlotError } from "@/lib/errors";
 
 // Report an issue from the bot engine to the bug desk. The same file ships to
 // the browser (website chat: RCChat) AND the server (WhatsApp webhook), so it
@@ -117,7 +117,7 @@ type Slot = { date: string; time: string; label: string };
 const uid = () => Math.random().toString(36).slice(2, 9);
 export const mkMsg = (from: Sender, text: string): ChatMsg => ({ id: uid(), from, text });
 
-export { SlotTakenError, PendingHoldError } from "@/lib/errors";
+export { SlotTakenError, PendingHoldError, DuplicateSlotError } from "@/lib/errors";
 
 const cur = clinic.currency, fee = clinic.consultationFee, dr = clinic.doctor.name;
 
@@ -247,6 +247,11 @@ type PhrasePack = {
   // number. Refused so the patient finishes the first hold (pay or let it
   // expire) instead of stacking unpaid slots.
   pendingHold: string;
+  // A second booking attempt for a date+time the phone already holds a live
+  // appointment on. Refused so the patient can't stack a duplicate token on
+  // the same slot (the booking was paid or claimed, so the pending-hold guard
+  // above couldn't catch it).
+  duplicateSlot: string;
   // One-shot equivalents of slotTaken/bookFail for the WhatsApp Flow's
   // structured booking submission, which has no chat turn to follow up in —
   // phrased as "message us again" rather than "here are other times".
@@ -316,6 +321,7 @@ const P: Record<Lang, PhrasePack> = {
     slotTaken: "Sorry, someone just booked that slot. Here are the times still open:",
     bookFail: "Something went wrong while booking. Please try again, or call the clinic.",
     pendingHold: "You already have a booking waiting for payment. Please complete that payment now to confirm your slot — an unpaid booking is released automatically after 15 minutes. Or tap *Start fresh* to cancel it and book a new slot.",
+    duplicateSlot: "You already have an appointment at that date and time. To book a different time, cancel or reschedule the existing one first, or call the clinic on " + clinic.contact.phone + ".",
     flowSlotTaken: "Sorry, that slot was just taken. Please message us again to pick another time.",
     flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 15 minutes*. Complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
@@ -370,11 +376,12 @@ const P: Record<Lang, PhrasePack> = {
     slotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. ఇంకా ఖాళీగా ఉన్న సమయాలు ఇవి:",
     bookFail: "బుక్ చేయడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
     pendingHold: "మీకు ఇప్పటికే చెల్లింపు కోసం వేచి ఉన్న బుకింగ్ ఉంది. మీ స్లాట్ నిర్ధారించడానికి దయచేసి ఇప్పుడే ఆ చెల్లింపు పూర్తి చేయండి — చెల్లించని బుకింగ్ 15 నిమిషాల తర్వాత స్వయంచాలకంగా విడుదల అవుతుంది. లేదా *కొత్తగా మొదలుపెట్టండి* నొక్కి రద్దు చేసి కొత్త స్లాట్ బుక్ చేయండి.",
+    duplicateSlot: "ఆ రోజు, ఆ సమయానికి మీకు ఇప్పటికే అపాయింట్‌మెంట్ ఉంది. వేరే సమయం కావాలంటే ముందు ఉన్నది రద్దు చేయండి లేదా మార్చుకోండి. అవసరమైతే క్లినిక్‌కు " + clinic.contact.phone + " కాల్ చేయండి.",
     flowSlotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. దయచేసి మళ్ళీ మెసేజ్ చేసి వేరే సమయం ఎంచుకోండి.",
     flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
-    confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఇది *15 నిమిషాలు* హోల్డ్ చేయబడుతుంది. అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
-        claimFreeConfirm: (tok: number, s: string) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ఈ రివ్యూ విజిట్ ఫ్రీ, ఏమీ చెల్లించాల్సిన అవసరం లేదు.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
-        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · మీరు చేరుకున్నప్పుడు క్లినిక్‌లో ${cur}${feeAmt} చెల్లించాలి. ఆన్‌లైన్ చెల్లింపు లేదు, డెస్క్ అక్కడే వసూలు చేస్తుంది.\nసమయం మిస్ అయితే చింత అవసరం లేదు, అది స్వయంచాలకంగా తర్వాతి పనిదినానికి మారుతుంది.\n${WAIT_NOTE.te}`,
+    confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఇది *15 నిమిషాలు* హోల్డ్ చేయబడుతుంది. అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే పర్వాలేదు, అది దానంతట అదే మరుసటి రోజుకి మారిపోతుంది.\n${WAIT_NOTE.te}`,
+        claimFreeConfirm: (tok: number, s: string) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ఈ రివ్యూ విజిట్ ఫ్రీ, ఏమీ చెల్లించాల్సిన అవసరం లేదు.\nసమయం మిస్ అయితే పర్వాలేదు, అది దానంతట అదే మరుసటి రోజుకి మారిపోతుంది.\n${WAIT_NOTE.te}`,
+        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · మీరు చేరుకున్నప్పుడు క్లినిక్‌లో ${cur}${feeAmt} చెల్లించాలి. ఆన్‌లైన్ చెల్లింపు లేదు, డెస్క్ అక్కడే వసూలు చేస్తుంది.\nసమయం మిస్ అయితే పర్వాలేదు, అది దానంతట అదే మరుసటి రోజుకి మారిపోతుంది.\n${WAIT_NOTE.te}`,
     cancelAsk: `రద్దులను క్లినిక్ నిర్వహిస్తుంది, కాబట్టి నేను ఇక్కడ రద్దు చేయలేను. బదులుగా కొత్త సమయానికి మార్చుకోవాలనుకుంటున్నారా? *రీషెడ్యూల్* నొక్కండి, లేదా రద్దు కోసం క్లినిక్‌కు ${clinic.contact.phone} కాల్ చేయండి.`,
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
@@ -401,7 +408,7 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}* గురించి:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nస్పెషాలిటీలు: ${clinic.doctor.specialties.join(", ")}.\n${clinic.rating.source} రేటింగ్: ${clinic.rating.score}★ (${clinic.rating.count}+ రివ్యూలు).\n\nమీ విజిట్ నచ్చిందా? మాకు రివ్యూ ఇవ్వండి: ${clinic.rating.reviewUrl}`,
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
     thanks: `సంతోషం 🙏 త్వరగా కోలుకోండి! కొద్ది సమయం ఉంటే, ఒక గూగుల్ రివ్యూ ఇతర పేషెంట్లకు సహాయపడుతుంది: ${clinic.rating.reviewUrl}`,
-    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్ చూడండి", resched: "రీషెడ్యూల్", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", payCounter: "తిరిగి వచ్చే రోగి, క్లినిక్‌లో చెల్లించండి", startOver: "కొత్తగా మొదలుపెట్టండి", reviewFree: "ఫ్రీ రివ్యూ విజిట్" },
+    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్‌మెంట్ చూడండి", resched: "షెడ్యూల్ మార్చండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", payCounter: "క్లినిక్‌లో కట్టండి", startOver: "మళ్ళీ మొదలుపెట్టండి", reviewFree: "ఉచిత రీవిజిట్" },
   },
   hi: {
     greet: `नमस्ते 🙏 मैं ${clinic.shortName} का असिस्टेंट हूँ। मैं आपकी कैसे मदद करूँ?`,
@@ -423,14 +430,15 @@ const P: Record<Lang, PhrasePack> = {
     badPhone: "यह सही फ़ोन नंबर नहीं लग रहा। कृपया 10 अंकों का नंबर दर्ज करें।",
     slotTaken: "माफ़ करें, वह स्लॉट अभी किसी और ने बुक कर लिया। ये समय अभी भी खाली हैं:",
     bookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
-    pendingHold: "आपकी एक बुकिंग पहले से भुगतान के लिए लंबित है। अपना स्लॉट पुष्टि करने के लिए कृपया अभी वह भुगतान पूरा करें — अवैतनिक बुकिंग 15 मिनट बाद अपने आप रिलीज़ हो जाती है। या *नया स्लॉट बुक करें* दबाकर पुरानी बुकिंग रद्द करें और नई बुक करें।",
+    pendingHold: "आपकी एक बुकिंग पहले से भुगतान के लिए लंबित है। अपना स्लॉट पुष्टि करने के लिए कृपया अभी वह भुगतान पूरा करें — बकाया बुकिंग 15 मिनट बाद अपने आप रिलीज़ हो जाती है। या *नया स्लॉट बुक करें* दबाकर पुरानी बुकिंग रद्द करें और नई बुक करें।",
+    duplicateSlot: "उस दिन, उसी समय पर आपका एक अपॉइंटमेंट पहले से है। कोई दूसरा समय चाहिए तो पहले वाला रद्द करें या बदलें। ज़रूरत हो तो क्लिनिक को " + clinic.contact.phone + " पर कॉल करें।",
     flowSlotTaken: "माफ़ करें, वह स्लॉट अभी बुक हो गया। कृपया दोबारा मैसेज करके दूसरा समय चुनें।",
     flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *15 मिनट* के लिए होल्ड है। अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
         claimFreeConfirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · यह रिव्यू विजिट फ्री है, कुछ भी भुगतान नहीं करना है।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
         claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · पहुँचने पर क्लिनिक पर ${cur}${feeAmt} देना है। कोई ऑनलाइन भुगतान नहीं, डेस्क वहीं वसूल करेगा।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
     cancelAsk: `रद्दीकरण क्लिनिक संभालता है, इसलिए मैं इसे यहाँ रद्द नहीं कर सकता। क्या आप इसके बजाय इसे किसी नए समय पर ले जाना चाहेंगे? *रीशेड्यूल* दबाएँ, या रद्द करने के लिए क्लिनिक को ${clinic.contact.phone} पर कॉल करें।`,
-    payNone: "अभी आपके पास कोई अवैतनिक अपॉइंटमेंट नहीं है।",
+    payNone: "अभी आपके पास कोई बकाया अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
     payNotFound: "यह आपके किसी बकाया भुगतान वाले अपॉइंटमेंट से मेल नहीं खाया। कृपया ऊपर दिया विकल्प दबाएँ, या सही टोकन नंबर या नाम रिप्लाई करें।",
     payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह 15 मिनट के लिए मान्य है। स्लॉट रिलीज़ होने से पहले भुगतान पूरा करें।`,
@@ -843,6 +851,13 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         // so the Pay now chip resolves it without re-asking.
         return { reply: [t.pendingHold], chips: [c.payNow, c.startOver, c.view, c.book], state: { stage: "idle", viewPhone: input.trim() } };
       }
+      if (res.status === 409 && body?.code === "duplicate_slot") {
+        // The phone already holds a live booking at this exact date+time—
+        // the second tap stacks a duplicate token. Tell them it's already
+        // theirs and offer reschedule + a different slot; view keeps them
+        // inside the flow so reschedule/cancel resolve without re-asking.
+        return { reply: [t.duplicateSlot], chips: [c.view, c.resched, c.book], state: { stage: "idle", viewPhone: input.trim() } };
+      }
       if (res.status === 409) {
         const fresh = await timesForDate(state.slot.date);
         const win = windowsFor(new Date(state.slot.date + "T00:00:00")).find((w) => inWindow(state.slot!.time, w));
@@ -1250,6 +1265,9 @@ export function flowBookFailMsg(lang: Lang): string { return P[lang].flowBookFai
 // A WhatsApp Flow booking was refused because a payment_pending hold is already
 // on the number — the patient should finish that payment, not book a second slot.
 export function flowPendingHoldMsg(lang: Lang): string { return P[lang].pendingHold; }
+// A WhatsApp Flow booking was refused because the phone already holds a live
+// appointment at that exact date+time — a duplicate token on the same slot.
+export function flowDuplicateSlotMsg(lang: Lang): string { return P[lang].duplicateSlot; }
 // The mandatory pay prompt sent right after a WhatsApp Flow booking
 // confirmation — the slot is held 15 minutes while payment is pending.
 export function flowPayPrompt(lang: Lang): string { return P[lang].payPrompt; }
@@ -1362,6 +1380,12 @@ export async function botReplyServer(
         // the hold they already have. Pay now routes into the shared pay intent
         // (which uses the sender's number, the default booking number).
         return { reply: [t.pendingHold], chips: [c.payNow, c.startOver, c.view, c.book], state: { stage: "idle" } };
+      }
+      if (err instanceof DuplicateSlotError) {
+        // The number already holds a live booking at this exact slot — a
+        // duplicate tap, not a fresh slot. Point them at managing that booking
+        // (reschedule/cancel) or picking a different time.
+        return { reply: [t.duplicateSlot], chips: [c.view, c.resched, c.book], state: { stage: "idle" } };
       }
       if (err instanceof SlotTakenError) {
         const fresh = await timesForDateServer(state.slot.date, backend, sched);

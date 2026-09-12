@@ -4,10 +4,10 @@
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
-import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, flowReturningConfirmMsg, flowFreeConfirmMsg, type Backend, type ServerBotState } from "@/lib/bot";
+import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowDuplicateSlotMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, flowReturningConfirmMsg, flowFreeConfirmMsg, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail, sendNewAppointmentEmail } from "@/lib/mailer";
-import { SlotTakenError, PendingHoldError } from "@/lib/errors";
+import { SlotTakenError, PendingHoldError, DuplicateSlotError } from "@/lib/errors";
 import { report, reportError } from "@/lib/bugdesk";
 
 const backend: Backend = {
@@ -159,11 +159,12 @@ export async function POST(req: NextRequest) {
           try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); await reportError("whatsapp", err, { severity: "critical", info: { stage: "nfm_reply_pay_prompt", from } }); }
         }
       } catch (err) {
-        // Held-slot / unpaid-hold conditions are business states, not bugs —
-        // patients get their message, the desk hears nothing.
-        if (err instanceof PendingHoldError || err instanceof SlotTakenError) {
+        // Held-slot / unpaid-hold / duplicate-slot conditions are business
+        // states, not bugs — patients get their message, the desk hears nothing.
+        if (err instanceof PendingHoldError || err instanceof SlotTakenError || err instanceof DuplicateSlotError) {
           try {
             if (err instanceof PendingHoldError) await sendButtons(from, flowPendingHoldMsg(lang), [flowPayNowLabel(lang), flowStartOverLabel(lang)]);
+            else if (err instanceof DuplicateSlotError) await sendText(from, flowDuplicateSlotMsg(lang));
             else await sendText(from, flowSlotTakenMsg(lang));
           } catch (err2) { console.error("whatsapp flow: error reply failed", err2); await reportError("whatsapp", err2, { severity: "warning", info: { stage: "nfm_reply_business", from } }); }
           // Anything else genuinely failed the booking — surface it.
@@ -265,7 +266,7 @@ export async function POST(req: NextRequest) {
     console.error("/api/whatsapp", err);
     // Business errors surface to the patient inside the handler — only reach
     // the desk when the webhook itself genuinely failed.
-    if (!(err instanceof SlotTakenError) && !(err instanceof PendingHoldError)) {
+    if (!(err instanceof SlotTakenError) && !(err instanceof PendingHoldError) && !(err instanceof DuplicateSlotError)) {
       await reportError("whatsapp", err, { severity: "critical" });
     }
     return new NextResponse("OK", { status: 200 });

@@ -12,7 +12,7 @@ import {
 } from "@/lib/schedule";
 import type { Appt, ApptStatus, Source } from "@/lib/store";
 import type { ServerBotState } from "@/lib/bot";
-import { SlotTakenError, InvalidSlotError, PendingHoldError } from "@/lib/errors";
+import { SlotTakenError, InvalidSlotError, PendingHoldError, DuplicateSlotError } from "@/lib/errors";
 import { createPaymentLink } from "@/lib/razorpay";
 import { normalizePhone, phoneMatchVariants } from "@/lib/phone";
 import { report } from "@/lib/bugdesk";
@@ -273,6 +273,27 @@ export async function dbAddBooking(input: {
     }
   }
 
+  // Same phone + same date + same time, with a live row already there, is a
+  // duplicate: the patient is stacking a second queue token on a slot they
+  // already hold. The pending-hold guard above can't catch this — once the
+  // first booking is paid (status reserved) the phone has no payment_pending
+  // row, and claim bookings skip the hold state entirely. payment_pending is
+  // included here so an in-flight payment still counts as a live booking;
+  // cancelled/done rows are dead and don't block. Runs after the hold block
+  // so a claim converting its own hold in place (returns early above) and a
+  // replacePending cancel are never mistaken for a duplicate.
+  if (phone) {
+    const { data: dup } = await db
+      .from("appointments")
+      .select("id")
+      .in("phone", phoneMatchVariants(phone))
+      .eq("appt_date", input.date)
+      .eq("appt_time", input.time)
+      .in("status", ["reserved", "confirmed", "waiting", "consulting", "payment_pending"])
+      .maybeSingle();
+    if (dup) throw new DuplicateSlotError();
+  }
+
   // Patient record: the patients table (deduped by phone) is the source of
   // truth for the ROC code — a returning phone keeps the same patient row, so
   // their visit history and code stay together. Query BEFORE the upsert so we
@@ -373,6 +394,10 @@ export async function dbAddBooking(input: {
     // phone past it; appointments_pending_hold_idx is the real guard, and a
     // violation here means we lost that race — same error the pre-check throws.
     if (error.message.includes("appointments_pending_hold_idx")) throw new PendingHoldError();
+    // The same-phone/same-date/same-time partial unique index can also fire
+    // under a double-tap race (two concurrent bookings passed the SELECT
+    // guard above, then both INSERTed); same error the pre-check throws.
+    if (error.message.includes("appointments_slot_guard")) throw new DuplicateSlotError();
     // otherwise a token collision under concurrent inserts: retry with a fresh token
   }
   throw new SlotTakenError();

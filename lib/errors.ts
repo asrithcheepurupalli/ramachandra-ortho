@@ -40,3 +40,18 @@ export class InvalidSlotError extends SlotTakenError {
     this.name = "InvalidSlotError";
   }
 }
+
+// Thrown by dbAddBooking (and the mock addBooking) when the phone already has
+// a live appointment at that exact date+time — the patient is stacking a
+// second queue token on a slot they already hold. Different cause than
+// PendingHoldError (that's about a waiting payment on the same phone; this is
+// about the same slot), and different than SlotTakenError (that's about
+// somebody ELSE taking the slot; this is the caller duplicating their own).
+// Standalone so each surface can phrase it as "you already have this slot",
+// not "pick another time" (SlotTakenError's message) or "finish your payment".
+export class DuplicateSlotError extends Error {
+  constructor() {
+    super("duplicate_slot");
+    this.name = "DuplicateSlotError";
+  }
+}

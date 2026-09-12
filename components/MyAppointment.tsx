@@ -23,7 +23,15 @@ type DayOpt = { date: string; d: Date; slots: string[]; closingSoon?: boolean };
 
 function MyAppointmentInner() {
   const params = useSearchParams();
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useState<Lang>(() => {
+    // Honor the shared cross-page language (homepage /book write ortho_lang)
+    // instead of resetting to English on every visit.
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("ortho_lang");
+      if (saved === "en" || saved === "te" || saved === "hi") return saved;
+    }
+    return "en";
+  });
   const t: Tr = (k, v) => tr(lang, k, v);
 
   // Templates sometimes bake literal example digits into the dynamic URL

@@ -2,7 +2,7 @@
 // happen, so every booking source (website today) goes through it.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbLoadSchedule } from "@/lib/db";
-import { SlotTakenError, PendingHoldError } from "@/lib/errors";
+import { SlotTakenError, PendingHoldError, DuplicateSlotError } from "@/lib/errors";
 import { allSlotsFor, ymd, nowIST } from "@/lib/schedule";
 import { normalizePhone } from "@/lib/phone";
 import { isRateLimited } from "@/lib/rate-limit";
@@ -77,6 +77,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         error: "You already have a booking waiting for payment. Please complete that payment first to confirm your slot (an unpaid booking is released automatically after 15 minutes).",
         code: "pending_hold",
+      }, { status: 409 });
+    }
+    if (err instanceof DuplicateSlotError) {
+      return NextResponse.json({
+        error: "You already have an appointment at that date and time. To book a different slot, cancel the existing one first.",
+        code: "duplicate_slot",
       }, { status: 409 });
     }
     if (err instanceof SlotTakenError) {

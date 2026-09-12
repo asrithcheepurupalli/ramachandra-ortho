@@ -521,7 +521,7 @@ function Broadcast({ appts }: { appts: Appt[] }) {
 
   const presets: { key: string; label: string; scope: "today" | "next"; kind: "notice" | "reminder"; make: () => string }[] = [
     { key: "late", label: "Running late", scope: "today", kind: "notice", make: () => `Dr. Ramachandra is running about ${mins} minutes late today. Sorry for the wait.` },
-    { key: "remind", label: "Reminder for the next session", scope: "next", kind: "reminder", make: () => `Reminder: you have an appointment at Ramachandra Ortho Care on ${dateLabel(next)}. Kindly be on time. To reschedule or cancel, just reply on this chat.` },
+    { key: "remind", label: "Reminder for the next session", scope: "next", kind: "reminder", make: () => `Reminder: you have an appointment at Ramachandra Ortho Care coming up. Kindly be on time. To reschedule or cancel, just reply on this chat.` },
     { key: "closed", label: "Clinic closed today", scope: "today", kind: "notice", make: () => "The clinic is closed today. We are sorry for the inconvenience and will help you rebook." },
   ];
   const applyPreset = (p: { scope: "today" | "next"; kind: "notice" | "reminder"; make: () => string }) => {
@@ -906,7 +906,7 @@ function Patients({ appts }: { appts: Appt[] }) {
                   <span className="rounded-full bg-brand-tint px-2.5 py-1 text-xs font-medium text-brand">{p.visits} visit{p.visits > 1 ? "s" : ""}</span>
                 </td>
                 <td className="px-6 py-3 text-ink">{dateLabel(p.last.date)}</td>
-                <td className="px-6 py-3 text-right">{p.phone && <InviteButton phone={p.phone} />}</td>
+                <td className="px-6 py-3 text-right">{p.phone && <InviteButton phone={p.phone} appt={p.last} />}</td>
               </tr>
             ))}
           </tbody>
@@ -919,8 +919,10 @@ function Patients({ appts }: { appts: Appt[] }) {
 }
 
 // Manual nudge onto WhatsApp for a patient who's only ever booked via the
-// website or as a walk-in — sends clinic_welcome_booking_link once per click.
-function InviteButton({ phone }: { phone: string }) {
+// website or as a walk-in. If their last appointment has a date + time, the
+// nudge carries that appointment info (structured reminder template with a
+// View button); otherwise it sends the generic clinic_welcome_booking_link.
+function InviteButton({ phone, appt }: { phone: string; appt: Appt }) {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const invite = async () => {
     setState("sending");
@@ -929,7 +931,7 @@ function InviteButton({ phone }: { phone: string }) {
         const res = await fetch("/api/admin/whatsapp-invite", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone }),
+          body: JSON.stringify({ phone, name: appt.name, date: appt.date, time: appt.time }),
         });
         if (!res.ok) throw new Error();
       }

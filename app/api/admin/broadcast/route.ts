@@ -44,8 +44,13 @@ export async function POST(req: NextRequest) {
 
   // Structured reminder mode is only real once the reminder template exists;
   // until then the desk still gets a working send via the notice template
-  // (message carries the fallback text the preset filled in).
-  const structured = body?.mode === "reminder" && !!process.env.META_TEMPLATE_REMINDER;
+  // (message carries the fallback text the preset filled in). The admin UI sends
+  // the rule as `kind` (see app/admin/page.tsx preset); `mode` is accepted for
+  // any older caller. The mismatch (client `kind` vs. route `mode`) meant the
+  // structured path never activated — reminder broadcasts silently degraded to
+  // generic notice text with no per-patient date/time.
+  const kind = body?.kind === "reminder" ? "reminder" : body?.mode === "reminder" ? "reminder" : undefined;
+  const structured = kind === "reminder" && !!process.env.META_TEMPLATE_REMINDER;
 
   try {
     const day = await dbApptsForDate(date);

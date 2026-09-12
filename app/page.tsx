@@ -34,9 +34,22 @@ const dayIdx = (name: string) => (name === "Sunday" ? 0 : DAYS.indexOf(name) + 1
 type T = (k: string, v?: Record<string, string | number>) => string;
 
 export default function Home() {
-  const [lang, setLang] = useState<Lang>("en");
+  // Language choice is shared across the visited pages (this homepage + /book
+  // + /my-appointment) via sessionStorage["ortho_lang"], so Telugu chosen here
+  // is still Telugu when the patient taps BOOK instead of silently resetting.
+  const [lang, setLang] = useState<Lang>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("ortho_lang");
+      if (saved === "en" || saved === "te" || saved === "hi") return saved;
+    }
+    return "en";
+  });
   const [status, setStatus] = useState<Status | null>(null);
   const t: T = (k, v) => tr(lang, k, v);
+
+  useEffect(() => {
+    try { sessionStorage.setItem("ortho_lang", lang); } catch { /* private mode — choice stays in-memory */ }
+  }, [lang]);
 
   useEffect(() => {
     let cancelled = false;

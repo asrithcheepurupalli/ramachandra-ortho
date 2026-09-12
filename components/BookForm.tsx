@@ -11,6 +11,7 @@ import { tr, langLabels } from "@/lib/i18n";
 import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
 import { addBooking, hydrateSchedule, togglePaid, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
+import { DuplicateSlotError } from "@/lib/errors";
 import { normalizePhone } from "@/lib/phone";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -27,7 +28,16 @@ const PAY_WINDOW_MS = 15 * 60 * 1000;
 type DayOpt = { date: string; d: Date; slots: string[]; closingSoon?: boolean };
 
 export function BookForm() {
-  const [lang, setLang] = useState<Lang>("en");
+  // Cross-page language: the homepage writes sessionStorage["ortho_lang"], so
+  // a patient who picked Telugu there lands here in Telugu instead of English.
+  // The in-progress session below can still override it (tab-local rule wins).
+  const [lang, setLang] = useState<Lang>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("ortho_lang");
+      if (saved === "en" || saved === "te" || saved === "hi") return saved;
+    }
+    return "en";
+  });
   const t = (k: string, v?: Record<string, string | number>) => tr(lang, k, v);
 
   const [days, setDays] = useState<DayOpt[]>([]);
@@ -41,6 +51,7 @@ export function BookForm() {
   const [payBusy, setPayBusy] = useState(false);
   const [payErr, setPayErr] = useState("");
   const [pendingHold, setPendingHold] = useState(false);
+  const [duplicateSlot, setDuplicateSlot] = useState(false);
 
   // The flow starts on a short entry step with three choices: a new patient
   // pays the flat ₹400 consultation fee online; a returning patient books at a
@@ -98,6 +109,9 @@ export function BookForm() {
     if (booked) return;
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ lang, stage, claim, form, selDate, selTime }));
+      // Mirror the choice into the shared cross-page key so /my-appointment and
+      // a homepage return keep speaking the patient's language.
+      sessionStorage.setItem("ortho_lang", lang);
     } catch { /* storage full / private mode — resume degrades to nothing */ }
   }, [lang, stage, claim, form, selDate, selTime, booked]);
 
@@ -214,6 +228,7 @@ export function BookForm() {
     if (!selDate || !selTime || submitting) return;
 
     setPendingHold(false);
+    setDuplicateSlot(false);
     if (hasSupabase()) {
       setSubmitting(true);
       try {
@@ -231,6 +246,13 @@ export function BookForm() {
             setSubmitting(false);
             return;
           }
+          // Duplicate: same phone already holds this slot — a friendly
+          // "you already have one" instead of a generic error.
+          if (res.status === 409 && data?.code === "duplicate_slot") {
+            setDuplicateSlot(true);
+            setSubmitting(false);
+            return;
+          }
           setErr(data.error ?? "Could not book. Please try again.");
           return;
         }
@@ -244,7 +266,10 @@ export function BookForm() {
     } else {
       try {
         setBooked(addBooking({ ...form, gender: form.gender || null, date: selDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }));
-      } catch {
+      } catch (err) {
+        // MOCK_MODE mirrors the API: a same-slot duplicate surfaces the same
+        // inline banner the live path shows.
+        if (err instanceof DuplicateSlotError) { setDuplicateSlot(true); return; }
         setErr("Could not book. Please try again.");
         return;
       }
@@ -499,7 +524,7 @@ export function BookForm() {
                 <button
                   key={time}
                   aria-pressed={selTime === time}
-                  onClick={() => setSelTime(time)}
+                  onClick={() => { setSelTime(time); setDuplicateSlot(false); }}
                   className={`press rounded-xl border py-2.5 text-sm font-medium transition ${
                     selTime === time
                       ? "pop border-brand bg-brand text-white"
@@ -552,6 +577,25 @@ export function BookForm() {
                 </a>
                 <button onClick={() => confirm(true)} disabled={submitting} className="press flex w-full items-center justify-center gap-2 rounded-full border border-line px-3 py-3 text-sm font-semibold text-ink transition hover:bg-line/40 disabled:opacity-60">
                   {t("book.pendingHold.startOver")}
+                </button>
+              </div>
+            </div>
+          )}
+          {duplicateSlot && selDate && selTime && (
+            <div className="mt-3 rounded-xl border border-accent/40 bg-accent-tint p-4">
+              <p className="text-sm font-semibold text-out">{t("book.duplicate.title")}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">
+                {t("book.duplicate.detail", {
+                  date: new Date(selDate + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }),
+                  time: fmt(selTime),
+                })}
+              </p>
+              <div className="mt-3 flex flex-col gap-2">
+                <a href={`/my-appointment?phone=${encodeURIComponent(form.phone.trim())}`} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark">
+                  <CalendarDays className="h-4 w-4 shrink-0" /> {t("book.duplicate.view")}
+                </a>
+                <button onClick={() => setDuplicateSlot(false)} className="press flex w-full items-center justify-center gap-2 rounded-full border border-line px-3 py-3 text-sm font-semibold text-ink transition hover:bg-line/40">
+                  {t("book.pickslot")}
                 </button>
               </div>
             </div>

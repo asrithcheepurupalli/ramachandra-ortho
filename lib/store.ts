@@ -10,7 +10,7 @@ import {
   isPastLeadTime,
   type WeeklyHours, type Exception, type Override,
 } from "@/lib/schedule";
-import { SlotTakenError, InvalidSlotError, PendingHoldError } from "@/lib/errors";
+import { SlotTakenError, InvalidSlotError, PendingHoldError, DuplicateSlotError } from "@/lib/errors";
 import { normalizePhone, phoneMatchVariants } from "@/lib/phone";
 
 export type ApptStatus =
@@ -254,6 +254,15 @@ export function addBooking(input: {
         ? { ...a, status: "cancelled" as Appt["status"] }
         : a
     );
+  }
+  // Mirror dbAddBooking's same-slot duplicate guard: the phone already has a
+  // live row at this exact date+time, so another token would just stack on the
+  // same slot. Checked against nextAll (post replacePending) so a cancel above
+  // isn't mistaken for a live duplicate; cancelled/done rows don't block.
+  const DUP_STATUSES = ["reserved", "confirmed", "waiting", "consulting", "payment_pending"] as ApptStatus[];
+  if (phone && nextAll.some((a) => phoneMatchVariants(phone).includes(a.phone)
+    && a.date === input.date && a.time === input.time && DUP_STATUSES.includes(a.status))) {
+    throw new DuplicateSlotError();
   }
   const reg = loadPatients();
   const existing = phone ? reg[phone] : undefined;

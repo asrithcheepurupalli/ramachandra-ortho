@@ -73,6 +73,7 @@ describe("dbAddBooking concurrency-sensitive error handling", () => {
       scheduleRow, // dbLoadSchedule
       { data: null, error: null }, // expireStalePendingHolds
       { data: [], error: null }, // application-level pending check — passes (race window)
+      { data: null, error: null }, // duplicate-slot scan — no live same-slot row
       existingPatient, // patients existing lookup
       { data: [], error: null }, // dayAppts token scan
       {
@@ -91,6 +92,7 @@ describe("dbAddBooking concurrency-sensitive error handling", () => {
       scheduleRow, // dbLoadSchedule
       { data: null, error: null }, // expireStalePendingHolds
       { data: [], error: null }, // application-level pending check — passes
+      { data: null, error: null }, // duplicate-slot scan — no live same-slot row
       existingPatient, // patients existing lookup
       { data: [{ token: 1 }], error: null }, // attempt 1: token scan
       { data: null, error: { code: "23505", message: 'duplicate key value violates unique constraint "appointments_token_key"' } }, // attempt 1: collides
