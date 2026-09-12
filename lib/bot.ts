@@ -72,6 +72,9 @@ export type BotState = {
     // WhatsApp only: a brand-new phone number lands here before any greeting,
     // same gate the website's language switcher gives a visitor up front.
     | "await_lang"
+    // Fresh booking, first question: new patient / returning / free review.
+    // Set by the book intent; resolved into state.claim before the day picker.
+    | "await_patient_type"
     | "await_name"
     | "await_phone"
     | "await_pay_pick"
@@ -97,11 +100,15 @@ export type BotState = {
   otpPhone?: string; // website chat: phone awaiting the 6-digit WhatsApp code
   viewPhone?: string; // website chat: phone whose appointments were just listed
   replacePending?: boolean; // carry "start fresh" intent through the booking flow
+  // Patient type chosen up front (new = unset). Carried through the slot picker
+  // and into addBooking, so returning/free-review claims land straight in
+  // reserved with no online payment, mirroring the website form + WhatsApp Flow.
+  claim?: "returning_unverified" | "review_free";
 };
 // Stages the "cancel" escape hatch checks against, shared by the client and
 // server bot so a future stage addition can't silently drift between them.
 const MID_FLOW_STAGES: BotState["stage"][] = [
-  "await_name", "await_phone", "await_pay_pick", "await_pay_phone",
+  "await_patient_type", "await_name", "await_phone", "await_pay_pick", "await_pay_phone",
   "await_view_phone", "await_resched_phone", "await_resched_pick", "await_otp",
 ];
 // A candidate appointment shown when a cancel request is ambiguous (more
@@ -244,6 +251,11 @@ type PhrasePack = {
   askName: string;
   askPhone: string;
   askContactConfirm: (phone: string) => string;
+  // First question of a fresh booking: which kind of patient — new (pay
+  // online), returning (pay at the counter), or a free review visit (₹0).
+  // The three chips below answer it; the fee split is what makes the choice
+  // meaningful before a slot is picked.
+  patientTypePrompt: string;
   badPhone: string;
   slotTaken: string;
   bookFail: string;
@@ -291,7 +303,7 @@ type PhrasePack = {
   about: string;
   fallback: string;
   thanks: string;
-  chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string; payCounter: string; startOver: string; reviewFree: string };
+  chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string; startOver: string; patientNew: string; patientReturning: string; patientReview: string };
 };
 
 // Appointment times are estimates, stated once at booking-complete: a patient's
@@ -311,6 +323,7 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} is *not in today*. The next available is *${d} at ${t}*. Tap *Book appointment* to reserve.`,
     availNone: `${dr} has no slots in the coming days. Please call the clinic on ${clinic.contact.phone}.`,
     bookIntro: "Sure! Here are the open slots. Tap the one you want:",
+    patientTypePrompt: `First visit, a return visit, or a free review visit (within 10 days)?\n• *New patient*: ${cur}${fee} online to confirm\n• *Returning patient*: ${cur}${clinic.returningFee} at the clinic counter\n• *Free review visit*: no charge\nTap one below:`,
     pickDay: "Sure! Here are the days with open slots. Tap one:",
     pickWindow: (day: string) => `Sure! For ${day}, would you prefer morning or evening?`,
     pickRange: (day: string) => `That's a lot of open times for ${day}. Pick a range:`,
@@ -357,7 +370,7 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}*\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nSpecialties: ${clinic.doctor.specialties.join(", ")}.\nRated ${clinic.rating.score}★ from ${clinic.rating.count}+ ${clinic.rating.source} reviews.\n\nEnjoyed your visit? Leave us a review: ${clinic.rating.reviewUrl}`,
     fallback: "I can tell you if the doctor is in, tell you about the doctor, book you an appointment, or share timings and location. What would you like?",
     thanks: `You're welcome 🙏 Get well soon! If you have a moment, a quick Google review helps other patients find us: ${clinic.rating.reviewUrl}`,
-    chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now", payCounter: "Returning patient, pay at clinic", startOver: "Start fresh", reviewFree: "Free review visit" },
+    chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now", startOver: "Start fresh", patientNew: "New patient", patientReturning: "Returning patient", patientReview: "Free review visit" },
   },
   te: {
     greet: `నమస్కారం 🙏 నేను ${clinic.shortName} అసిస్టెంట్‌ని. మీకు ఎలా సహాయపడగలను?`,
@@ -366,6 +379,7 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} ఈరోజు *అందుబాటులో లేరు*. తర్వాత అందుబాటు: *${d}, ${t}*. బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి.`,
     availNone: `రాబోయే రోజుల్లో స్లాట్‌లు లేవు. దయచేసి క్లినిక్‌కు కాల్ చేయండి: ${clinic.contact.phone}.`,
     bookIntro: "తప్పకుండా! ఖాళీగా ఉన్న స్లాట్‌లు ఇవి. మీకు కావలసినది నొక్కండి:",
+    patientTypePrompt: `మొదటిసారి వస్తున్నారా, మళ్ళీ వస్తున్నారా, లేదా ఉచిత రివ్యూ విజిట్ (10 రోజుల్లోపు)?\n• *కొత్త పేషెంట్*: ${cur}${fee} ఆన్‌లైన్‌లో చెల్లించాలి\n• *మళ్ళీ వచ్చే పేషెంట్*: క్లినిక్‌లో ${cur}${clinic.returningFee}\n• *ఉచిత రివ్యూ విజిట్*: ఉచితం\nకింద ఒకటి నొక్కండి:`,
     pickDay: "తప్పకుండా! ఖాళీ స్లాట్‌లు ఉన్న రోజులు ఇవి. ఒకటి నొక్కండి:",
     pickWindow: (day: string) => `సరే! ${day} కోసం, ఉదయం లేదా సాయంత్రం, ఏది కావాలి?`,
     pickRange: (day: string) => `${day} కోసం చాలా సమయాలు ఖాళీగా ఉన్నాయి. ఒక పరిధిని ఎంచుకోండి:`,
@@ -412,7 +426,7 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}* గురించి:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nస్పెషాలిటీలు: ${clinic.doctor.specialties.join(", ")}.\n${clinic.rating.source} రేటింగ్: ${clinic.rating.score}★ (${clinic.rating.count}+ రివ్యూలు).\n\nమీ విజిట్ నచ్చిందా? మాకు రివ్యూ ఇవ్వండి: ${clinic.rating.reviewUrl}`,
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
     thanks: `సంతోషం 🙏 త్వరగా కోలుకోండి! కొద్ది సమయం ఉంటే, ఒక గూగుల్ రివ్యూ ఇతర పేషెంట్లకు సహాయపడుతుంది: ${clinic.rating.reviewUrl}`,
-    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్‌మెంట్ చూడండి", resched: "షెడ్యూల్ మార్చండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", payCounter: "క్లినిక్‌లో కట్టండి", startOver: "మళ్ళీ మొదలుపెట్టండి", reviewFree: "ఉచిత రీవిజిట్" },
+    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్‌మెంట్ చూడండి", resched: "షెడ్యూల్ మార్చండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", startOver: "మళ్ళీ మొదలుపెట్టండి", patientNew: "కొత్త పేషెంట్", patientReturning: "మళ్ళీ వచ్చే పేషెంట్", patientReview: "ఉచిత రీవిజిట్" },
   },
   hi: {
     greet: `नमस्ते 🙏 मैं ${clinic.shortName} का असिस्टेंट हूँ। मैं आपकी कैसे मदद करूँ?`,
@@ -421,6 +435,7 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} आज *उपलब्ध नहीं* हैं। अगली उपलब्धता: *${d}, ${t}*। बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ।`,
     availNone: `आने वाले दिनों में कोई स्लॉट नहीं है। कृपया क्लिनिक को कॉल करें: ${clinic.contact.phone}।`,
     bookIntro: "ज़रूर! ये खाली स्लॉट हैं। जो चाहिए उसे दबाएँ:",
+    patientTypePrompt: `पहली बार, दोबारा आ रहे हैं, या फ्री रिव्यू विज़िट (10 दिनों के भीतर)?\n• *नया मरीज़*: ${cur}${fee} ऑनलाइन चुकाएँ\n• *दोबारा आ रहे मरीज़*: क्लिनिक पर ${cur}${clinic.returningFee}\n• *फ्री रिव्यू विज़िट*: मुफ़्त\nनीचे एक चुनें:`,
     pickDay: "ज़रूर! ये वे दिन हैं जिनमें स्लॉट खाली हैं। एक चुनें:",
     pickWindow: (day: string) => `ठीक है! ${day} के लिए, सुबह या शाम, कौन सा समय बेहतर रहेगा?`,
     pickRange: (day: string) => `${day} के लिए बहुत सारे खाली समय हैं। एक रेंज चुनें:`,
@@ -467,7 +482,7 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}* के बारे में:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nविशेषज्ञता: ${clinic.doctor.specialties.join(", ")}.\n${clinic.rating.source} रेटिंग: ${clinic.rating.score}★ (${clinic.rating.count}+ समीक्षाएं).\n\nआपकी विजिट अच्छी रही? हमें एक रिव्यू दें: ${clinic.rating.reviewUrl}`,
     fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, डॉक्टर के बारे में बता सकता हूँ, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
     thanks: `आपका स्वागत है 🙏 जल्दी स्वस्थ हों! अगर समय हो, तो एक गूगल रिव्यू दूसरे मरीज़ों की मदद करता है: ${clinic.rating.reviewUrl}`,
-    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें", payCounter: "फिर से आ रहे मरीज़, क्लिनिक पर भुगतान", startOver: "नया स्लॉट बुक करें", reviewFree: "फ्री रिव्यू विजिट" },
+    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें", startOver: "नया स्लॉट बुक करें", patientNew: "नया मरीज़", patientReturning: "दोबारा आ रहे मरीज़", patientReview: "फ्री रिव्यू विज़िट" },
   },
 };
 
@@ -675,50 +690,29 @@ async function startRescheduleClient(phone: string, t: PhrasePack): Promise<BotO
   return enterPickerClient({ id: appt.id, phone }, t);
 }
 
-// The one self-declared payment exemption (reviewFree). The patient already
-// picked a slot and gave a name/phone through the normal booking flow above,
-// which left a payment_pending hold — re-run the same booking with
-// replacePending so that hold is cancelled and a fresh row is created, this
-// time going straight to reserved with no Razorpay step at all.
-async function claimRebookClient(
-  state: BotState,
+// Shared entry into the day picker for a fresh booking. The patient-type choice
+// made up front (new = claim unset, returning = pay at the counter, free review
+// = ₹0) is carried through into addBooking so those claims land straight in
+// reserved with no online payment, mirroring the website form + WhatsApp Flow.
+// "Returning patient" / "free review" typed as free text route here too, with
+// the claim preset by the switch below.
+async function startBooking(
   t: PhrasePack,
   c: PhrasePack["chips"],
-  claim: "returning_unverified" | "review_free",
-  source: Source
+  claim: "returning_unverified" | "review_free" | undefined
 ): Promise<BotOut> {
-  if (!state.slot || state.viewPhone === undefined) {
-    return { reply: [t.fallback], chips: [c.book, c.avail], state: { stage: "idle" } };
-  }
-  const name = state.name || "Patient";
-  const phone = state.viewPhone;
-  try {
-    let appt: Appt;
-    if (hasSupabase()) {
-      const res = await fetch("/api/book", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: true, claim }),
-      });
-      if (!res.ok) throw new Error("claim booking failed");
-      const body = await res.json();
-      appt = body.appointment as Appt;
-    } else {
-      appt = addBooking({ name, phone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: true, claim });
-    }
-    const msg = claim === "review_free" ? t.claimFreeConfirm(appt.token, state.slot.label) : t.claimReturningConfirm(appt.token, state.slot.label, appt.fee);
-    return { reply: [msg], chips: [c.avail, c.about, c.done], state: { stage: "idle", viewPhone: phone } };
-  } catch (err) {
-    console.error("bot: claim booking failed", err);
-    return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
-  }
+  const dayList = await openDays();
+  if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
+  return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle", claim } };
 }
 
-// Booking-completion reply. A normal booking sits in payment_pending (slot
-// held, pay online to confirm), so the reply prompts for payment and offers
-// the pay-now / free-review rebook chips. A free-review claim is confirmed
-// instantly: no pay prompt, no pay chips. baseChips are the surface's standing
-// chips (chat omits location, flow includes it).
+// Booking-completion reply. The patient type was already declared before the
+// slot, so a normal (new-patient) booking simply prompts with a single Pay now
+// action — no standing-menu noise (doctor in/about/location/thanks) and no
+// post-hoc rebook chips; both are gone from this step. A returning / free-review
+// claim is confirmed instantly: no pay prompt, no pay chips. baseChips are the
+// surface's standing chips (chat omits location, flow includes it), shown only
+// to claim bookers whose confirmation has nothing else to offer.
 function bookingDoneReply(
   t: PhrasePack,
   c: PhrasePack["chips"],
@@ -737,7 +731,7 @@ function bookingDoneReply(
   }
   return {
     reply: [t.confirm(appt.token, slot.label, appt.fee), t.payPrompt],
-    chips: [c.payNow, c.payCounter, c.reviewFree, ...baseChips],
+    chips: [c.payNow],
     state,
   };
 }
@@ -819,12 +813,11 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     // DB mode needs a phone (confirmation goes out on WhatsApp, and it's how
     // the admin dashboard reaches the patient) — the mock demo doesn't.
     if (hasSupabase()) {
-      return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name, replacePending: state.replacePending } };
+      return { reply: [t.askPhone], chips: [], state: { stage: "await_phone", slot: state.slot, name, replacePending: state.replacePending, claim: state.claim } };
     }
-    const appt = addBooking({ name, phone: "", age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending });
-    // slot/name/viewPhone stay in the completion state so a reviewFree tap
-    // afterward can re-book the same slot without asking the patient anything
-    // again.
+    const appt = addBooking({ name, phone: "", age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending, claim: state.claim });
+    // slot/name/viewPhone ride the completion state so the standing chips
+    // (view/avail/about/…) keep working after a booking.
     return bookingDoneReply(t, c, appt, state.slot, name, appt.phone, [c.avail, c.about, c.done]);
   }
 
@@ -845,6 +838,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
           time: state.slot.time,
           source,
           replacePending: state.replacePending === true,
+          claim: state.claim,
         }),
       });
       const body = res.ok || res.status === 409 ? await res.json() : null;
@@ -870,19 +864,32 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         if (win && scoped.length > MAX_CHIPS) {
           const ranges = splitWindow(win, scoped.length);
           const dayLabel = dayLabelForDate(state.slot.date, new Date());
-          return { reply: [t.slotTaken, t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win } };
+          return { reply: [t.slotTaken, t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win, claim: state.claim } };
         }
-        return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win } };
+        return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win, claim: state.claim } };
       }
       if (!res.ok) throw new Error("booking failed");
       const { appointment: appt } = body as { appointment: Appt };
-      // slot/name/viewPhone carry through the completion so a reviewFree tap
-      // afterward can re-book the same slot without re-asking.
+      // slot/name/viewPhone carry through the completion state; the claim was
+      // fixed at the patient-type step, so nothing re-books or converts here.
       return bookingDoneReply(t, c, appt, state.slot, state.name, input.trim(), [c.avail, c.about, c.done]);
     } catch (err) {
       console.error("bot: booking failed", err);
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
     }
+  }
+
+  // patient type chosen at the start of a fresh booking (New / Returning / Free
+  // review). Resolves into state.claim, then hands off to the day picker.
+  // Stage-gated so these button labels are never misread as a day/token, and
+  // "cancel" typed here still escapes via the mid-flow hatch above.
+  if (state.stage === "await_patient_type") {
+    let claim: "returning_unverified" | "review_free" | undefined;
+    if (input === c.patientNew) claim = undefined;
+    else if (input === c.patientReturning || detect(input) === "payCounter") claim = "returning_unverified";
+    else if (input === c.patientReview || detect(input) === "reviewFree") claim = "review_free";
+    else return { reply: [t.patientTypePrompt], chips: [c.patientNew, c.patientReturning, c.patientReview], state };
+    return startBooking(t, c, claim);
   }
 
   // tapped a time chip (only meaningful once a day AND a window are picked)
@@ -919,7 +926,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
           return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
         }
       }
-      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label }, replacePending: state.replacePending } };
+      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label }, replacePending: state.replacePending, claim: state.claim } };
     }
   }
 
@@ -931,7 +938,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     if (pickedRange) {
       const times = winTimes.filter((s) => inWindow(s, pickedRange));
       const dayLabel = dayLabelForDate(state.pendingDate, new Date());
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange, replacePending: state.replacePending } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange, replacePending: state.replacePending, claim: state.claim } };
     }
   }
 
@@ -944,9 +951,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       const dayLabel = dayLabelForDate(state.pendingDate, new Date());
       if (times.length > MAX_CHIPS) {
         const ranges = splitWindow(pickedWin, times.length);
-        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending } };
+        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending, claim: state.claim } };
       }
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending, claim: state.claim } };
     }
   }
 
@@ -1011,18 +1018,18 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     const times = await timesForDate(pickedDay.date);
     if (!times.length) {
       const fresh = days.filter((d) => d.date !== pickedDay.date);
-      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
-      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
+      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched, replacePending: state.replacePending, claim: state.claim } };
+      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched, replacePending: state.replacePending, claim: state.claim } };
     }
     const wins = await windowsWithSlotsFor(pickedDay.date);
     if (wins.length > 1) {
-      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, replacePending: state.replacePending } };
+      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, replacePending: state.replacePending, claim: state.claim } };
     }
     if (times.length > MAX_CHIPS) {
       const ranges = splitWindow(wins[0], times.length);
-      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending } };
+      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending, claim: state.claim } };
     }
-    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending } };
+    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending, claim: state.claim } };
   }
 
   switch (detect(input)) {
@@ -1042,7 +1049,14 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     case "book": {
       const dayList = await openDays();
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
-      return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
+      // Ask the patient type up front (New / Returning / Free review), then
+      // open the day picker with the right claim preset — the website form and
+      // WhatsApp Flow already do this; the conversational bot joins them.
+      return {
+        reply: [t.patientTypePrompt],
+        chips: [c.patientNew, c.patientReturning, c.patientReview],
+        state: { stage: "await_patient_type" },
+      };
     }
     case "startOver": {
       const dayList = await openDays();
@@ -1083,9 +1097,9 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       };
     }
     case "payCounter":
-      return claimRebookClient(state, t, c, "returning_unverified", source);
+      return startBooking(t, c, "returning_unverified");
     case "reviewFree":
-      return claimRebookClient(state, t, c, "review_free", source);
+      return startBooking(t, c, "review_free");
     case "hours": case "fee":
       return { reply: [t.hours], chips: [c.book, c.location], state: { stage: "idle" } };
     case "location":
@@ -1185,35 +1199,21 @@ async function slotTakenFallbackServer(resched: { id: string; phone: string }, d
   return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", resched, pendingDate: date, pendingWindow: win } };
 }
 
-// The one self-declared payment exemption (reviewFree), server side. Same
-// idea as claimRebookClient above: the slot/name/phone from the booking that
-// just happened are still in state, so re-run it through the backend with
-// replacePending to cancel the stale payment_pending hold and land the claim
-// booking straight in reserved, no Razorpay step involved. This path calls
-// backend.addBooking directly (bypassing /api/book), so it must fire the
-// staff notification itself via notifyClaimBooking.
-async function claimRebookServer(
-  state: ServerBotState,
-  phone: string,
+// Server mirror of startBooking: "Returning patient" / "Free review visit"
+// chosen at the patient-type step (or typed as free text) open the day picker
+// with the claim preset, so the picker threads it into addBooking and the
+// booking lands reserved without a payment step. Stage is reset to idle here
+// exactly like the client — the claim rides in state, not the stage.
+async function startBookingServer(
   backend: Backend,
+  sched: SchedState,
   t: PhrasePack,
   c: PhrasePack["chips"],
-  claim: "returning_unverified" | "review_free",
-  source: Source
+  claim: "returning_unverified" | "review_free" | undefined
 ): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
-  if (!state.slot) {
-    return { reply: [t.fallback], chips: [c.book, c.avail], state: { stage: "idle" } };
-  }
-  const bookPhone = state.viewPhone ?? phone;
-  try {
-    const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: true, claim });
-    await backend.notifyClaimBooking(appt);
-    const msg = claim === "review_free" ? t.claimFreeConfirm(appt.token, state.slot.label) : t.claimReturningConfirm(appt.token, state.slot.label, appt.fee);
-    return { reply: [msg], chips: [c.avail, c.about, c.done], state: { stage: "idle" } };
-  } catch (err) {
-    await reportBotError("bot", "claim booking failed", { stage: "claim_rebook", phone: bookPhone }, err, { severity: "critical" });
-    return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
-  }
+  const dayList = await openDaysServer(backend, sched);
+  if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
+  return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle", claim } };
 }
 
 export function botStartServer(lang: Lang): { reply: string[]; chips: string[]; state: ServerBotState } {
@@ -1355,7 +1355,7 @@ export async function botReplyServer(
     return {
       reply: [t.askContactConfirm(formatIndianPhone(phone))],
       chips: [c.useNumber],
-      state: { stage: "await_phone", slot: state.slot, name, replacePending: state.replacePending },
+      state: { stage: "await_phone", slot: state.slot, name, replacePending: state.replacePending, claim: state.claim },
     };
   }
 
@@ -1369,13 +1369,15 @@ export async function botReplyServer(
       bookPhone = digits;
     }
     try {
-      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending });
+      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending, claim: state.claim });
+      // Returning / free-review claims skip the payment step, so there's no
+      // Razorpay webhook to notify staff — this path calls backend.addBooking
+      // directly (not /api/book), so it must fire the desk email itself, same
+      // as the Flow and /api/book paths already do.
+      if (appt.claimType) await backend.notifyClaimBooking(appt);
       // The booking is done — offer to settle the fee right here, so the
       // patient doesn't have to know a "pay" keyword exists or find the My
       // Appointment page. The chip routes into the shared pay intent below.
-      // slot/name/viewPhone stay in state for the reviewFree rebook path —
-      // viewPhone remembers bookPhone since it can differ from the WhatsApp
-      // sender's own number.
       return bookingDoneReply(t, c, appt, state.slot, state.name, bookPhone, [c.avail, c.about, c.location, c.done]);
     } catch (err) {
       if (err instanceof PendingHoldError) {
@@ -1399,13 +1401,26 @@ export async function botReplyServer(
         if (win && scoped.length > MAX_CHIPS) {
           const ranges = splitWindow(win, scoped.length);
           const dayLabel = dayLabelForDate(state.slot.date, nowIST());
-          return { reply: [t.slotTaken, t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win } };
+          return { reply: [t.slotTaken, t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win, claim: state.claim } };
         }
-        return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win } };
+        return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win, claim: state.claim } };
       }
       await reportBotError("bot", "booking failed", { stage: "await_phone", phone: bookPhone }, err, { severity: "critical" });
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
     }
+  }
+
+  // patient type chosen at the start of a fresh booking (New / Returning / Free
+  // review). Resolves into state.claim, then hands off to the day picker.
+  // Stage-gated so these button labels are never misread as a day/token, and
+  // "cancel" typed here still escapes via the mid-flow hatch above.
+  if (state.stage === "await_patient_type") {
+    let claim: "returning_unverified" | "review_free" | undefined;
+    if (input === c.patientNew) claim = undefined;
+    else if (input === c.patientReturning || detect(input) === "payCounter") claim = "returning_unverified";
+    else if (input === c.patientReview || detect(input) === "reviewFree") claim = "review_free";
+    else return { reply: [t.patientTypePrompt], chips: [c.patientNew, c.patientReturning, c.patientReview], state };
+    return startBookingServer(backend, sched, t, c, claim);
   }
 
   // tapped a time chip (only meaningful once a day AND a window are picked)
@@ -1426,7 +1441,7 @@ export async function botReplyServer(
           return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };
         }
       }
-      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label }, replacePending: state.replacePending } };
+      return { reply: [t.askName], chips: [], state: { stage: "await_name", slot: { date: state.pendingDate, time: match, label }, replacePending: state.replacePending, claim: state.claim } };
     }
   }
 
@@ -1438,7 +1453,7 @@ export async function botReplyServer(
     if (pickedRange) {
       const times = winTimes.filter((s) => inWindow(s, pickedRange));
       const dayLabel = dayLabelForDate(state.pendingDate, nowIST());
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange, replacePending: state.replacePending } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedRange))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: state.pendingWindow, pendingRange: pickedRange, replacePending: state.replacePending, claim: state.claim } };
     }
   }
 
@@ -1451,9 +1466,9 @@ export async function botReplyServer(
       const dayLabel = dayLabelForDate(state.pendingDate, nowIST());
       if (times.length > MAX_CHIPS) {
         const ranges = splitWindow(pickedWin, times.length);
-        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending } };
+        return { reply: [t.pickRange(dayLabel)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending, claim: state.claim } };
       }
-      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending } };
+      return { reply: [t.timesForWindow(dayLabel, windowLabel(pickedWin))], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: state.pendingDate, pendingWindow: pickedWin, replacePending: state.replacePending, claim: state.claim } };
     }
   }
 
@@ -1464,18 +1479,18 @@ export async function botReplyServer(
     const times = await timesForDateServer(pickedDay.date, backend, sched);
     if (!times.length) {
       const fresh = days.filter((d) => d.date !== pickedDay.date);
-      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
-      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched, replacePending: state.replacePending } };
+      if (!fresh.length) return { reply: [t.dayFull(pickedDay.label), t.noSlots], chips: [c.avail], state: { stage: "idle", resched: state.resched, replacePending: state.replacePending, claim: state.claim } };
+      return { reply: [t.dayFull(pickedDay.label)], chips: fresh.map((d) => d.label), state: { stage: "idle", resched: state.resched, replacePending: state.replacePending, claim: state.claim } };
     }
     const wins = await windowsWithSlotsForServer(pickedDay.date, backend, sched);
     if (wins.length > 1) {
-      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, replacePending: state.replacePending } };
+      return { reply: [t.pickWindow(pickedDay.label)], chips: wins.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, replacePending: state.replacePending, claim: state.claim } };
     }
     if (times.length > MAX_CHIPS) {
       const ranges = splitWindow(wins[0], times.length);
-      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending } };
+      return { reply: [t.pickRange(pickedDay.label)], chips: ranges.map(windowLabel), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending, claim: state.claim } };
     }
-    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending } };
+    return { reply: [t.timesFor(pickedDay.label)], chips: times.map(fmt), state: { stage: "idle", resched: state.resched, pendingDate: pickedDay.date, pendingWindow: wins[0], replacePending: state.replacePending, claim: state.claim } };
   }
 
   switch (detect(input)) {
@@ -1512,7 +1527,14 @@ export async function botReplyServer(
     case "book": {
       const dayList = await openDaysServer(backend, sched);
       if (!dayList.length) return { reply: [t.noSlots], chips: [c.avail], state: { stage: "idle" } };
-      return { reply: [t.pickDay], chips: dayList.map((d) => d.label), state: { stage: "idle" } };
+      // Ask the patient type up front (New / Returning / Free review), then
+      // open the day picker with the right claim preset — the website form and
+      // WhatsApp Flow already do this; the conversational bot joins them.
+      return {
+        reply: [t.patientTypePrompt],
+        chips: [c.patientNew, c.patientReturning, c.patientReview],
+        state: { stage: "await_patient_type" },
+      };
     }
     case "startOver": {
       const dayList = await openDaysServer(backend, sched);
@@ -1553,9 +1575,9 @@ export async function botReplyServer(
       };
     }
     case "payCounter":
-      return claimRebookServer(state, phone, backend, t, c, "returning_unverified", source);
+      return startBookingServer(backend, sched, t, c, "returning_unverified");
     case "reviewFree":
-      return claimRebookServer(state, phone, backend, t, c, "review_free", source);
+      return startBookingServer(backend, sched, t, c, "review_free");
     case "hours": case "fee":
       return { reply: [t.hours], chips: [c.book, c.location], state: { stage: "idle" } };
     case "location":
