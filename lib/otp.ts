@@ -26,6 +26,7 @@
 import { createHash, randomInt } from "node:crypto";
 import { hasSupabase } from "@/lib/supabase";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { report } from "@/lib/bugdesk";
 
 // Matches the auth template's "Expires in 10 minutes" so the server never
 // rejects a code the patient's WhatsApp message still shows as valid. Same
@@ -205,6 +206,11 @@ export const otpEnabled = () => {
   if (!enabled && process.env.VERCEL_ENV === "production" && !warnedOtpDisabled) {
     warnedOtpDisabled = true;
     console.warn("otp: META_TEMPLATE_OTP is not set — OTP verification is DISABLED, falling back to bare-phone-number trust");
+    void report({
+      source: "otp",
+      message: "META_TEMPLATE_OTP not set — OTP verification disabled, falling back to bare-phone-number trust",
+      severity: "critical",
+    });
   }
   return enabled;
 };

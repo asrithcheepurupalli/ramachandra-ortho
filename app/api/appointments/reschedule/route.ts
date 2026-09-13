@@ -11,21 +11,16 @@ import { SlotTakenError } from "@/lib/errors";
 import { ymd, nowIST } from "@/lib/schedule";
 import { otpVerified, otpEnabled } from "@/lib/otp";
 import { reportError } from "@/lib/bugdesk";
+import { isRateLimited } from "@/lib/rate-limit";
 
 const RATE_LIMIT = 8;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
-const recentHits = new Map<string, number[]>();
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const hits = (recentHits.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
-  hits.push(now);
-  recentHits.set(key, hits);
-  return hits.length > RATE_LIMIT;
-}
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (isRateLimited(ip)) return NextResponse.json({ error: "Too many requests. Please try again in a bit." }, { status: 429 });
+  if (await isRateLimited(`reschedule:${ip}`, RATE_LIMIT, RATE_WINDOW_MS)) {
+    return NextResponse.json({ error: "Too many requests. Please try again in a bit." }, { status: 429 });
+  }
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }); }
@@ -47,8 +42,10 @@ export async function POST(req: NextRequest) {
     }
 
     const appt = await dbRescheduleAppointment(id, date, time);
-    try { await sendBookingConfirmation(appt); } catch (err) { console.error("/api/appointments/reschedule: WhatsApp notify failed", err); await reportError("appointments/reschedule", err, { severity: "warning", info: { channel: "whatsapp", appt: appt.id } }); }
-    try { await sendRescheduledEmail(appt); } catch (err) { console.error("/api/appointments/reschedule: email notify failed", err); await reportError("appointments/reschedule", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
+    const whatsappOk = await sendBookingConfirmation(appt);
+    if (!whatsappOk) await reportError("appointments/reschedule", new Error("WhatsApp notify failed"), { severity: "warning", info: { channel: "whatsapp", appt: appt.id } });
+    const emailOk = await sendRescheduledEmail(appt);
+    if (!emailOk) await reportError("appointments/reschedule", new Error("email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
     return NextResponse.json({ appointment: appt });
   } catch (err) {
     if (err instanceof SlotTakenError) { return NextResponse.json({ error: "That time isn't available. Please pick another slot." }, { status: 409 }); }

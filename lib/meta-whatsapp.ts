@@ -53,9 +53,19 @@ function normalizeIndianPhone(raw: string): string | null {
   return null;
 }
 
+const GRAPH_TIMEOUT_MS = 10_000;
+const GRAPH_MAX_ATTEMPTS = 2;
+const GRAPH_RETRY_DELAY_MS = 500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Returns whether Meta actually accepted the message, so callers (the admin
 // broadcast route in particular) can report real delivery counts instead of
-// assuming success just because the HTTP call didn't throw.
+// assuming success just because the HTTP call didn't throw. Retries once on
+// network errors and 5xx/429 responses (transient) — never on other 4xx,
+// which represent a rejected request that a retry can't fix.
 async function callGraphApi(payload: Record<string, unknown>): Promise<boolean> {
   const token = process.env.META_WHATSAPP_TOKEN;
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
@@ -64,21 +74,32 @@ async function callGraphApi(payload: Record<string, unknown>): Promise<boolean> 
     return false;
   }
 
-  try {
-    const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ messaging_product: "whatsapp", ...payload }),
-    });
-    if (!res.ok) {
-      console.error("Meta WhatsApp send failed", res.status, await res.text().catch(() => ""));
+  for (let attempt = 1; attempt <= GRAPH_MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), GRAPH_TIMEOUT_MS);
+    try {
+      const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messaging_product: "whatsapp", ...payload }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const retryable = res.status === 429 || res.status >= 500;
+        console.error("Meta WhatsApp send failed", res.status, await res.text().catch(() => ""));
+        if (retryable && attempt < GRAPH_MAX_ATTEMPTS) { await sleep(GRAPH_RETRY_DELAY_MS); continue; }
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error("Meta WhatsApp send error", err);
+      if (attempt < GRAPH_MAX_ATTEMPTS) { await sleep(GRAPH_RETRY_DELAY_MS); continue; }
       return false;
+    } finally {
+      clearTimeout(timeout);
     }
-    return true;
-  } catch (err) {
-    console.error("Meta WhatsApp send error", err);
-    return false;
   }
+  return false;
 }
 
 // Free-form text reply, only valid inside an active (patient-initiated,

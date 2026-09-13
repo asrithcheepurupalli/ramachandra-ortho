@@ -47,3 +47,6 @@ skills-lock.json
 
 # keep the template (never the real .env.local)
 !.env.local.example
+
+# confidential internal docs (pricing, budget, valuation) -- never committed
+docs/internal/

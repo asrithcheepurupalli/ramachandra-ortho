@@ -32,8 +32,10 @@ export async function POST(req: NextRequest) {
 
     const appt = await dbMarkPaidByPaymentLink(paymentLinkId, paymentId, capturedAmountPaise);
     if (appt) {
-      try { await sendPaymentReceived(appt); } catch (err) { console.error("payments/webhook: WhatsApp notify failed", err); await reportError("payments/webhook", err, { severity: "warning", info: { channel: "whatsapp", appt: appt.id } }); }
-      try { await sendNewAppointmentEmail(appt); } catch (err) { console.error("payments/webhook: email notify failed", err); await reportError("payments/webhook", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
+      const whatsappOk = await sendPaymentReceived(appt);
+      if (!whatsappOk) await reportError("payments/webhook", new Error("WhatsApp notify failed"), { severity: "warning", info: { channel: "whatsapp", appt: appt.id } });
+      const emailOk = await sendNewAppointmentEmail(appt);
+      if (!emailOk) await reportError("payments/webhook", new Error("email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
     } else {
       // Money was captured at Razorpay but no payment_pending row matched.
       // Either a duplicate delivery (already paid — harmless) or the clinic's

@@ -141,8 +141,9 @@ on conflict (id) do nothing;
 -- Staff allowlist ────────────────────────────────────────────────────────────
 -- Single source of truth for who counts as clinic staff — the RLS policies
 -- below and the app (proxy.ts, lib/auth-server.ts, via `.rpc("is_staff", ...)`)
--- all read this instead of each keeping their own copy (a hardcoded SQL array
--- here plus an ADMIN_EMAILS env var in the app, synced only by a code comment).
+-- all read this instead of each keeping their own copy. There used to be a
+-- hardcoded SQL array here plus a separate ADMIN_EMAILS env var in the app;
+-- both were removed once this table replaced them and no longer exist.
 create table if not exists public.staff_emails (
   email text primary key
 );
@@ -264,3 +265,34 @@ create table if not exists public.doctor_digest_sent (
   sent_at     timestamptz not null default now()
 );
 alter table public.doctor_digest_sent enable row level security;
+
+-- Guard: only service-role may write Razorpay audit columns on appointments
+-- (see supabase/migrations/014_lock_razorpay_columns.sql).
+create or replace function public.guard_razorpay_columns()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  if auth.role() = 'service_role' then
+    return new;
+  end if;
+  if (
+    new.razorpay_payment_link_id is distinct from old.razorpay_payment_link_id or
+    new.razorpay_payment_link_url is distinct from old.razorpay_payment_link_url or
+    new.razorpay_payment_id      is distinct from old.razorpay_payment_id      or
+    new.razorpay_refund_id       is distinct from old.razorpay_refund_id       or
+    new.refunded_at              is distinct from old.refunded_at
+  ) then
+    raise exception
+      'Only service-role may write Razorpay audit columns on appointments'
+      using errcode = 'insufficient_privilege';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_guard_razorpay_columns on public.appointments;
+create trigger trg_guard_razorpay_columns
+  before update on public.appointments
+  for each row execute function public.guard_razorpay_columns();

@@ -20,8 +20,10 @@ const backend: Backend = {
   // a moved booking too).
   reschedule: async (id, date, time) => {
     const appt = await dbRescheduleAppointment(id, date, time);
-    try { await sendBookingConfirmation(appt); } catch (err) { console.error("whatsapp reschedule: WhatsApp notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "whatsapp", appt: appt.id } }); }
-    try { await sendRescheduledEmail(appt); } catch (err) { console.error("whatsapp reschedule: email notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
+    const whatsappOk = await sendBookingConfirmation(appt);
+    if (!whatsappOk) await reportError("whatsapp", new Error("reschedule WhatsApp notify failed"), { severity: "warning", info: { channel: "whatsapp", appt: appt.id } });
+    const emailOk = await sendRescheduledEmail(appt);
+    if (!emailOk) await reportError("whatsapp", new Error("reschedule email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
     return appt;
   },
   // Claim bookings (returning_unverified / review_free) skip Razorpay, so
@@ -29,7 +31,8 @@ const backend: Backend = {
   // the staff notification the way a paid booking gets it — send it here
   // instead, right after the claim booking is created.
   notifyClaimBooking: async (appt) => {
-    try { await sendNewAppointmentEmail(appt); } catch (err) { console.error("whatsapp: claim email notify failed", err); await reportError("whatsapp", err, { severity: "warning", info: { channel: "email", appt: appt.id } }); }
+    const ok = await sendNewAppointmentEmail(appt);
+    if (!ok) await reportError("whatsapp", new Error("claim email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
   },
 };
 

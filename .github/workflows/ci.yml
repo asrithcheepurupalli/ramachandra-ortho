@@ -37,3 +37,40 @@ jobs:
         run: npx tsc --noEmit
       - name: Build
         run: npm run build
+
+  # Deploy to Vercel only after check passes and only on pushes to main.
+  # Vercel's own git-triggered auto-deploy must be disabled in the project
+  # settings (Ignored Build Step: `if [ "$VERCEL_ENV" = "production" ]; then exit 0; else exit 1; fi`)
+  # so this job is the sole path to production. Preview branches still deploy
+  # normally through Vercel's git integration.
+  #
+  # Required GitHub repo secrets (Settings → Secrets → Actions):
+  #   VERCEL_TOKEN   — create at vercel.com → Account Settings → Tokens
+  #   VERCEL_ORG_ID  — team_42SjsUAlOEwm3wxMTJ66nzDk (from .vercel/project.json)
+  #   VERCEL_PROJECT_ID — prj_Lg7nWTdOPP98bKxQkRAMd4erSpJV (from .vercel/project.json)
+  deploy:
+    needs: [check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Deploy
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

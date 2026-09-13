@@ -3,8 +3,9 @@
 // Mirrors proxy.ts's /admin gate: public signup is on, so a valid Supabase
 // session alone isn't proof of staff. The allowlist lives in the database
 // (public.staff_emails, via the is_staff() function) so this, proxy.ts, and
-// the RLS policies in supabase/schema.sql all read the same source instead
-// of a hand-synced ADMIN_EMAILS env var.
+// the RLS policies in supabase/schema.sql all read the same source. There
+// used to be a separate ADMIN_EMAILS env var for this; it was removed once
+// staff_emails/is_staff() replaced it and no longer exists anywhere.
 // ─────────────────────────────────────────────────────────────────────────────
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";

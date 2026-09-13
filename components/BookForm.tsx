@@ -8,11 +8,11 @@ import {
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels, langShort } from "@/lib/i18n";
-import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
+import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN, nowIST } from "@/lib/schedule";
 import { addBooking, hydrateSchedule, togglePaid, type Appt } from "@/lib/store";
 import { hasSupabase } from "@/lib/supabase";
 import { DuplicateSlotError } from "@/lib/errors";
-import { normalizePhone } from "@/lib/phone";
+import { normalizePhone, isValidIndianMobile } from "@/lib/phone";
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 const waLink = (msg: string) => `https://wa.me/${clinic.contact.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
@@ -135,7 +135,7 @@ export function BookForm() {
 
   useEffect(() => {
     let cancelled = false;
-    const now = new Date();
+    const now = nowIST();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const keys = Array.from({ length: 14 }, (_, i) => {
       const d = new Date(now); d.setDate(now.getDate() + i);
@@ -187,7 +187,7 @@ export function BookForm() {
         didRestoreRef.current && !!restoredDateRef.current &&
         list.some((x) => x.date === restoredDateRef.current && x.slots.length > 0);
       if (!restoredStillValid) {
-        const todayKey = ymd(new Date());
+        const todayKey = ymd(nowIST());
         const openToday = list.find((x) => x.date === todayKey && x.slots.length > 0);
         setSelDate(openToday ? todayKey : (list.find((x) => x.slots.length > 0)?.date ?? null));
       }
@@ -206,7 +206,7 @@ export function BookForm() {
   const effDate = useMemo(() => {
     if (selDate) return selDate;
     if (daysLoading || days.length === 0) return null;
-    const todayKey = ymd(new Date());
+    const todayKey = ymd(nowIST());
     return days.find((x) => x.date === todayKey && x.slots.length > 0)?.date
       ?? days.find((x) => x.slots.length > 0)?.date
       ?? null;
@@ -226,7 +226,7 @@ export function BookForm() {
   const confirm = async (replacePending = false) => {
     if (!form.name.trim()) { setErr(t("book.needname")); return; }
     if (!form.phone.trim()) { setErr(t("book.needphone")); return; }
-    if (normalizePhone(form.phone).length !== 10) { setErr(t("book.badphone")); return; }
+    if (!isValidIndianMobile(normalizePhone(form.phone))) { setErr(t("book.badphone")); return; }
     if (form.age <= 0 || form.age > 150) { setErr(t("book.needage")); return; }
     if (form.gender !== "M" && form.gender !== "F") { setErr(t("book.needgender")); return; }
     if (!effDate || !selTime || submitting) return;
