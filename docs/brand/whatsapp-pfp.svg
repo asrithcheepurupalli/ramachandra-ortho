@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- WhatsApp profile picture for Ramachandra Ortho Care. 1024x1024 square,
-       content centered in the circular crop. Bone ground, emerald circle,
-       white rounded medical cross, thin coral accent ring. -->
-  <rect width="1024" height="1024" fill="#f5f8f6"/>
-  <circle cx="512" cy="512" r="430" fill="none" stroke="#ef6f53" stroke-width="18"/>
-  <circle cx="512" cy="512" r="400" fill="#0c7a68"/>
-  <path d="M512 242 L512 782 M242 512 L782 512" fill="none" stroke="#ffffff" stroke-width="150" stroke-linecap="round"/>
-</svg>
