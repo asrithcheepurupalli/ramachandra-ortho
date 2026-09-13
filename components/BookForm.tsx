@@ -147,7 +147,7 @@ export function BookForm() {
       if (hasSupabase()) {
         // One range request instead of 14 parallel single-day fetches —
         // dbLoadSchedule() only runs once on the server.
-        let dayMap: Record<string, string[]> = {};
+        const dayMap: Record<string, string[]> = {};
         try {
           const res = await fetch(`/api/slots?from=${keys[0].key}&count=${keys.length}`);
           if (res.ok) {
