@@ -64,7 +64,17 @@ const longDate = (date: string, withWeekday = true) =>
     year: "numeric",
   });
 
-async function sendEmail({ to, subject, html }: { to: string | string[]; subject: string; html: string }): Promise<boolean> {
+async function sendEmail({
+  to,
+  subject,
+  html,
+  attachments,
+}: {
+  to: string | string[];
+  subject: string;
+  html: string;
+  attachments?: { filename: string; content: string }[];
+}): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 
@@ -77,7 +87,7 @@ async function sendEmail({ to, subject, html }: { to: string | string[]; subject
     const res = await fetch(RESEND_API, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ from: fromEmail, to, subject, html }),
+      body: JSON.stringify({ from: fromEmail, to, subject, html, ...(attachments?.length ? { attachments } : {}) }),
     });
 
     if (!res.ok) {
@@ -293,6 +303,37 @@ export async function sendBugdeskEmail(opts: {
       body,
       preheader: `${isAlert ? "Critical:" : ""} ${head.message}`,
     }),
+  });
+}
+
+// ── Sender: DB backup ────────────────────────────────────────────────────────
+
+// Daily cron dump of patients + appointments as a JSON attachment. Only goes
+// to the clinic's own inbox — unlike the bug desk mail, this carries real
+// patient PII (names, phones, ages), so it shouldn't also cc the developer.
+export async function sendBackupEmail(json: string, dateLabel: string): Promise<boolean> {
+  const adminEmail = clinic.contact.adminEmail;
+  if (!adminEmail) return false;
+
+  const sizeKb = (json.length / 1024).toFixed(1);
+  const filename = `ortho-backup-${dateLabel}.json`;
+
+  return sendEmail({
+    to: adminEmail,
+    subject: `Daily backup · ${dateLabel}`,
+    html: shell({
+      chipText: "Backup",
+      chipFg: BRAND.accentDark,
+      chipBg: BRAND.tint,
+      headline: "Today's data backup",
+      sub: "A full export of patients and appointments is attached as a JSON file. Keep it somewhere safe.",
+      body: detailsCard(`
+        ${detailRow("File", esc(filename))}
+        ${detailRow("Size", `${esc(sizeKb)} KB`)}
+      `),
+      preheader: `Daily backup attached · ${filename}`,
+    }),
+    attachments: [{ filename, content: Buffer.from(json, "utf8").toString("base64") }],
   });
 }
 

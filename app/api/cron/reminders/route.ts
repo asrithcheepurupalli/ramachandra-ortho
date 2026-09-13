@@ -45,7 +45,7 @@ function reminderPlan(a: Appt, now: Date): { sendAt: Date; due: boolean } {
 }
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
+  const secret = process.env.CRON_SECRET ?? process.env.EXT_CRON_SECRET;
   const auth = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!secret || !auth || !safeEqual(secret.trim(), auth.trim())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
