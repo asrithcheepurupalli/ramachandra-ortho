@@ -55,6 +55,7 @@ function noBookingBackend(): Backend {
     },
     activeAppointmentsByPhone: () => Promise.resolve([]),
     createPaymentLink: () => Promise.resolve("mock"),
+    reactivateExpiredHold: () => Promise.resolve(null),
     reschedule: async () => {
       throw new Error("not needed");
     },
@@ -79,13 +80,14 @@ function driveBooking() {
         date: input.date, time: input.time, status: claim ? "reserved" : "payment_pending",
         source: "whatsapp", fee, paid: claim === "review_free", paidVia: claim === "review_free" ? "cash" : null,
         paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null,
-        reviewNudgeSentAt: null, freeVisitReminderSentAt: null,
+        reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null,
         createdAt: Date.now(), notes: null, patientCode: null,
         claimType: claim, paymentDeadlineAt: claim ? null : Date.now() + 15 * 60 * 1000,
       };
     },
     activeAppointmentsByPhone: () => Promise.resolve([]),
     createPaymentLink: () => Promise.resolve("mock"),
+    reactivateExpiredHold: () => Promise.resolve(null),
     reschedule: async () => {
       throw new Error("not needed");
     },

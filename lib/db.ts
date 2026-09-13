@@ -32,7 +32,7 @@ async function expireStalePendingHolds(): Promise<void> {
   const cutoff = new Date(Date.now() - PAYMENT_WINDOW_MS).toISOString();
   const { error } = await supabaseAdmin()
     .from("appointments")
-    .update({ status: "cancelled" })
+    .update({ status: "cancelled", cancel_reason: "payment_timeout" })
     .eq("status", "payment_pending")
     .lt("created_at", cutoff)
     .eq("paid", false); // never cancel a row the desk collected cash for
@@ -106,6 +106,7 @@ type DbApptRow = {
   refunded_at: string | null; reminder_sent_at: string | null; created_at: string;
   notes: string | null; patient_code: string | null; claim_type: string | null;
   review_nudge_sent_at: string | null; free_visit_reminder_sent_at: string | null;
+  cancel_reason: string | null; expired_payment_nudged_at: string | null;
 };
 function rowToAppt(r: DbApptRow): Appt {
   return {
@@ -128,6 +129,8 @@ function rowToAppt(r: DbApptRow): Appt {
     reminderSentAt: r.reminder_sent_at ? new Date(r.reminder_sent_at).getTime() : null,
     reviewNudgeSentAt: r.review_nudge_sent_at ? new Date(r.review_nudge_sent_at).getTime() : null,
     freeVisitReminderSentAt: r.free_visit_reminder_sent_at ? new Date(r.free_visit_reminder_sent_at).getTime() : null,
+    cancelReason: r.cancel_reason ?? null,
+    expiredPaymentNudgedAt: r.expired_payment_nudged_at ? new Date(r.expired_payment_nudged_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
     patientCode: r.patient_code ?? null,
@@ -629,6 +632,92 @@ export async function dbMarkPaidByPaymentLink(
     }
   }
   return rowToAppt(data);
+}
+
+// Brings a phone's most recent payment-expired hold back to life so the
+// patient can pay for it with a FRESH Razorpay link. Two shapes of "expired"
+// exist: the row the payment-timeout cron (or the lazy expiry) already
+// cancelled (status cancelled + cancel_reason 'payment_timeout'), and a hold
+// still sitting in payment_pending whose 15-minute deadline passed because the
+// cron lagged — in both cases the original link is dead, and keeping it would
+// bounce the patient's payment (dbGetOrCreatePaymentLink reuses the stored
+// URL). Reviving resets created_at (a fresh 15-min window), clears both link
+// fields so a new link is minted, and flips the status back to payment_pending
+// so the Razorpay webhook (which bails on cancelled rows) can confirm it.
+// Deliberately narrow: only 'payment_timeout' cancels qualify — a staff/admin
+// cancel or a "Start fresh" abandon (cancel_reason null) can never be revived.
+// Guards: refuses while the phone already holds a DIFFERENT payment_pending
+// row (keeps appointments_pending_hold_idx's one-hold invariant) and refuses
+// when an active row already sits on the candidate's slot (per-phone guard).
+export async function dbReactivateExpiredHold(phone: string): Promise<Appt | null> {
+  const db = supabaseAdmin();
+  const now = new Date().toISOString();
+  const deadline = new Date(Date.now() - PAYMENT_WINDOW_MS).toISOString();
+  const variants = phoneMatchVariants(phone);
+
+  // Primary: a timeout-cancelled hold (the common case — the 5-min cron gets
+  // to everything within ~20 minutes of booking).
+  const { data: cancelled } = await db
+    .from("appointments")
+    .select("id, appt_date, appt_time")
+    .in("phone", variants)
+    .eq("status", "cancelled")
+    .eq("cancel_reason", "payment_timeout")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Fallback: the cron lagged behind the deadline, so the hold never got
+  // cancelled but its window (and therefore the link's expire_by) has passed.
+  const { data: stalePending } = cancelled
+    ? { data: null }
+    : await db
+        .from("appointments")
+        .select("id, appt_date, appt_time")
+        .in("phone", variants)
+        .eq("status", "payment_pending")
+        .eq("paid", false)
+        .lt("created_at", deadline)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+  const hold = cancelled ?? stalePending;
+  if (!hold) return null;
+
+  // Never stack a second hold, and never re-create a per-phone duplicate token
+  // on a slot the patient already occupies. The candidate itself is excluded
+  // from the hold check (in the fallback it IS the pending row we're reviving).
+  const { data: pending } = await db
+    .from("appointments")
+    .select("id")
+    .in("phone", variants)
+    .eq("status", "payment_pending")
+    .neq("id", hold.id);
+  if ((pending ?? []).length > 0) return null;
+  const { data: sameSlot } = await db
+    .from("appointments")
+    .select("id")
+    .in("phone", variants)
+    .eq("appt_date", hold.appt_date)
+    .eq("appt_time", hold.appt_time)
+    .in("status", ["reserved", "confirmed", "waiting", "consulting", "payment_pending"])
+    .neq("id", hold.id);
+  if ((sameSlot ?? []).length > 0) return null;
+
+  const revive = () =>
+    db.from("appointments").update({
+      status: "payment_pending",
+      created_at: now,
+      razorpay_payment_link_id: null,
+      razorpay_payment_link_url: null,
+    });
+  const writes = cancelled
+    ? revive().eq("id", hold.id).eq("status", "cancelled").eq("cancel_reason", "payment_timeout")
+    : revive().eq("id", hold.id).eq("status", "payment_pending").eq("paid", false).lt("created_at", deadline);
+  const { data: revived, error } = await writes.select("*").maybeSingle();
+  if (error) throw error;
+  return revived ? rowToAppt(revived) : null;
 }
 
 // Records that a paid appointment was refunded (a Razorpay refund id + the

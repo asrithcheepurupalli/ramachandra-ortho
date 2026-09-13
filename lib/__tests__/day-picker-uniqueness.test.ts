@@ -45,6 +45,7 @@ const backend: Backend = {
   },
   activeAppointmentsByPhone: () => Promise.resolve([]),
   createPaymentLink: () => Promise.resolve("mock"),
+  reactivateExpiredHold: () => Promise.resolve(null),
   reschedule: () => {
     throw new Error("not needed");
   },

@@ -25,6 +25,7 @@ type DbApptRow = {
   refunded_at: string | null; reminder_sent_at: string | null; created_at: string;
   notes: string | null; patient_code: string | null; claim_type: string | null;
   review_nudge_sent_at: string | null; free_visit_reminder_sent_at: string | null;
+  cancel_reason: string | null; expired_payment_nudged_at: string | null;
 };
 function rowToAppt(r: DbApptRow): Appt {
   return {
@@ -47,6 +48,8 @@ function rowToAppt(r: DbApptRow): Appt {
     reminderSentAt: r.reminder_sent_at ? new Date(r.reminder_sent_at).getTime() : null,
     reviewNudgeSentAt: r.review_nudge_sent_at ? new Date(r.review_nudge_sent_at).getTime() : null,
     freeVisitReminderSentAt: r.free_visit_reminder_sent_at ? new Date(r.free_visit_reminder_sent_at).getTime() : null,
+    cancelReason: r.cancel_reason ?? null,
+    expiredPaymentNudgedAt: r.expired_payment_nudged_at ? new Date(r.expired_payment_nudged_at).getTime() : null,
     createdAt: new Date(r.created_at).getTime(),
     notes: r.notes ?? null,
     patientCode: r.patient_code ?? null,

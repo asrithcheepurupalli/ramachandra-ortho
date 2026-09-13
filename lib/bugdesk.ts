@@ -103,6 +103,7 @@ const bugWhatsAppBody = (item: BugdeskEmailItem): string =>
     "",
     `Source: ${item.source}`,
     `Issue: ${item.message}`,
+    ...(item.detail ? [`Why: ${item.detail}`] : []),
     `Occurrences: ${item.count > 1 ? `${item.count} times` : "Once"}`,
     `Last seen: ${item.lastSeen}`,
   ].join("\n");
@@ -138,6 +139,10 @@ export async function report(input: BugReportInput, err?: unknown): Promise<void
       count,
       lastSeen: fmtLastSeen(now),
       info,
+      // `message` is the caller's short summary ("read failed"); this is the
+      // actual thrown failure behind it, so the alert shows the reason, not
+      // just the summary line.
+      detail: err === undefined || err === null ? undefined : formatThrown(err).slice(0, 300),
     };
     const ok = await sendBugdeskEmail({ kind: "alert", items: [item] });
 
@@ -163,12 +168,48 @@ export async function report(input: BugReportInput, err?: unknown): Promise<void
   }
 }
 
+// Turns a thrown value into something a human can actually read. Supabase's
+// PostgrestError is a plain object ({ message, details, hint, code }), not an
+// Error instance — a bare String() on it produced "[object Object]" on the
+// desk, so a DB failure read as a meaningless blob instead of the reason. Pull
+// the fields that explain a failure out first; collapse anything else to JSON.
+// Never returns the literal "[object Object]".
+export function formatThrown(value: unknown): string {
+  if (value === null || value === undefined) return "unknown error";
+  if (value instanceof Error) return value.message || value.name;
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    const e = value as Record<string, unknown>;
+    if (
+      typeof e.message === "string" ||
+      typeof e.code === "string" ||
+      typeof e.details === "string" ||
+      typeof e.hint === "string"
+    ) {
+      return [
+        typeof e.message === "string" ? e.message : null,
+        typeof e.code === "string" ? `code ${e.code}` : null,
+        typeof e.details === "string" ? `details ${e.details}` : null,
+        typeof e.hint === "string" ? `hint ${e.hint}` : null,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
 /** Convenience: derive the message from a thrown value, then report. */
 export async function reportError(
   source: string,
   err: unknown,
   opts?: { severity?: BugSeverity; info?: Record<string, unknown> }
 ): Promise<void> {
-  const raw = err instanceof Error ? err.message : String(err ?? "unknown error");
-  return report({ source, message: raw.slice(0, 500), severity: opts?.severity, info: opts?.info }, err);
+  const raw = formatThrown(err).slice(0, 500);
+  return report({ source, message: raw, severity: opts?.severity, info: opts?.info }, err);
 }

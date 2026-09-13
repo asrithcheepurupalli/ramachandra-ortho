@@ -285,6 +285,7 @@ type PhrasePack = {
   payFail: string;
   payMock: string;
   payPrompt: string;
+  resumeNone: string;
   viewPrompt: string;
   reschedPrompt: string;
   viewNone: string;
@@ -351,6 +352,7 @@ const P: Record<Lang, PhrasePack> = {
     payDone: (url: string) => `Here's your payment link: ${url}\nIt's valid for 15 minutes. Please complete it before your slot is released.`,
     payFail: "Something went wrong starting the payment. Please try again, or call the clinic.",
     payMock: "✅ Payment confirmed! Your appointment is now confirmed.",
+    resumeNone: "I couldn't find an expired booking to resume on this number.",
     payPrompt: "To confirm your slot, please complete the consultation fee payment now. Tap *Pay now* to pay online.",
     viewPrompt: "Of course. Which phone number did you book with?",
     reschedPrompt: "Sure, let's move your appointment. Which phone number did you book with?",
@@ -407,6 +409,7 @@ const P: Record<Lang, PhrasePack> = {
     payDone: (url: string) => `మీ చెల్లింపు లింక్ ఇదిగో: ${url}\nఇది 15 నిమిషాలు చెల్లుతుంది. మీ స్లాట్ విడుదల అయ్యేలోపు చెల్లించండి.`,
     payFail: "చెల్లింపు ప్రారంభించడంలో సమస్య వచ్చింది. దయచేసి మళ్ళీ ప్రయత్నించండి, లేదా క్లినిక్‌కు కాల్ చేయండి.",
     payMock: "✅ చెల్లింపు పూర్తయింది! మీ అపాయింట్‌మెంట్ ఇప్పుడు కన్ఫర్మ్ అయింది.",
+    resumeNone: "ఈ నంబర్‌కు పునఃప్రారంభించడానికి గడువు ముగిసిన బుకింగ్ ఏదీ లేదు.",
     payPrompt: "మీ స్లాట్ నిర్ధారించడానికి, దయచేసి ఇప్పుడే కన్సల్టేషన్ ఫీజు చెల్లించండి. *ఇప్పుడే చెల్లించండి* నొక్కండి.",
     viewPrompt: "తప్పకుండా. మీ అపాయింట్ ఏ ఫోన్ నంబర్‌తో బుక్ చేశారు?",
     reschedPrompt: "తప్పకుండా, మీ అపాయింట్‌ని మారుద్దాం. మీరు ఏ ఫోన్ నంబర్‌తో బుక్ చేశారు?",
@@ -463,6 +466,7 @@ const P: Record<Lang, PhrasePack> = {
     payDone: (url: string) => `यह रहा आपका भुगतान लिंक: ${url}\nयह 15 मिनट के लिए मान्य है। स्लॉट रिलीज़ होने से पहले भुगतान पूरा करें।`,
     payFail: "भुगतान शुरू करने में समस्या हुई। कृपया दोबारा कोशिश करें, या क्लिनिक को कॉल करें।",
     payMock: "✅ भुगतान पुष्ट हुआ! आपका अपॉइंटमेंट अब पुष्ट है।",
+    resumeNone: "इस नंबर पर फिर से शुरू करने के लिए कोई समाप्त बुकिंग नहीं मिली।",
     payPrompt: "अपना स्लॉट पुष्टि करने के लिए कृपया अभी परामर्श शुल्क का भुगतान करें। *अभी भुगतान करें* दबाएँ।",
     viewPrompt: "ज़रूर। आपका अपॉइंटमेंट किस फ़ोन नंबर से बुक हुआ है?",
     reschedPrompt: "ज़रूर, आपका अपॉइंटमेंट बदलते हैं। आपने किस फ़ोन नंबर से बुक किया था?",
@@ -487,7 +491,11 @@ const P: Record<Lang, PhrasePack> = {
 };
 
 // ── intent detection (heuristic for the beta; Claude in production) ──────────
-type Intent = "avail" | "book" | "cancel" | "pay" | "payCounter" | "reviewFree" | "reschedule" | "view" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback" | "startOver";
+// Chip labels for the post-expiry re-nudge (sent by the payment-timeout cron).
+// Exported here so the cron's button titles and detect()'s match text stay in
+// lockstep — one source for a label that appears in both places.
+export const RESUME_PAY_CHIPS = { link: "New payment link", change: "Change booking" } as const;
+type Intent = "avail" | "book" | "cancel" | "pay" | "payCounter" | "reviewFree" | "resumePay" | "reschedule" | "view" | "hours" | "location" | "fee" | "about" | "greet" | "thanks" | "fallback" | "startOver";
 function detect(s: string): Intent {
   const has = (re: RegExp) => re.test(s);
   if (has(/cancel|రద్దు|कैंसिल|रद्द/i)) return "cancel";
@@ -508,6 +516,10 @@ function detect(s: string): Intent {
   // otherwise be swallowed by earlier or later checks.
   if (has(/pay at (the )?counter|returning patient|returning visit|returning|తిరిగి వచ్చే|మళ్ళీ వస్తున్న|కౌంటర్|फिर से आ|फिरसे आ|काउंटर/i)) return "payCounter";
   if (has(/free review|review visit|రివ్యూ విజిట్|रिव्यू विजिट/i)) return "reviewFree";
+  // The nudge's "New payment link" chip must beat the generic pay match below
+  // ("New payment link" contains "payment") — a fresh-link tap resumes the
+  // expired booking instead of dead-ending or opening a new one.
+  if (has(/new (payment )?link|fresh (payment )?link|payment link (expired|again|resend)|link (got )?expired|resend.*link|పేమెంట్ లింక్ (మళ్ళీ|గడువు)|కొత్త లింక్|లింక్ (మళ్ళీ|గడువు)|नया लिंक|लिंक (खत्म|समाप्त|फिर)|फिर से लिंक/i)) return "resumePay";
   if (has(/\bpay\b|payment|checkout|చెల్లించ|చెల్లింపు|भुगतान|पेमेंट/i)) return "pay";
   if (has(/start (fresh|over)|new slot|book new|కొత్తగా|నయा|नया स्लॉट|नया बुक/i)) return "startOver";
   if (has(/book|appoint|slot|token|బుక్|అపాయింట్|अपॉइंटमेंट|बुक|टोकन/i)) return "book";
@@ -1132,6 +1144,11 @@ export type Backend = {
   // view/reschedule intents don't (an unpaid booking isn't confirmed yet).
   activeAppointmentsByPhone: (phone: string, includePending?: boolean) => Promise<Appt[]>;
   createPaymentLink: (id: string, phone: string) => Promise<string>;
+  // Revives a phone's most recent payment-expired hold (timeout-cancelled, or
+  // still pending but past its 15-min window) to a fresh payment_pending and
+  // clears its stale link fields so createPaymentLink mints a new URL. Null
+  // when nothing qualifies.
+  reactivateExpiredHold: (phone: string) => Promise<Appt | null>;
   reschedule: (id: string, date: string, time: string) => Promise<Appt>;
   // Claim bookings (reviewFree) skip Razorpay entirely, so there's no webhook
   // to notify staff — the route that calls addBooking must do it.
@@ -1285,6 +1302,29 @@ export function flowStartOverLabel(lang: Lang): string { return P[lang].chips.st
 // is e.g. "Fri, Sep 12 at 10:00 AM".
 export function flowReturningConfirmMsg(lang: Lang, tok: number, slotLabel: string, fee: number): string { return P[lang].claimReturningConfirm(tok, slotLabel, fee); }
 export function flowFreeConfirmMsg(lang: Lang, tok: number, slotLabel: string): string { return P[lang].claimFreeConfirm(tok, slotLabel); }
+
+// Shared by the resumePay intent and the pay intent's empty fallback: revives
+// the phone's most recent expired hold, then mints a FRESH payment link for it.
+// The revived row is always an unpaid, non-claim hold, so no re-filtering is
+// needed. Falls back to 'none' text (resumeNone or payNone) when nothing can be
+// revived.
+async function resumeExpiredOnServer(
+  backend: Backend,
+  phone: string,
+  t: PhrasePack,
+  c: PhrasePack["chips"],
+  noneMsg: string
+): Promise<{ reply: string[]; chips: string[]; state: ServerBotState }> {
+  const revived = await backend.reactivateExpiredHold(phone);
+  if (!revived) return { reply: [noneMsg], chips: [c.book], state: { stage: "idle" } };
+  try {
+    const url = await backend.createPaymentLink(revived.id, phone);
+    return { reply: [t.payDone(url)], chips: [c.avail, c.book], state: { stage: "idle" } };
+  } catch (err) {
+    await reportBotError("bot", "create payment link failed", { stage: "resume_pay" }, err, { severity: "critical" });
+    return { reply: [t.payFail], chips: [c.book], state: { stage: "idle" } };
+  }
+}
 
 export async function botReplyServer(
   input: string,
@@ -1556,7 +1596,10 @@ export async function botReplyServer(
       // Razorpay link for a booking that must not be charged online.
       const active = (await backend.activeAppointmentsByPhone(phone, true)).filter((a) => !a.paid && !a.claimType);
       if (!active.length) {
-        return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
+        // Nothing active and unpaid — but a cancelled/lapsed hold may still be
+        // revivable, so the stale "Pay now" chip self-heals into the same resume
+        // path instead of dead-ending at "nothing to pay".
+        return resumeExpiredOnServer(backend, phone, t, c, t.payNone);
       }
       if (active.length === 1) {
         try {
@@ -1574,6 +1617,8 @@ export async function botReplyServer(
         state: { stage: "await_pay_pick", payCandidates: candidates },
       };
     }
+    case "resumePay":
+      return resumeExpiredOnServer(backend, phone, t, c, t.resumeNone);
     case "payCounter":
       return startBookingServer(backend, sched, t, c, "returning_unverified");
     case "reviewFree":

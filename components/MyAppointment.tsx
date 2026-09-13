@@ -140,6 +140,9 @@ function MyAppointmentInner() {
 
       {appts && appts.length > 0 && (
         <div className="stage-in mt-6 space-y-4">
+          {appts.length > 1 && (
+            <p className="text-sm font-medium text-muted">{t("myappt.multiple", { count: appts.length })}</p>
+          )}
           {appts.map((a) => (
             <ApptCard key={a.id} appt={a} t={t} phone={phone} otpEnabled={otpEnabled} verified={verified} onVerified={() => setVerified(true)} onUpdated={updateAppt} />
           ))}

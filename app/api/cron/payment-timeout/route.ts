@@ -5,9 +5,10 @@
 // the slot locked forever, so a cron POSTs here every 5 minutes and cancels any
 // payment_pending row older than 15 minutes, freeing its slot for someone else.
 //
-// No WhatsApp cancellation notice is sent: the patient never had a confirmed
-// appointment (the row was never shown as active anywhere), and a "your slot
-// was released" nudge would only add noise. No refund logic — nothing was paid.
+// After cancelling, WhatsApp-source holds get ONE follow-up nudge (offered
+// within Meta's 24h customer window): a "New payment link" button that revives
+// the same booking with a fresh Razorpay link for the same slot, or "Change
+// booking" to start over. No refund logic — nothing was paid.
 //
 // Idempotent by nature: each tick only touches rows that are still
 // payment_pending, so a retried or overlapping tick finds nothing to do.
@@ -19,8 +20,14 @@ import { safeEqual } from "@/lib/meta-whatsapp";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { report, reportError } from "@/lib/bugdesk";
 import { PAYMENT_WINDOW_MS } from "@/lib/db";
+import { sendButtons } from "@/lib/meta-whatsapp";
+import { RESUME_PAY_CHIPS } from "@/lib/bot";
 
 export const dynamic = "force-dynamic";
+
+// The one-time post-expiry nudge body, offered to WhatsApp patients whose
+// payment link lapsed. Both chip labels stay under Meta's 20-char button cap.
+const NUDGE_BODY = "Your payment link expired, so your slot was released. Tap below to pay for the same time with a fresh link, or change your booking.";
 
 export async function POST(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -41,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   const { data: stale, error: readErr } = await supabaseAdmin()
     .from("appointments")
-    .select("id, token, name, appt_date, appt_time")
+    .select("id, token, name, appt_date, appt_time, phone, source")
     .eq("status", "payment_pending")
     .lt("created_at", cutoff);
 
@@ -57,7 +64,7 @@ export async function POST(req: NextRequest) {
   for (const row of stale ?? []) {
     const { data, error: writeErr } = await supabaseAdmin()
       .from("appointments")
-      .update({ status: "cancelled" })
+      .update({ status: "cancelled", cancel_reason: "payment_timeout" })
       .eq("id", row.id)
       .eq("status", "payment_pending") // guard: never clobber a row the webhook just reserved
       .eq("paid", false)               // guard: never cancel a row the desk collected cash for
@@ -74,5 +81,57 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ status: "ok", windowMinutes: 15, cancelled });
+  // ── post-expiry re-nudge ──────────────────────────────────────────────────
+  // WhatsApp patients whose link expired (row cancelled by this or an earlier
+  // tick) get exactly one nudge. Mark-then-send with the same idempotency guard
+  // as the reminder crons: only the row that wins the conditional update on
+  // expired_payment_nudged_at being null sends; a failed send rolls the flag
+  // back so the next tick (within 5 min) retries inside Meta's 24h window.
+  // Bounded to the last 24h so a never-sent nudge is not retried forever. A row
+  // revived meanwhile (status payment_pending) exits both the read and the
+  // win-guard. Soft-gated on META_WHATSAPP_TOKEN: without it every send returns
+  // false, which would spam Bedbug criticals on non-prod deployments.
+  const nudged: string[] = [];
+  if (process.env.META_WHATSAPP_TOKEN) {
+    const { data: toNudge, error: nudgeErr } = await supabaseAdmin()
+      .from("appointments")
+      .select("id, phone")
+      .eq("status", "cancelled")
+      .eq("cancel_reason", "payment_timeout")
+      .is("expired_payment_nudged_at", null)
+      .eq("source", "whatsapp")
+      .gt("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .not("phone", "is", null);
+
+    if (nudgeErr) {
+      await reportError("cron/payment-timeout", nudgeErr, { severity: "critical", info: { stage: "nudge_read" } });
+    } else {
+      const nowIso = new Date().toISOString();
+      for (const row of toNudge ?? []) {
+        const { data: claimed } = await supabaseAdmin()
+          .from("appointments")
+          .update({ expired_payment_nudged_at: nowIso })
+          .eq("id", row.id)
+          .eq("status", "cancelled")
+          .is("expired_payment_nudged_at", null)
+          .select("id");
+        if (!claimed?.length) continue; // another tick already nudged, or the row was revived
+        const rollback = async () => { await supabaseAdmin().from("appointments").update({ expired_payment_nudged_at: null }).eq("id", row.id).eq("status", "cancelled"); };
+        try {
+          const sent = await sendButtons(row.phone, NUDGE_BODY, [RESUME_PAY_CHIPS.link, RESUME_PAY_CHIPS.change]);
+          if (sent) {
+            nudged.push(row.id);
+          } else {
+            await rollback();
+            await reportError("cron/payment-timeout", new Error("nudge send failed"), { severity: "critical", info: { stage: "nudge_send", id: row.id } });
+          }
+        } catch (err) {
+          await rollback();
+          await reportError("cron/payment-timeout", err, { severity: "critical", info: { stage: "nudge_send", id: row.id } });
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({ status: "ok", windowMinutes: 15, cancelled, nudged });
 }

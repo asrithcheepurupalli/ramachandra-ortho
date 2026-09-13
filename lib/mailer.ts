@@ -235,13 +235,18 @@ export type BugdeskEmailItem = {
   count: number;
   lastSeen: string;
   info?: Record<string, unknown> | null;
+  // The formatted thrown failure behind `message`, so an alert shows the
+  // actual reason ("Failure retrieving data from server (code 42501)") rather
+  // than only the caller's one-line summary.
+  detail?: string;
 };
 
 // Monospace block that shows the raw failure behind an issue. Pre wrapped so
 // the stack/no indentation survives; pre-wrap so long lines never overflow.
 const bugBlock = (item: BugdeskEmailItem) => {
+  const detail = item.detail ? `\n\n${esc("Reason: " + item.detail)}` : "";
   const info = item.info && Object.keys(item.info).length ? `\n\n${JSON.stringify(item.info, null, 2)}` : "";
-  return `<pre style="margin:10px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.6;color:${BRAND.muted};background-color:${BRAND.bone};border:1px solid ${BRAND.line};border-radius:10px;padding:12px 14px;white-space:pre-wrap;word-break:break-word;">${esc(item.message)}${info}</pre>`;
+  return `<pre style="margin:10px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.6;color:${BRAND.muted};background-color:${BRAND.bone};border:1px solid ${BRAND.line};border-radius:10px;padding:12px 14px;white-space:pre-wrap;word-break:break-word;">${esc(item.message)}${detail}${info}</pre>`;
 };
 
 function bugItemCard(item: BugdeskEmailItem): string {

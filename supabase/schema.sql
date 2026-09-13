@@ -89,6 +89,15 @@ alter table public.appointments add column if not exists review_nudge_sent_at ti
 -- same conditional-update idempotency guard, so a consulted patient who hasn't
 -- booked their free review is nudged exactly once.
 alter table public.appointments add column if not exists free_visit_reminder_sent_at timestamptz;
+-- Payment-expiry re-nudge (app/api/cron/payment-timeout): cancel_reason marks
+-- a row cancelled BECAUSE the 15-minute payment window lapsed (only the timeout
+-- cron / lazy expiry stamp 'payment_timeout'; every deliberate cancel stays
+-- null — this is what keeps resume from reviving a deliberate cancellation).
+-- expired_payment_nudged_at is the one-time "your payment link expired" nudge
+-- stamp; the cron's idempotency guard updates on this being NULL, and a failed
+-- send is rolled back so the next tick retries inside Meta's 24h window.
+alter table public.appointments add column if not exists cancel_reason text;
+alter table public.appointments add column if not exists expired_payment_nudged_at timestamptz;
 -- Doctor's free-text clinical note, written from the doctor portal only.
 -- Never surfaced on the website/WhatsApp side — clinical content stays
 -- internal to staff.

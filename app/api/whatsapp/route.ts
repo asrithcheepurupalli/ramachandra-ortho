@@ -3,7 +3,7 @@
 // Always acks POST with 200 quickly; Meta retries (and can disable) a webhook
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
-import { dbAddBooking, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbRescheduleAppointment } from "@/lib/db";
+import { dbAddBooking, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbReactivateExpiredHold, dbRescheduleAppointment } from "@/lib/db";
 import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowDuplicateSlotMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, flowReturningConfirmMsg, flowFreeConfirmMsg, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail, sendNewAppointmentEmail } from "@/lib/mailer";
@@ -14,6 +14,7 @@ const backend: Backend = {
   addBooking: dbAddBooking,
   activeAppointmentsByPhone: dbActiveAppointmentsByPhone,
   createPaymentLink: dbGetOrCreatePaymentLink,
+  reactivateExpiredHold: dbReactivateExpiredHold,
   // Move the booking AND re-confirm it over WhatsApp, matching what the site's
   // reschedule route does ("your appointment is confirmed for X" reads fine for
   // a moved booking too).

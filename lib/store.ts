@@ -38,6 +38,8 @@ export type Appt = {
   reminderSentAt: number | null; // epoch ms of the automatic reminder; null = not yet reminded
   reviewNudgeSentAt: number | null; // epoch ms of the post-visit review nudge; null = not yet nudged
   freeVisitReminderSentAt: number | null; // epoch ms of the free-review-visit nudge; null = not yet nudged
+  cancelReason: string | null; // 'payment_timeout' = cancelled by the 15-min payment window lapsing; null = any other (deliberate) cancel. Only timeout cancels are ever revived.
+  expiredPaymentNudgedAt: number | null; // epoch ms of the "your payment link expired" nudge; null = not yet nudged
   createdAt: number;
   notes: string | null; // doctor's free-text clinical note, written from the doctor portal only
   patientCode: string | null; // human-readable patient ID (ROC-####), null when not matched
@@ -115,7 +117,7 @@ function seed(): Appt[] {
   return rows.map((r, i) => ({
     id: rid(), token: i + 1, name: r[0], phone: r[1], age: r[2], gender: r[7], date: today,
     time: times[i], status: r[4], source: r[3], fee, paid: r[5], paidVia: r[6],
-    paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, createdAt: Date.now() - (10 - i) * 6e5,
+    paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null, createdAt: Date.now() - (10 - i) * 6e5,
     notes: null, patientCode: codeFor(r[1], r[0]), claimType: null, paymentDeadlineAt: null,
   }));
 }
@@ -162,7 +164,10 @@ function expirePaymentPending(all: Appt[]): Appt[] {
     const deadline = a.paymentDeadlineAt ?? a.createdAt + PAYMENT_WINDOW_MS;
     if (deadline > now) return a; // not yet expired
     changed = true;
-    return { ...a, status: "cancelled" as Appt["status"] };
+    // Mirrors the server cron: stamp cancel_reason 'payment_timeout' so the
+    // resume path (and admin history) can tell a lapsed-payment cancel from a
+    // deliberate one.
+    return { ...a, status: "cancelled" as Appt["status"], cancelReason: "payment_timeout" as Appt["cancelReason"] };
   });
   // Same reference when nothing expired, so useSyncExternalStore snapshot
   // stays referentially stable and consumers don't re-render on every read.
@@ -222,7 +227,7 @@ export function addWalkIn(input: { name: string; phone: string; age: number; gen
     age: input.age, gender: input.gender ?? null, date: today,
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
     source: input.source ?? "walkin", fee, paid: false, paidVia: null,
-    paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, createdAt: Date.now(),
+    paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null, createdAt: Date.now(),
     notes: null, patientCode, claimType: null, paymentDeadlineAt: null,
   };
   write([...all, appt]);
@@ -279,7 +284,7 @@ export function addBooking(input: {
     id: rid(), token, name: input.name.trim(), phone,
     age: input.age, gender: input.gender ?? null, date: input.date, time: input.time,
     status: claim ? "reserved" : "payment_pending", source: input.source ?? "website", fee,
-    paid: claim === "review_free", paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, createdAt: Date.now(),
+    paid: claim === "review_free", paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null, createdAt: Date.now(),
     notes: null, patientCode, claimType: claim,
     paymentDeadlineAt: claim ? null : Date.now() + PAYMENT_WINDOW_MS,
   };
