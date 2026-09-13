@@ -38,19 +38,3 @@ jobs:
       - name: Build
         run: npm run build
 
-  # Deploy to Vercel only after check passes and only on pushes to main.
-  # Uses a Deploy Hook (Project Settings → Deploy Hooks in Vercel dashboard)
-  # rather than the CLI — no token auth or project-linking issues.
-  # vercel.json's ignoreCommand skips Vercel's own git-triggered auto-deploy;
-  # deploy hooks bypass ignoreCommand so only this CI path reaches production.
-  #
-  # Required GitHub repo secret:
-  #   VERCEL_DEPLOY_HOOK_URL — copy from Vercel → Project → Settings → Deploy Hooks
-  deploy:
-    needs: [check]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Trigger Vercel production deploy
-        run: curl -fsSX POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
