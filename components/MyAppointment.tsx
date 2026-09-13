@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
-import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN } from "@/lib/schedule";
+import { allSlotsFor, ymd, fmt, weekdayName, BOOKING_LEAD_MIN, nowIST } from "@/lib/schedule";
 import {
   activeAppointmentsByPhone, rescheduleBooking, togglePaid,
   hydrateSchedule, type Appt,
@@ -396,7 +396,7 @@ function RescheduleFlow({
 
   useEffect(() => {
     let cancelled = false;
-    const now = new Date();
+    const now = nowIST();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const keys = Array.from({ length: 14 }, (_, i) => {
       const d = new Date(now); d.setDate(now.getDate() + i);

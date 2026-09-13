@@ -14,6 +14,12 @@ export function normalizePhone(raw: string): string {
   return digits;
 }
 
+// True for a 10-digit number that's actually a valid Indian mobile (leading
+// digit 6-9) rather than just any 10 digits typed into the field.
+export function isValidIndianMobile(normalized: string): boolean {
+  return normalized.length === 10 && /^[6-9]/.test(normalized);
+}
+
 // The shapes a stored phone might take for the same person. Lookups that go to
 // the DB match all of them (`.in(...)`), so pre-normalization rows written
 // with a country prefix still surface for a patient typing their local number.

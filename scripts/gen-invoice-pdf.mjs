@@ -1,18 +1,30 @@
-// Render docs/handbook/invoice.html -> docs/Ramachandra-Ortho-Invoice.pdf
-// using headless Chrome over the DevTools Protocol (no deps; Node 24 WebSocket).
-// Re-run after every edit to the HTML.
+// Render an invoice HTML -> PDF using headless Chrome over the DevTools
+// Protocol (no deps; Node 24 WebSocket). Re-run after every edit to the HTML.
+//
+//   node scripts/gen-invoice-pdf.mjs                 # the proposal invoice
+//   node scripts/gen-invoice-pdf.mjs tax-invoice     # the GST/tax invoice
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 
 const PORT = 9336;
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const SRC = new URL("../docs/handbook/invoice.html", import.meta.url).pathname;
-const OUT = new URL("../docs/Ramachandra-Ortho-Invoice.pdf", import.meta.url).pathname;
+const DOCS = {
+  invoice: ["invoice.html", "Ramachandra-Ortho-Invoice.pdf"],
+  "tax-invoice": ["tax-invoice.html", "Ramachandra-Ortho-Tax-Invoice.pdf"],
+  "one-page": ["one-page-invoice.html", "Ramachandra-Ortho-One-Page-Invoice.pdf"],
+  "value-brief": ["value-brief.html", "Ramachandra-Ortho-Value-Brief.pdf"],
+  comparison: ["comparison.html", "Ramachandra-Ortho-Comparison.pdf"],
+};
+const which = process.argv[2] || "invoice";
+if (!DOCS[which]) { console.error(`unknown doc "${which}", expected one of: ${Object.keys(DOCS).join(", ")}`); process.exit(1); }
+const [srcName, outName] = DOCS[which];
+const SRC = new URL(`../docs/handbook/${srcName}`, import.meta.url).pathname;
+const OUT = new URL(`../docs/${outName}`, import.meta.url).pathname;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const chrome = spawn(CHROME, [
   "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-  `--remote-debugging-port=${PORT}`, "--user-data-dir=/tmp/ortho-invoice-pdf-profile", "about:blank",
+  `--remote-debugging-port=${PORT}`, `--user-data-dir=/tmp/ortho-invoice-pdf-profile-${which}`, "about:blank",
 ], { stdio: "ignore" });
 chrome.on("error", (e) => { console.error("chrome error", e); process.exit(1); });
 

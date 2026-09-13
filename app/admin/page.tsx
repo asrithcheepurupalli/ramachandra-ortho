@@ -16,7 +16,7 @@ import {
 } from "@/lib/store";
 import {
   statusAt, fmt, weekdayName, defaultWeeklyHours, applySchedule, setOverride,
-  weeklyHours, exceptions, overrideRef, ymd, windowsFor, allSlotsFor, isPastLeadTime,
+  weeklyHours, exceptions, overrideRef, ymd, nowIST, windowsFor, allSlotsFor, isPastLeadTime,
   type WeeklyHours, type Exception,
 } from "@/lib/schedule";
 import { hasSupabase, supabaseBrowser } from "@/lib/supabase";
@@ -26,8 +26,32 @@ import {
   useDbScheduleTick,
 } from "@/lib/admin-db";
 import { CalendarView } from "@/components/admin/CalendarView";
+import { downloadCsv } from "@/lib/csv";
 
 type Patch = (id: string, p: Partial<Appt>) => void;
+
+// Tiny pub/sub for surfacing a failure banner from standalone action
+// functions (changeStatus/changePaid) that get called from components at
+// different nesting levels (Today's own handlers, QueueRow) — a shared
+// listener set is simpler than prop-drilling a setter through all of them.
+type ErrorListener = (msg: string) => void;
+const actionErrorListeners = new Set<ErrorListener>();
+function notifyActionError(msg: string) {
+  for (const l of actionErrorListeners) l(msg);
+}
+function useActionErrorBanner(): string | null {
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    actionErrorListeners.add(setMsg);
+    return () => { actionErrorListeners.delete(setMsg); };
+  }, []);
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(null), 5000);
+    return () => clearTimeout(t);
+  }, [msg]);
+  return msg;
+}
 
 function changeStatus(id: string, status: ApptStatus, prevStatus: ApptStatus, patch: Patch) {
   // Reflect the change immediately — the API call (and, for a cancel, the
@@ -46,6 +70,7 @@ function changeStatus(id: string, status: ApptStatus, prevStatus: ApptStatus, pa
       .catch((err) => {
         console.error("admin: could not update status", err);
         patch(id, { status: prevStatus }); // revert the optimistic flip
+        notifyActionError("Couldn't update that appointment's status. Please try again.");
       });
   }
   else setStatus(id, status);
@@ -56,6 +81,7 @@ function changePaid(id: string, current: Pick<Appt, "paid" | "paidVia">, patch: 
     dbTogglePaidClient(id, current.paid).catch((err) => {
       console.error("admin: could not toggle paid", err);
       patch(id, current); // revert
+      notifyActionError("Couldn't update payment status. Please try again.");
     });
   }
   else togglePaid(id);
@@ -96,13 +122,15 @@ const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
 export default function Admin() {
   const [tab, setTab] = useState<Tab>("today");
   const mounted = useMounted();
-  const [appts, patchAppt] = useAdminAppts();
+  const [appts, patchAppt, apptsLoadError] = useAdminAppts();
   const [scheduleLoaded, setScheduleLoaded] = useState(!hasSupabase());
+  const [scheduleLoadError, setScheduleLoadError] = useState(false);
+  const actionError = useActionErrorBanner();
   useEffect(() => {
     if (hasSupabase()) {
       dbLoadScheduleClient()
         .then((s) => { applySchedule(s.weekly, s.exceptions); setOverride(s.override); })
-        .catch((err) => console.error("admin: could not load schedule", err))
+        .catch((err) => { console.error("admin: could not load schedule", err); setScheduleLoadError(true); })
         .finally(() => setScheduleLoaded(true));
     } else {
       hydrateSchedule();
@@ -156,6 +184,17 @@ export default function Admin() {
             )}
           </div>
         </div>
+
+        {(apptsLoadError || scheduleLoadError || actionError) && (
+          <div className="border-b border-out/20 bg-out/10 px-4 md:px-8 py-2 text-sm text-out">
+            {actionError
+              ?? (apptsLoadError && scheduleLoadError
+                ? "Couldn't load appointments or the schedule. Refresh to retry."
+                : apptsLoadError
+                  ? "Couldn't load appointments. Refresh to retry."
+                  : "Couldn't load the clinic schedule. Refresh to retry.")}
+          </div>
+        )}
 
         <div className={`${tab === "calendar" ? "p-0" : "p-4 md:p-8 xl:p-10"}`}>
           {!mounted || !scheduleLoaded ? (
@@ -365,6 +404,47 @@ const statusMeta: Record<ApptStatus, { label: string; cls: string }> = {
 
 function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
   const S = sourceMeta[a.source];
+  const today = ymd(nowIST());
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rsDate, setRsDate] = useState(a.date);
+  const [rsTime, setRsTime] = useState(a.time);
+  const [rsSlots, setRsSlots] = useState<string[]>([]);
+  const [rsBusy, setRsBusy] = useState(false);
+  const [rsErr, setRsErr] = useState<string | null>(null);
+
+  const openReschedule = () => {
+    setRsDate(a.date < today ? today : a.date);
+    setRsTime(a.time);
+    setRsErr(null);
+    setRescheduling(true);
+  };
+  const loadSlots = (date: string) => {
+    const d = new Date(date + "T00:00:00");
+    const sched = { weekly: weeklyHours, exceptions: exceptions, override: overrideRef.current };
+    setRsSlots(allSlotsFor(d, sched));
+    setRsTime("");
+  };
+  const onDateChange = (date: string) => { setRsDate(date); loadSlots(date); };
+  const confirmReschedule = async () => {
+    if (!rsDate || !rsTime) { setRsErr("Pick a date and time."); return; }
+    setRsBusy(true); setRsErr(null);
+    try {
+      const res = await fetch("/api/appointments/admin-reschedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: a.id, date: rsDate, time: rsTime }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setRsErr(json.error || "Could not reschedule."); return; }
+      patch(a.id, { date: rsDate, time: rsTime });
+      setRescheduling(false);
+    } catch {
+      setRsErr("Network error — please try again.");
+    } finally {
+      setRsBusy(false);
+    }
+  };
+
   const cancel = () => {
     if (!window.confirm(`Cancel Token #${a.token} (${a.name})? This sends them a WhatsApp cancellation notice right away and can't be undone.`)) return;
     changeStatus(a.id, "cancelled", a.status, patch);
@@ -391,7 +471,8 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
       });
   };
   return (
-    <li className={`flex items-center gap-3 px-6 py-3.5 ${a.status === "consulting" ? "bg-in/[0.04]" : ""}`}>
+    <li className={`px-6 py-3.5 ${a.status === "consulting" ? "bg-in/[0.04]" : ""}`}>
+      <div className="flex items-center gap-3">
       <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg font-mono text-sm font-semibold ${a.status === "done" ? "bg-muted/10 text-muted" : "bg-brand text-white"}`}>{a.token}</div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -436,10 +517,44 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
         {a.status === "consulting" && (
           <button onClick={() => changeStatus(a.id, "done", a.status, patch)} title="Mark done" className="rounded-lg border border-line p-2 text-in hover:bg-in/10"><Check className="h-[18px] w-[18px]" /></button>
         )}
-        {a.status !== "done" && a.status !== "cancelled" && (
+        {["reserved", "confirmed", "waiting"].includes(a.status) && !rescheduling && (
+          <button onClick={openReschedule} title="Reschedule" className="rounded-lg border border-line p-2 text-muted hover:text-brand hover:bg-brand-tint"><RotateCcw className="h-[18px] w-[18px]" /></button>
+        )}
+        {a.status !== "done" && a.status !== "cancelled" && !rescheduling && (
           <button onClick={cancel} title="Cancel" className="rounded-lg border border-line p-2 text-muted hover:text-out hover:bg-out/10"><X className="h-[18px] w-[18px]" /></button>
         )}
+        {rescheduling && (
+          <button onClick={() => setRescheduling(false)} title="Close" className="rounded-lg border border-line p-2 text-muted hover:bg-line/40"><X className="h-[18px] w-[18px]" /></button>
+        )}
       </div>
+      </div>
+      {rescheduling && (
+        <div className="col-span-full mt-2 ml-[52px] mr-0 rounded-xl border border-brand/30 bg-brand-tint/40 p-3">
+          <p className="mb-2 text-xs font-semibold text-brand">Reschedule — patient will get a new confirmation on WhatsApp</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date" value={rsDate} min={today}
+              onChange={(e) => onDateChange(e.target.value)}
+              className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand"
+            />
+            <select
+              value={rsTime}
+              onChange={(e) => setRsTime(e.target.value)}
+              className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-sm outline-none focus:border-brand"
+            >
+              <option value="">Pick time…</option>
+              {(rsSlots.length ? rsSlots : [a.time]).map((t) => (
+                <option key={t} value={t}>{fmt(t)}</option>
+              ))}
+            </select>
+            <button
+              onClick={confirmReschedule} disabled={rsBusy}
+              className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60 hover:bg-brand-dark"
+            >{rsBusy ? "Saving…" : "Confirm"}</button>
+          </div>
+          {rsErr && <p className="mt-1.5 text-xs text-out">{rsErr}</p>}
+        </div>
+      )}
     </li>
   );
 }
@@ -447,15 +562,18 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
 function WalkIn() {
   const [f, setF] = useState({ name: "", phone: "", age: 0 as number, gender: "" as "" | "M" | "F" });
   const [done, setDone] = useState<null | number>(null);
+  const [error, setError] = useState<string | null>(null);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.name.trim()) return;
+    setError(null);
     try {
       const a = await addWalkInAny({ ...f, gender: f.gender || null });
       setDone(a.token); setF({ name: "", phone: "", age: 0, gender: "" });
       setTimeout(() => setDone(null), 3000);
     } catch (err) {
       console.error("admin: could not add walk-in", err);
+      setError("Couldn't add this patient to the queue. Please try again.");
     }
   };
   return (
@@ -474,6 +592,7 @@ function WalkIn() {
         <button className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-brand py-3 text-sm font-semibold text-white hover:bg-brand-dark"><Plus className="h-4 w-4" /> Add to queue</button>
       </form>
       {done && <div className="mt-2 rounded-lg bg-in/10 px-3 py-2 text-sm text-in">Added · token <b>#{done}</b> issued.</div>}
+      {error && <div className="mt-2 rounded-lg bg-out/10 px-3 py-2 text-sm text-out">{error}</div>}
     </div>
   );
 }
@@ -875,9 +994,19 @@ function Patients({ appts }: { appts: Appt[] }) {
     }
     return [...by.values()].filter((p) => (p.name + p.phone).toLowerCase().includes(q.toLowerCase()));
   }, [appts, q]);
+  const exportCsv = () => {
+    const rows: string[][] = [["Name", "Phone", "Age", "Gender", "Visits", "Last visit"]];
+    for (const p of list) {
+      rows.push([p.name, p.phone, p.last.age ? String(p.last.age) : "", p.last.gender ?? "", String(p.visits), p.last.date]);
+    }
+    downloadCsv(`patients-${ymd(new Date())}.csv`, rows);
+  };
   return (
     <div className="space-y-4">
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search patients…" className="w-full max-w-md rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search patients…" className="w-full max-w-md rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand" />
+        <button onClick={exportCsv} className="rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm font-medium text-ink hover:bg-bone/60">Export CSV</button>
+      </div>
       <div className="overflow-hidden rounded-2xl border border-line bg-paper">
         <table className="w-full text-sm">
           <thead>

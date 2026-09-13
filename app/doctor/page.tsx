@@ -11,6 +11,7 @@ import { useMounted, apptsForDate, resetDemo, setNotes, ageGenderLabel, type App
 import { ymd, fmt } from "@/lib/schedule";
 import { hasSupabase, supabaseBrowser } from "@/lib/supabase";
 import { useAdminAppts, dbSetNotes } from "@/lib/admin-db";
+import { downloadCsv } from "@/lib/csv";
 
 // Only relevant in DB mode — mock mode has no Supabase session to sign out
 // of, and proxy.ts doesn't gate /doctor at all when Supabase isn't configured.
@@ -55,7 +56,7 @@ const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
 export default function Doctor() {
   const [tab, setTab] = useState<Tab>("calendar");
   const mounted = useMounted();
-  const [appts] = useAdminAppts();
+  const [appts, , apptsLoadError] = useAdminAppts();
 
   return (
     <div className="min-h-screen bg-bone text-ink flex">
@@ -101,6 +102,12 @@ export default function Doctor() {
             <button onClick={signOutStaff} className="md:hidden rounded-lg p-2 text-muted hover:text-out" aria-label="Sign out"><LogOut className="h-4 w-4" /></button>
           )}
         </div>
+
+        {apptsLoadError && (
+          <div className="border-b border-out/20 bg-out/10 px-4 md:px-8 py-2 text-sm text-out">
+            Couldn&apos;t load appointments. Refresh to retry.
+          </div>
+        )}
 
         <div className="p-4 md:p-8">
           {!mounted ? (
@@ -264,9 +271,20 @@ function DoctorPatients({ appts }: { appts: Appt[] }) {
     return [...by.values()].filter((p) => (p.name + p.phone).toLowerCase().includes(q.toLowerCase()));
   }, [appts, q]);
 
+  const exportCsv = () => {
+    const rows: string[][] = [["Name", "Phone", "Age", "Gender", "Visits", "Last visit"]];
+    for (const p of list) {
+      rows.push([p.name, p.phone, p.last.age ? String(p.last.age) : "", p.last.gender ?? "", String(p.visits), p.last.date]);
+    }
+    downloadCsv(`patients-${ymd(new Date())}.csv`, rows);
+  };
+
   return (
     <div className="max-w-3xl">
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search patients…" className="mb-4 w-full max-w-sm rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search patients…" className="w-full max-w-sm rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-brand" />
+        <button onClick={exportCsv} className="rounded-lg border border-line bg-white px-3.5 py-2 text-sm font-medium text-ink hover:bg-bone/60">Export CSV</button>
+      </div>
       <div className="rounded-2xl border border-line bg-paper divide-y divide-line">
         {list.map((p) => (
           <div key={p.last.id} className="flex items-center gap-3 px-5 py-3">
@@ -326,7 +344,10 @@ function dateRangeList(start: string, end: string): string[] {
 function RevenueAnalysis({ appts }: { appts: Appt[] }) {
   const [range, setRange] = useState<Range>("month");
   const { start, end } = rangeBounds(range);
-  const inRange = useMemo(() => appts.filter((a) => a.date >= start && a.date <= end), [appts, start, end]);
+  const inRange = useMemo(
+    () => appts.filter((a) => a.date >= start && a.date <= end && a.status !== "payment_pending"),
+    [appts, start, end]
+  );
   const active = inRange.filter((a) => a.status !== "cancelled");
   // Net, not gross: a refunded row's money came in then went out, so it's
   // excluded from "collected" the same way lib/store.ts's revenue math treats it.

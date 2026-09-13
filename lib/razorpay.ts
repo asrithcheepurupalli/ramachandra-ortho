@@ -122,6 +122,24 @@ export async function refundPayment(paymentId: string): Promise<{ id: string; st
   }
 }
 
+// Fetches a refund by its Razorpay ID. Returns the refund object (with at
+// least `id` and `payment_id`) on success, null if not found or on any error.
+export async function fetchRefund(refundId: string): Promise<{ id: string; payment_id: string } | null> {
+  const auth = authHeader();
+  if (!auth) return null;
+  try {
+    const res = await fetch(`${API_BASE}/refunds/${encodeURIComponent(refundId)}`, {
+      headers: { Authorization: auth },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data?.id || !data?.payment_id) return null;
+    return { id: data.id as string, payment_id: data.payment_id as string };
+  } catch {
+    return null;
+  }
+}
+
 // Razorpay signs webhook deliveries with X-Razorpay-Signature: a bare hex
 // HMAC-SHA256 digest of the raw body using the webhook secret (set when the
 // webhook URL is added in Dashboard -> Settings -> Webhooks). Same

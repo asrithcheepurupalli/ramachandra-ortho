@@ -63,8 +63,9 @@ function rowToAppt(r: DbApptRow): Appt {
 // instead of re-querying the whole table — a full `select("*")` on every
 // change was an extra network round trip (on top of the websocket delivery
 // itself) that made every status/paid click feel laggy on a slow connection.
-function useDbAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void] {
+function useDbAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void, boolean] {
   const [appts, setAppts] = useState<Appt[]>([]);
+  const [loadError, setLoadError] = useState(false);
   useEffect(() => {
     if (!hasSupabase()) return;
     const db = supabaseBrowser();
@@ -72,7 +73,10 @@ function useDbAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void] {
 
     const load = async () => {
       const { data, error } = await db.from("appointments").select("*");
-      if (!cancelled && !error) setAppts((data ?? []).map(rowToAppt));
+      if (cancelled) return;
+      if (error) { setLoadError(true); return; }
+      setLoadError(false);
+      setAppts((data ?? []).map(rowToAppt));
     };
     load();
 
@@ -113,17 +117,17 @@ function useDbAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void] {
     setAppts((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   };
 
-  return [appts, patchAppt];
+  return [appts, patchAppt, loadError];
 }
 
 // Unconditionally calls both hooks (hasSupabase() is a build-time constant,
 // so this never violates the rules of hooks) and picks the active one. Mock
 // mode's own store already writes + re-renders synchronously, so its patch
 // function is a no-op — only DB mode needs the optimistic bridge.
-export function useAdminAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void] {
+export function useAdminAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void, boolean] {
   const mock = useAppts();
-  const [db, patchDb] = useDbAppts();
-  return hasSupabase() ? [db, patchDb] : [mock, () => {}];
+  const [db, patchDb, loadError] = useDbAppts();
+  return hasSupabase() ? [db, patchDb, loadError] : [mock, () => {}, false];
 }
 
 // ── walk-in / status / paid ──────────────────────────────────────────────────
