@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     const dump = JSON.stringify({ generatedAt: new Date().toISOString(), patients, appointments });
     const ok = await sendBackupEmail(dump, dateLabel);
-    if (!authenticated) {
+    if (!ok) {
       await reportError("cron/backup", new Error("backup email failed to send"), { severity: "critical" });
       return NextResponse.json({ status: "send-failed" }, { status: 502 });
     }
