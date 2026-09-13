@@ -15,9 +15,11 @@ import { ymd, nowIST } from "@/lib/schedule";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const secret = process.env.CRON_SECRET ?? process.env.EXT_CRON_SECRET;
+  const secret = process.env.CRON_SECRET;
+  const extSecret = process.env.EXT_CRON_SECRET;
   const auth = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!secret || !auth || !safeEqual(secret.trim(), auth.trim())) {
+  const authenticated = (secret && safeEqual(secret.trim(), auth.trim())) || (extSecret && safeEqual(extSecret.trim(), auth.trim()));
+  if (!authenticated) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!process.env.RESEND_API_KEY) {
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     const dump = JSON.stringify({ generatedAt: new Date().toISOString(), patients, appointments });
     const ok = await sendBackupEmail(dump, dateLabel);
-    if (!ok) {
+    if (!authenticated) {
       await reportError("cron/backup", new Error("backup email failed to send"), { severity: "critical" });
       return NextResponse.json({ status: "send-failed" }, { status: 502 });
     }
