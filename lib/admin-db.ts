@@ -72,6 +72,10 @@ function useDbAppts(): [Appt[], (id: string, patch: Partial<Appt>) => void, bool
     let cancelled = false;
 
     const load = async () => {
+      // Unbounded select — fine at clinic scale (~dozens of rows/day, a few
+      // thousand total). When the table grows past ~50k rows, add a
+      // .gte("appt_date", startOfRollingWindow) filter and move historical
+      // revenue queries to a server route with pagination.
       const { data, error } = await db.from("appointments").select("*");
       if (cancelled) return;
       if (error) { setLoadError(true); return; }

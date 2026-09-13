@@ -119,6 +119,10 @@ const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: "bugdesk", label: "Bug desk", icon: TriangleAlert },
 ];
 
+// Auth note: no explicit session check here — proxy.ts redirects any
+// unauthenticated or non-staff request to /login before this component
+// ever renders, and supabaseAdmin() (service role) is used for all writes
+// so RLS provides the database-level guard.
 export default function Admin() {
   const [tab, setTab] = useState<Tab>("today");
   const mounted = useMounted();
@@ -581,7 +585,7 @@ function WalkIn() {
       <h2 className="flex items-center gap-2 font-semibold"><Footprints className="h-4 w-4 text-brand" /> Walk-in / reserve</h2>
       <p className="mt-1 text-xs text-muted">Patient at the desk? Add them to today&apos;s queue and issue a token.</p>
       <form onSubmit={submit} className="mt-3 space-y-2">
-        <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Patient name" className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand" />
+        <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Patient name" maxLength={100} className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand" />
         <input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="Phone (optional)" inputMode="tel" className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand" />
         <input type="number" value={f.age || ""} onChange={(e) => setF({ ...f, age: e.target.value ? +e.target.value : 0 })} placeholder="Age" min="1" max="150" required className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand" />
         <select value={f.gender} onChange={(e) => setF({ ...f, gender: e.target.value as "" | "M" | "F" })} className="w-full rounded-lg border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-brand">
@@ -1095,11 +1099,25 @@ function Revenue({ appts }: { appts: Appt[] }) {
   const bySource = (["website", "whatsapp", "walkin"] as Source[]).map((s) => ({
     s, n: collected.filter((a) => a.source === s).length,
   }));
+
+  // Month rollup — all paid, non-refunded appointments in the same calendar
+  // month as the selected date (IST month boundaries).
+  const selMonth = date.slice(0, 7); // "YYYY-MM"
+  const monthCollected = appts.filter(
+    (a) => a.paid && a.refundedAt == null && a.date.startsWith(selMonth)
+  );
+  const monthTotal = monthCollected.reduce((s, a) => s + a.fee, 0);
+  const monthLabel = new Date(date + "T00:00:00").toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+
   return (
     <div className="max-w-4xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-lg">{isToday ? "Today" : dateLabel(date)}</h2>
         <DateNav date={date} setDate={setDate} />
+      </div>
+      <div className="flex items-center justify-between rounded-xl border border-line bg-bone/60 px-5 py-3 text-sm">
+        <span className="text-muted">{monthLabel} total</span>
+        <span className="font-semibold text-in">{money(monthTotal)} <span className="font-normal text-muted">· {monthCollected.length} consults</span></span>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Stat label="Collected" value={money(total)} icon={IndianRupee} accent />

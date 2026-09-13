@@ -145,23 +145,26 @@ export function BookForm() {
     const load = async () => {
       let list: DayOpt[];
       if (hasSupabase()) {
-        list = await Promise.all(
-          keys.map(async ({ i, d, key }) => {
-            let slots: string[] = [];
-            try {
-              const res = await fetch(`/api/slots?date=${key}`);
-              const data = await res.json();
-              slots = res.ok ? (data.slots as string[]) : [];
-            } catch { slots = []; }
-            let closingSoon = false;
-            if (i === 0) {
-              const rawLen = slots.length;
-              slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
-              closingSoon = rawLen > 0 && slots.length === 0;
-            }
-            return { date: key, d, slots, closingSoon };
-          })
-        );
+        // One range request instead of 14 parallel single-day fetches —
+        // dbLoadSchedule() only runs once on the server.
+        let dayMap: Record<string, string[]> = {};
+        try {
+          const res = await fetch(`/api/slots?from=${keys[0].key}&count=${keys.length}`);
+          if (res.ok) {
+            const data = await res.json() as { days: { date: string; slots: string[] }[] };
+            for (const d of data.days ?? []) dayMap[d.date] = d.slots;
+          }
+        } catch { /* dayMap stays empty — all days show as closed */ }
+        list = keys.map(({ i, d, key }) => {
+          let slots = dayMap[key] ?? [];
+          let closingSoon = false;
+          if (i === 0) {
+            const rawLen = slots.length;
+            slots = slots.filter((s) => toMin(s) > nowMin + BOOKING_LEAD_MIN);
+            closingSoon = rawLen > 0 && slots.length === 0;
+          }
+          return { date: key, d, slots, closingSoon };
+        });
       } else {
         hydrateSchedule();
         list = keys.map(({ i, d, key }) => {
@@ -561,7 +564,7 @@ export function BookForm() {
           <Label icon={User} n="3">{t("book.details")}</Label>
           <div className="mt-3 space-y-2">
             <label htmlFor="book-name" className="sr-only">{t("book.name")}</label>
-            <input id="book-name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErr(""); }} placeholder={t("book.name")} aria-describedby={err ? "book-error" : undefined} aria-invalid={!!err} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+            <input id="book-name" value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErr(""); }} placeholder={t("book.name")} maxLength={100} aria-describedby={err ? "book-error" : undefined} aria-invalid={!!err} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-phone" className="sr-only">{t("book.phone")}</label>
             <input id="book-phone" value={form.phone} onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErr(""); }} placeholder={t("book.phone")} inputMode="tel" className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
             <label htmlFor="book-age" className="sr-only">{t("book.age")}</label>
