@@ -45,11 +45,9 @@ export async function POST(req: NextRequest) {
     }
 
     const dump = JSON.stringify({ generatedAt: new Date().toISOString(), patients, appointments });
-    const ok = await sendBackupEmail(dump, dateLabel);
-    if (!ok) {
-      await reportError("cron/backup", new Error("backup email failed to send"), { severity: "critical" });
-      return NextResponse.json({ status: "send-failed" }, { status: 502 });
-    }
+    // sendBackupEmail throws with the actual Resend error on failure —
+    // the catch below surfaces it directly in the bug desk.
+    await sendBackupEmail(dump, dateLabel);
 
     return NextResponse.json({ status: "ok", patients: patients?.length ?? 0, appointments: appointments?.length ?? 0 });
   } catch (err) {

@@ -74,13 +74,21 @@ async function sendEmail({
   subject: string;
   html: string;
   attachments?: { filename: string; content: string }[];
-}): Promise<boolean> {
+}): Promise<{ ok: boolean; resendError?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 
   if (!apiKey) {
     console.error("Email send skipped: RESEND_API_KEY not set");
-    return false;
+    return { ok: false, resendError: "RESEND_API_KEY not set" };
+  }
+
+  // Warn in production if using Resend sandbox FROM — it only delivers to the
+  // Resend account's own registered email. Fix: verify ramachandraorthocare.com
+  // in Resend dashboard → Domains, then set RESEND_FROM_EMAIL=noreply@ramachandraorthocare.com
+  // in Vercel environment variables.
+  if (fromEmail === "onboarding@resend.dev" && process.env.VERCEL_ENV === "production") {
+    console.warn("Email: using Resend sandbox FROM in production — delivery to non-account emails will fail");
   }
 
   try {
@@ -91,13 +99,14 @@ async function sendEmail({
     });
 
     if (!res.ok) {
-      console.error("Email send failed", res.status, await res.text().catch(() => ""));
-      return false;
+      const body = await res.text().catch(() => "");
+      console.error("Email send failed", res.status, body);
+      return { ok: false, resendError: `Resend ${res.status}: ${body.slice(0, 300)}` };
     }
-    return true;
+    return { ok: true };
   } catch (err) {
     console.error("Email send error", err);
-    return false;
+    return { ok: false, resendError: String(err) };
   }
 }
 
@@ -287,7 +296,7 @@ export async function sendBugdeskEmail(opts: {
 
   const countLabel = opts.items.length === 1 ? "1 issue" : `${opts.items.length} issues`;
 
-  return sendEmail({
+  const r = await sendEmail({
     to: [adminEmail, devEmail],
     subject: isAlert
       ? `Bug alert: ${head.source} · ${head.message}`.slice(0, 120)
@@ -304,6 +313,7 @@ export async function sendBugdeskEmail(opts: {
       preheader: `${isAlert ? "Critical:" : ""} ${head.message}`,
     }),
   });
+  return r.ok;
 }
 
 // ── Sender: DB backup ────────────────────────────────────────────────────────
@@ -318,7 +328,7 @@ export async function sendBackupEmail(json: string, dateLabel: string): Promise<
   const sizeKb = (json.length / 1024).toFixed(1);
   const filename = `ortho-backup-${dateLabel}.json`;
 
-  return sendEmail({
+  const r = await sendEmail({
     to: adminEmail,
     subject: `Daily backup · ${dateLabel}`,
     html: shell({
@@ -335,6 +345,8 @@ export async function sendBackupEmail(json: string, dateLabel: string): Promise<
     }),
     attachments: [{ filename, content: Buffer.from(json, "utf8").toString("base64") }],
   });
+  if (!r.ok) throw new Error(r.resendError ?? "backup email failed to send");
+  return true;
 }
 
 // ── Sender: new appointment ──────────────────────────────────────────────────
@@ -360,7 +372,7 @@ export async function sendNewAppointmentEmail(
     `)}
     <p style="margin:18px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Payment is confirmed and the patient is on the live queue. Nothing else to do today.</p>`;
 
-  return sendEmail({
+  const r = await sendEmail({
     to: adminEmail,
     subject: `New appointment: ${appt.name} · #${appt.token}`,
     html: shell({
@@ -373,6 +385,7 @@ export async function sendNewAppointmentEmail(
       preheader: `${appt.name} · ${dateLabel} · ${fmt(appt.time)}`,
     }),
   });
+  return r.ok;
 }
 
 // ── Sender: reschedule ───────────────────────────────────────────────────────
@@ -394,7 +407,7 @@ export async function sendRescheduledEmail(
     `)}
     <p style="margin:18px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">The queue and the patient reminder both use these new times. No action needed unless the patient calls in about a conflict.</p>`;
 
-  return sendEmail({
+  const r = await sendEmail({
     to: adminEmail,
     subject: `Rescheduled: ${appt.name} · #${appt.token}`,
     html: shell({
@@ -407,6 +420,7 @@ export async function sendRescheduledEmail(
       preheader: `${appt.name} · moved to ${dateLabel}, ${fmt(appt.time)}`,
     }),
   });
+  return r.ok;
 }
 
 // ── Sender: session digest ───────────────────────────────────────────────────
@@ -454,7 +468,7 @@ export async function sendSessionDigestEmail(
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">${rows}</table>
     <p style="margin:16px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Unpaid entries were settled in cash at the desk. Sent 45 minutes before the session starts.</p>`;
 
-  return sendEmail({
+  const r = await sendEmail({
     to: adminEmail,
     subject: `${label} session · ${dateLabel} · ${appts.length} booking${appts.length === 1 ? "" : "s"}`,
     html: shell({
@@ -467,4 +481,5 @@ export async function sendSessionDigestEmail(
       preheader: `${appts.length} bookings for ${dateLabel}`,
     }),
   });
+  return r.ok;
 }
