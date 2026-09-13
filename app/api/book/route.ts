@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
 
   const { name, phone, age, gender, date, time, source, replacePending, claim } = body ?? {};
   if (typeof name !== "string" || !name.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
+  if (name.trim().length > 100) return NextResponse.json({ error: "name must be 100 characters or fewer" }, { status: 400 });
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
   if (!isValidIndianMobile(normalizePhone(phone))) return NextResponse.json({ error: "phone must be a valid 10-digit mobile number" }, { status: 400 });
   if (typeof age !== "number" || age < 0 || age > 150) return NextResponse.json({ error: "age is required" }, { status: 400 });

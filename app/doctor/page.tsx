@@ -53,6 +53,10 @@ const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: "revenue", label: "Revenue & analysis", icon: IndianRupee },
 ];
 
+// Auth note: no explicit session check here — proxy.ts redirects any
+// unauthenticated or non-staff request to /login before this component
+// ever renders, and supabaseAdmin() (service role) is used for all writes
+// so RLS provides the database-level guard.
 export default function Doctor() {
   const [tab, setTab] = useState<Tab>("calendar");
   const mounted = useMounted();
