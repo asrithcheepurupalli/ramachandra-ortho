@@ -52,6 +52,22 @@ export default function Home() {
   }, [lang]);
 
   useEffect(() => {
+    const isStandalone =
+      ("standalone" in navigator && (navigator as { standalone?: boolean }).standalone === true) ||
+      window.matchMedia("(display-mode: standalone)").matches;
+    if (!isStandalone || !hasSupabase()) return;
+    (async () => {
+      const sb = supabaseBrowser();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user?.email) return;
+      const { data: staff } = await sb.rpc("is_staff", { check_email: user.email });
+      if (staff !== true) return;
+      const { data: role } = await sb.rpc("staff_role", { check_email: user.email });
+      window.location.replace(role === "doctor" ? "/doctor" : "/admin");
+    })();
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const recompute = async () => {
       if (hasSupabase()) {
