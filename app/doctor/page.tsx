@@ -233,8 +233,8 @@ function DayApptRow({ a }: { a: Appt }) {
   };
 
   return (
-    <li className="px-5 py-3.5">
-      <div className="flex items-center gap-3">
+    <li className="px-3.5 py-3 sm:px-5 sm:py-3.5">
+      <div className="flex items-center gap-2 sm:gap-3">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-tint font-mono text-xs font-semibold text-brand">{a.token}</span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -391,10 +391,10 @@ function RevenueAnalysis({ appts }: { appts: Appt[] }) {
     <div className="max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-lg">Revenue & analysis</h2>
-        <div className="flex self-start rounded-full border border-line bg-white p-0.5">
+        <div className="flex self-start overflow-x-auto rounded-full border border-line bg-white p-0.5 no-scrollbar">
           {RANGE_OPTS.map((o) => (
             <button key={o.r} onClick={() => setRange(o.r)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${range === o.r ? "bg-brand text-white" : "text-muted hover:text-ink"}`}>
+              className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-medium transition sm:px-3 sm:text-xs ${range === o.r ? "bg-brand text-white" : "text-muted hover:text-ink"}`}>
               {o.label}
             </button>
           ))}
@@ -460,9 +460,9 @@ function RevenueAnalysis({ appts }: { appts: Appt[] }) {
 
 function Stat({ label, value, icon: Icon, accent }: { label: string; value: string; icon: typeof Users; accent?: boolean }) {
   return (
-    <div className={`rounded-2xl border p-4 ${accent ? "border-brand/30 bg-brand text-white" : "border-line bg-paper"}`}>
-      <div className={`flex items-center gap-2 text-xs ${accent ? "text-white/80" : "text-muted"}`}><Icon className="h-4 w-4" /> {label}</div>
-      <div className="mt-2 font-display text-3xl">{value}</div>
+    <div className={`rounded-2xl border p-3.5 sm:p-4 ${accent ? "border-brand/30 bg-brand text-white" : "border-line bg-paper"}`}>
+      <div className={`flex items-center gap-1.5 text-[11px] sm:gap-2 sm:text-xs ${accent ? "text-white/80" : "text-muted"}`}><Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> {label}</div>
+      <div className="mt-2 font-display text-xl leading-none sm:text-3xl">{value}</div>
     </div>
   );
 }

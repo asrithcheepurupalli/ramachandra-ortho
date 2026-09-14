@@ -174,9 +174,9 @@ export default function Admin() {
         <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-bone/85 px-4 md:px-8 h-16 backdrop-blur-md">
           <div className="flex items-center gap-3">
             {/* mobile tabs */}
-            <div className="md:hidden flex gap-1">
+            <div className="md:hidden flex gap-1 overflow-x-auto no-scrollbar">
               {NAV.map((n) => (
-                <button key={n.id} onClick={() => setTab(n.id)} className={`rounded-lg p-2 ${tab === n.id ? "bg-brand text-white" : "text-muted"}`}><n.icon className="h-4 w-4" /></button>
+                <button key={n.id} onClick={() => setTab(n.id)} className={`shrink-0 rounded-lg p-2 ${tab === n.id ? "bg-brand text-white" : "text-muted"}`}><n.icon className="h-4 w-4" /></button>
               ))}
             </div>
             <h1 className="font-display text-2xl capitalize hidden sm:block">{tab}</h1>
@@ -232,9 +232,9 @@ function DoctorStatus() {
   const label = s.state === "in" ? "In consult now" : s.state === "soon" ? `In at ${fmt(s.opensAt)}` : "Not in today";
   const color = s.state === "in" ? "var(--color-in)" : s.state === "soon" ? "var(--color-accent)" : "var(--color-out)";
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm">
-      <span className="h-2 w-2 rounded-full" style={{ background: color }} />
-      <span className="text-muted">Doctor:</span> <span className="font-semibold">{label}</span>
+    <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1.5 text-xs sm:gap-2 sm:px-4 sm:py-2 sm:text-sm">
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+      <span className="hidden sm:inline text-muted">Doctor:</span> <span className="font-semibold truncate max-w-[8rem] sm:max-w-none">{label}</span>
     </div>
   );
 }
@@ -257,10 +257,10 @@ function AvailabilityControl() {
     { m: "out", label: "Away today", active: "bg-out text-white" },
   ];
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-5 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-paper p-4 sm:p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
         <div className="flex items-center gap-2 text-sm font-semibold">
-          <span className="pulse-dot h-2.5 w-2.5 rounded-full" style={{ color, background: color }} />
+          <span className="pulse-dot h-2.5 w-2.5 shrink-0 rounded-full" style={{ color, background: color }} />
           Doctor availability
         </div>
         <div className="mt-0.5 text-xs text-muted">{statusText}. Shown live on the website and WhatsApp.</div>
@@ -271,7 +271,7 @@ function AvailabilityControl() {
             if (hasSupabase()) dbSetAvailabilityOverride(o.m).catch((err) => console.error("admin: could not set availability", err));
             else setAvailabilityOverride(o.m);
           }}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition ${mode === o.m ? o.active : "text-muted hover:text-ink"}`}>
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition sm:px-4 sm:py-2 sm:text-sm ${mode === o.m ? o.active : "text-muted hover:text-ink"}`}>
             {o.label}
           </button>
         ))}
@@ -353,24 +353,24 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
       </div>
 
       {isToday && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line bg-paper px-4 py-2.5 text-sm">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-line bg-paper px-3 py-2 text-xs sm:px-4 sm:py-2.5 sm:text-sm">
           <span className="font-medium">Collected <b className="text-in">{money(revenue)}</b></span>
           <span className="text-muted">·</span>
-          <span className="font-medium">To collect at desk <b className="text-accent">{money(toCollect)}</b>{toCollectList.length > 0 ? ` (${toCollectList.length})` : ""}</span>
-          <span className="ml-auto text-xs text-muted">Online payments flip a row to Paid online on their own.</span>
+          <span className="font-medium">To collect <b className="text-accent">{money(toCollect)}</b>{toCollectList.length > 0 ? ` (${toCollectList.length})` : ""}</span>
+          <span className="ml-auto hidden text-xs text-muted sm:inline">Online payments flip a row to Paid online on their own.</span>
         </div>
       )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* queue */}
         <div className="lg:col-span-2 rounded-2xl border border-line bg-paper">
-          <div className="flex items-center justify-between border-b border-line px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3 sm:px-6 sm:py-4">
             <div className="flex items-center gap-2">
               <h2 className="font-semibold">{isToday ? "Live queue" : "Queue"}</h2>
-              {isToday && next && <span className="text-xs text-muted">next up: <b className="text-ink">#{next.token} {next.name}</b></span>}
+              {isToday && next && <span className="hidden text-xs text-muted sm:inline">next up: <b className="text-ink">#{next.token} {next.name}</b></span>}
             </div>
             {isToday && (
-              <button onClick={callNext} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">
+              <button onClick={callNext} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark sm:px-4 sm:py-2 sm:text-sm">
                 <PhoneCall className="h-4 w-4" /> Call next
               </button>
             )}
@@ -475,11 +475,11 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
       });
   };
   return (
-    <li className={`px-6 py-3.5 ${a.status === "consulting" ? "bg-in/[0.04]" : ""}`}>
-      <div className="flex items-center gap-3">
-      <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg font-mono text-sm font-semibold ${a.status === "done" ? "bg-muted/10 text-muted" : "bg-brand text-white"}`}>{a.token}</div>
+    <li className={`px-4 py-3 sm:px-6 sm:py-3.5 ${a.status === "consulting" ? "bg-in/[0.04]" : ""}`}>
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg font-mono text-xs font-semibold sm:h-10 sm:w-10 sm:text-sm ${a.status === "done" ? "bg-muted/10 text-muted" : "bg-brand text-white"}`}>{a.token}</div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1 sm:gap-2">
           <span className="truncate font-medium">{a.name}</span>
           {a.patientCode && <span className="shrink-0 font-mono text-[11px] text-muted">{a.patientCode}</span>}
           {a.claimType === "review_free" && (
@@ -758,9 +758,9 @@ function Broadcast({ appts }: { appts: Appt[] }) {
 
 function Stat({ label, value, icon: Icon, accent }: { label: string; value: string; icon: typeof Users; accent?: boolean }) {
   return (
-    <div className={`rounded-2xl border p-5 ${accent ? "border-brand/30 bg-brand text-white" : "border-line bg-paper"}`}>
-      <div className={`flex items-center gap-2 text-xs ${accent ? "text-white/80" : "text-muted"}`}><Icon className="h-4 w-4" /> {label}</div>
-      <div className="mt-2.5 font-display text-4xl leading-none">{value}</div>
+    <div className={`rounded-2xl border p-3.5 sm:p-5 ${accent ? "border-brand/30 bg-brand text-white" : "border-line bg-paper"}`}>
+      <div className={`flex items-center gap-1.5 text-[11px] sm:gap-2 sm:text-xs ${accent ? "text-white/80" : "text-muted"}`}><Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> {label}</div>
+      <div className="mt-2 font-display text-2xl leading-none sm:mt-2.5 sm:text-4xl">{value}</div>
     </div>
   );
 }
@@ -797,29 +797,29 @@ function Schedule() {
 
   return (
     <div className="max-w-4xl space-y-4">
-      <div className="rounded-2xl border border-line bg-paper p-6">
-        <div className="flex items-center justify-between">
-          <div>
+      <div className="rounded-2xl border border-line bg-paper p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
             <h2 className="font-semibold">Weekly consulting hours</h2>
             <p className="text-xs text-muted">This drives the live availability on the website and the WhatsApp bot. Mon-Sat share the same OPD hours by default; Sunday is the weekly holiday.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={reset} className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-line/40"><RotateCcw className="h-3.5 w-3.5" /> Reset to default</button>
-            <button onClick={save} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark">Save</button>
+            <button onClick={reset} className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink hover:bg-line/40 sm:px-4 sm:py-2 sm:text-sm"><RotateCcw className="h-3.5 w-3.5" /> Reset</button>
+            <button onClick={save} className="rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark sm:px-4 sm:py-2 sm:text-sm">Save</button>
           </div>
         </div>
         <div className="mt-4 divide-y divide-line">
           {[1, 2, 3, 4, 5, 6, 0].map((d) => (
-            <div key={d} className="flex items-start gap-5 py-4">
-              <div className="w-16 pt-1.5 text-sm font-semibold text-ink">{DAY_LABELS[d]}</div>
+            <div key={d} className="flex items-start gap-3 py-4 sm:gap-5">
+              <div className="w-10 pt-1.5 text-xs font-semibold text-ink sm:w-16 sm:text-sm">{DAY_LABELS[d]}</div>
               <div className="flex-1 space-y-2">
                 {weekly[d].length === 0 && <div className="py-1.5 text-sm text-muted">Closed</div>}
                 {weekly[d].map((w, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input type="time" value={w.start} onChange={(e) => setWin(d, i, "start", e.target.value)} className="rounded-lg border border-line bg-white px-3 py-2 text-sm" />
+                  <div key={i} className="flex items-center gap-1.5 sm:gap-2">
+                    <input type="time" value={w.start} onChange={(e) => setWin(d, i, "start", e.target.value)} className="min-w-0 flex-1 rounded-lg border border-line bg-white px-2 py-1.5 text-xs sm:flex-none sm:px-3 sm:py-2 sm:text-sm" />
                     <span className="text-muted">-</span>
-                    <input type="time" value={w.end} onChange={(e) => setWin(d, i, "end", e.target.value)} className="rounded-lg border border-line bg-white px-3 py-2 text-sm" />
-                    <button onClick={() => rmWin(d, i)} className="rounded-lg p-2 text-muted hover:text-out"><X className="h-[18px] w-[18px]" /></button>
+                    <input type="time" value={w.end} onChange={(e) => setWin(d, i, "end", e.target.value)} className="min-w-0 flex-1 rounded-lg border border-line bg-white px-2 py-1.5 text-xs sm:flex-none sm:px-3 sm:py-2 sm:text-sm" />
+                    <button onClick={() => rmWin(d, i)} className="rounded-lg p-1.5 text-muted hover:text-out sm:p-2"><X className="h-4 w-4 sm:h-[18px] sm:w-[18px]" /></button>
                   </div>
                 ))}
                 <button onClick={() => addWin(d)} className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"><Plus className="h-3 w-3" /> Add window</button>
@@ -861,7 +861,7 @@ function ExceptionsEditor({ ex, setEx }: { ex: Record<string, Exception>; setEx:
   const remove = (d: string) => setEx((e) => { const n = { ...e }; delete n[d]; return n; });
 
   return (
-    <div className="rounded-2xl border border-line bg-paper p-6">
+    <div className="rounded-2xl border border-line bg-paper p-4 sm:p-6">
       <h2 className="font-semibold">Holidays &amp; date overrides</h2>
       <p className="text-xs text-muted">Mark a specific date closed (festival, doctor leave). Overrides the weekly hours above for just that date. Remember to hit Save.</p>
 
@@ -932,7 +932,7 @@ function SlotToggles({ weekly, ex, setEx }: { weekly: WeeklyHours; ex: Record<st
     });
 
   return (
-    <div className="rounded-2xl border border-line bg-paper p-6">
+    <div className="rounded-2xl border border-line bg-paper p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-semibold">Block times for a day</h2>
@@ -1011,15 +1011,15 @@ function Patients({ appts }: { appts: Appt[] }) {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search patients…" className="w-full max-w-md rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand" />
         <button onClick={exportCsv} className="rounded-lg border border-line bg-white px-3.5 py-2.5 text-sm font-medium text-ink hover:bg-bone/60">Export CSV</button>
       </div>
-      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
+        <table className="w-full min-w-[600px] text-sm">
           <thead>
             <tr className="border-b border-line bg-bone/60 text-left text-[11px] uppercase tracking-wide text-muted">
-              <th className="px-6 py-3.5 font-semibold">Patient</th>
-              <th className="px-6 py-3.5 font-semibold">Phone</th>
-              <th className="px-6 py-3.5 font-semibold">Visits</th>
-              <th className="px-6 py-3.5 font-semibold">Last visit</th>
-              <th className="px-6 py-3.5 text-right font-semibold">Notify</th>
+              <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Patient</th>
+              <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Phone</th>
+              <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Visits</th>
+              <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Last visit</th>
+              <th className="px-4 py-3 text-right font-semibold sm:px-6 sm:py-3.5">Notify</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -1126,18 +1126,18 @@ function Revenue({ appts }: { appts: Appt[] }) {
           <Stat key={b.s} label={sourceMeta[b.s].label} value={String(b.n)} icon={sourceMeta[b.s].icon} />
         ))}
       </div>
-      <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-        <div className="flex items-center justify-between border-b border-line px-6 py-4">
-          <div className="font-semibold">Collections {isToday ? "today" : `on ${dateLabel(date)}`}</div>
-          <div className="text-sm font-medium text-in">{money(total)} net collected</div>
+      <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
+        <div className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-6 sm:py-4">
+          <div className="font-semibold text-sm sm:text-base">Collections {isToday ? "today" : `on ${dateLabel(date)}`}</div>
+          <div className="text-xs font-medium text-in sm:text-sm">{money(total)} net collected</div>
         </div>
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[500px] text-sm">
           <thead>
             <tr className="border-b border-line bg-bone/60 text-left text-[11px] uppercase tracking-wide text-muted">
-              <th className="px-6 py-3 font-semibold">Token</th>
-              <th className="px-6 py-3 font-semibold">Patient</th>
-              <th className="px-6 py-3 font-semibold">Source</th>
-              <th className="px-6 py-3 text-right font-semibold">Amount</th>
+              <th className="px-4 py-3 font-semibold sm:px-6">Token</th>
+              <th className="px-4 py-3 font-semibold sm:px-6">Patient</th>
+              <th className="px-4 py-3 font-semibold sm:px-6">Source</th>
+              <th className="px-4 py-3 text-right font-semibold sm:px-6">Amount</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -1248,14 +1248,14 @@ function BugDesk() {
           {loadError ? "Bug desk unavailable." : filter === "all" ? "No issues logged. Quiet is good." : `No ${filter} issues.`}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-line bg-paper">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="border-b border-line bg-bone/60 text-left text-[11px] uppercase tracking-wide text-muted">
-                <th className="px-6 py-3.5 font-semibold">Severity</th>
-                <th className="px-6 py-3.5 font-semibold">Issue</th>
-                <th className="px-6 py-3.5 font-semibold">Last seen</th>
-                <th className="px-6 py-3.5 text-right font-semibold">Status</th>
+                <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Severity</th>
+                <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Issue</th>
+                <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Last seen</th>
+                <th className="px-4 py-3 text-right font-semibold sm:px-6 sm:py-3.5">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">

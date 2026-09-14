@@ -191,7 +191,7 @@ export function CalendarView({ appts }: CalendarViewProps) {
   return (
     <div className="space-y-5">
       {/* ── Day view — the primary surface ── */}
-      <section className="rounded-2xl border border-line bg-paper p-6">
+      <section className="rounded-2xl border border-line bg-paper p-4 sm:p-6">
         {/* Date + day navigation */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">

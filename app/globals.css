@@ -28,7 +28,7 @@
 }
 
 * { border-color: var(--color-line); }
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; overflow-x: hidden; }
 body {
   background: var(--color-bg);
   color: var(--color-ink);
