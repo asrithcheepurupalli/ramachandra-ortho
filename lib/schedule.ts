@@ -175,12 +175,16 @@ export function statusAt(now = new Date(), s: SchedState = liveState()): Status 
 
   const mins = now.getHours() * 60 + now.getMinutes();
   const today = windowsFor(now, s);
+  const todaySlots = allSlotsFor(now, s);
   for (const w of today) {
-    if (mins >= toMin(w.start) && mins < toMin(w.end))
-      return { state: "in", until: w.end, note };
+    if (mins >= toMin(w.start) && mins < toMin(w.end)) {
+      // Only "in" if there are non-disabled slots still remaining in this window.
+      const remaining = todaySlots.filter((t) => toMin(t) >= mins && toMin(t) < toMin(w.end));
+      if (remaining.length) return { state: "in", until: w.end, note };
+      break; // all slots disabled — fall through to find next open slot
+    }
   }
-  // Use allSlotsFor so disabled individual slots are excluded from the "opens at" time.
-  const nextSlot = allSlotsFor(now, s).find((t) => toMin(t) > mins);
+  const nextSlot = todaySlots.find((t) => toMin(t) > mins);
   if (nextSlot) return { state: "soon", opensAt: nextSlot, note };
 
   return { state: "out", next: nextOpen(now, s), note };
