@@ -139,7 +139,7 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
         <Link href="/my-appointment" className="focus-ring ulink hidden md:inline-flex items-center rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t("nav.myappt")}</Link>
 
         {/* Mobile: search + lang — expands from w-0 when scrolled */}
-        <div className={`md:hidden overflow-hidden flex items-center gap-1.5 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${scrolled ? "w-[7.5rem] opacity-100 pointer-events-auto" : "w-0 opacity-0 pointer-events-none"}`}>
+        <div className={`md:hidden overflow-hidden flex items-center gap-1.5 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${scrolled ? "w-40 opacity-100 pointer-events-auto" : "w-0 opacity-0 pointer-events-none"}`}>
           <Link href="/my-appointment" aria-label={t("nav.myappt")} className="focus-ring press inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted hover:text-ink hover:bg-surface">
             <Search className="h-[18px] w-[18px]" />
           </Link>
