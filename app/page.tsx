@@ -111,11 +111,15 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-mark.png" alt="" width={401} height={320} className="h-8 w-auto md:h-10 shrink-0 transition-transform duration-300 group-hover:scale-105" />
 
-          {/* Mobile: full name at top → "Ortho" when scrolled (font-size transition) */}
-          <span className={`md:hidden whitespace-nowrap font-semibold leading-none transition-all duration-500 ease-out ${scrolled ? "text-sm" : "text-[1.15rem]"}`}>
-            <span className={`transition-all duration-500 ease-out ${scrolled ? "opacity-0 max-w-0 overflow-hidden inline-block align-bottom" : "opacity-100 max-w-[12rem] inline-block align-bottom"}`}>Ramachandra{" "}</span>
-            <span className="text-brand">Ortho<span className={`transition-all duration-500 ease-out ${scrolled ? "opacity-0 max-w-0 overflow-hidden inline-block align-bottom" : "opacity-100 max-w-[4rem] inline-block align-bottom"}`}>{" "}Care</span></span>
-          </span>
+          {/* Mobile: clipped container transitions width; names crossfade inside */}
+          <div className={`relative md:hidden overflow-hidden h-8 flex items-center shrink-0 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${scrolled ? "w-[4.5rem]" : "w-[13.5rem]"}`}>
+            <span className={`absolute inset-0 flex items-center whitespace-nowrap font-semibold text-[1rem] leading-none transition-all duration-400 ${scrolled ? "opacity-0 -translate-x-2" : "opacity-100 translate-x-0"}`}>
+              Ramachandra <span className="text-brand ml-1">Ortho Care</span>
+            </span>
+            <span className={`absolute inset-0 flex items-center whitespace-nowrap font-bold text-[1.25rem] text-brand leading-none transition-all duration-400 ${scrolled ? "opacity-100 translate-x-0" : "opacity-0 translate-x-2"}`}>
+              Ortho
+            </span>
+          </div>
 
           {/* Desktop: always full name, never changes */}
           <span className="hidden md:inline whitespace-nowrap text-base font-semibold leading-none">
@@ -123,32 +127,33 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
           </span>
         </Link>
 
-        <div className="flex items-center gap-1.5 md:gap-2">
-          {/* Desktop nav links — always visible */}
-          <div className="hidden md:flex items-center gap-1 mr-1">
-            {[["services", "nav.services"], ["reviews", "nav.reviews"], ["location", "nav.location"]].map(([id, k]) => (
-              <a key={id} href={`#${id}`} className="focus-ring ulink rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t(k)}</a>
-            ))}
-          </div>
-          <Link href="/my-appointment" className="focus-ring ulink hidden md:inline-flex items-center rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t("nav.myappt")}</Link>
+        {/* Spacer pushes right items to edge */}
+        <div className="flex-1" />
 
-          {/* Mobile: search + lang fade in when scrolled, hidden at top */}
-          <div className={`md:hidden flex items-center gap-1.5 transition-all duration-500 ease-out ${scrolled ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 translate-x-3 pointer-events-none"}`}>
-            <Link href="/my-appointment" aria-label={t("nav.myappt")} className="focus-ring press inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:text-ink hover:bg-surface">
-              <Search className="h-[18px] w-[18px]" />
-            </Link>
-            <LangToggle lang={lang} setLang={setLang} />
-          </div>
-
-          {/* Desktop: lang toggle always visible */}
-          <div className="hidden md:block">
-            <LangToggle lang={lang} setLang={setLang} />
-          </div>
-
-          <Link href="/book" className="focus-ring press ml-0.5 hidden md:inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark">
-            {t("nav.book")} <ChevronRight className="h-4 w-4" />
-          </Link>
+        {/* Desktop nav links */}
+        <div className="hidden md:flex items-center gap-1 mr-1">
+          {[["services", "nav.services"], ["reviews", "nav.reviews"], ["location", "nav.location"]].map(([id, k]) => (
+            <a key={id} href={`#${id}`} className="focus-ring ulink rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t(k)}</a>
+          ))}
         </div>
+        <Link href="/my-appointment" className="focus-ring ulink hidden md:inline-flex items-center rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t("nav.myappt")}</Link>
+
+        {/* Mobile: search + lang — expands from w-0 when scrolled */}
+        <div className={`md:hidden overflow-hidden flex items-center gap-1.5 transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] ${scrolled ? "w-[7.5rem] opacity-100 pointer-events-auto" : "w-0 opacity-0 pointer-events-none"}`}>
+          <Link href="/my-appointment" aria-label={t("nav.myappt")} className="focus-ring press inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted hover:text-ink hover:bg-surface">
+            <Search className="h-[18px] w-[18px]" />
+          </Link>
+          <div className="shrink-0"><LangToggle lang={lang} setLang={setLang} /></div>
+        </div>
+
+        {/* Desktop lang toggle */}
+        <div className="hidden md:block shrink-0">
+          <LangToggle lang={lang} setLang={setLang} />
+        </div>
+
+        <Link href="/book" className="focus-ring press ml-0.5 hidden md:inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark shrink-0">
+          {t("nav.book")} <ChevronRight className="h-4 w-4" />
+        </Link>
       </div>
     </nav>
   );

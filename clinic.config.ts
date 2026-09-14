@@ -14,9 +14,9 @@ export const clinic = {
     title: "M.S. (Ortho) · Orthopedic Surgeon & Trauma Care Specialist",
     experienceNote: "10 years of experience in joint replacements, fractures and sports injuries",
     specialties: [
-      "Complex trauma",
-      "Fracture fixation",
       "Joint replacement",
+      "Fracture fixation",
+      "Complex trauma",
       "Sports injuries",
       "Pediatric orthopedics",
       "All types of arthritis",
