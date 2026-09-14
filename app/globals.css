@@ -35,6 +35,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.011em;
+  overflow-x: hidden;
 }
 ::selection { background: var(--color-brand-tint); }
 

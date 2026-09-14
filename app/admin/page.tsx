@@ -172,16 +172,16 @@ export default function Admin() {
       <main className="flex-1 min-w-0">
         {/* Topbar */}
         <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-line bg-bone/85 px-4 md:px-8 h-16 backdrop-blur-md">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             {/* mobile tabs */}
-            <div className="md:hidden flex gap-1 overflow-x-auto no-scrollbar">
+            <div className="md:hidden flex gap-1 overflow-x-auto no-scrollbar min-w-0">
               {NAV.map((n) => (
                 <button key={n.id} onClick={() => setTab(n.id)} className={`shrink-0 rounded-lg p-2 ${tab === n.id ? "bg-brand text-white" : "text-muted"}`}><n.icon className="h-4 w-4" /></button>
               ))}
             </div>
             <h1 className="font-display text-2xl capitalize hidden sm:block">{tab}</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <DoctorStatus />
             {hasSupabase() && (
               <button onClick={signOutStaff} className="md:hidden rounded-lg p-2 text-muted hover:text-out" aria-label="Sign out"><LogOut className="h-4 w-4" /></button>
@@ -340,7 +340,7 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-lg">{isToday ? "Today" : dateLabel(date)}</h2>
-          <p className="text-xs text-muted">{list.length} appointment{list.length === 1 ? "" : "s"} on this date.</p>
+          <p className="text-xs text-muted">{active.length} appointment{active.length === 1 ? "" : "s"} on this date.</p>
         </div>
         <DateNav date={date} setDate={setDate} />
       </div>
@@ -376,8 +376,8 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
             )}
           </div>
           <ul className="divide-y divide-line">
-            {list.map((a) => <QueueRow key={a.id} a={a} patch={patch} />)}
-            {list.length === 0 && <li className="px-6 py-10 text-center text-sm text-muted">No appointments on this date.</li>}
+            {active.map((a) => <QueueRow key={a.id} a={a} patch={patch} />)}
+            {active.length === 0 && <li className="px-6 py-10 text-center text-sm text-muted">No appointments on this date.</li>}
           </ul>
         </div>
 

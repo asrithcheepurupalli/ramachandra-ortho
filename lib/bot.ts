@@ -1166,7 +1166,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 // untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 export type Backend = {
-  addBooking: (input: { name: string; phone: string; age: number; date: string; time: string; source?: Source; replacePending?: boolean; claim?: "returning_unverified" | "review_free" }) => Promise<Appt>;
+  addBooking: (input: { name: string; phone: string; age: number; gender?: "M" | "F" | null; date: string; time: string; source?: Source; replacePending?: boolean; claim?: "returning_unverified" | "review_free" }) => Promise<Appt>;
   // includePending adds payment_pending rows — the pay intent needs them, the
   // view/reschedule intents don't (an unpaid booking isn't confirmed yet).
   activeAppointmentsByPhone: (phone: string, includePending?: boolean) => Promise<Appt[]>;
@@ -1426,8 +1426,7 @@ export async function botReplyServer(
     };
   }
 
-  // contact number confirmed (or overridden): this is where the booking
-  // actually happens, using whichever number the patient settled on.
+  // contact number confirmed (or overridden): ask age next before booking.
   if (state.stage === "await_phone" && state.slot) {
     let bookPhone = phone;
     if (!isAffirmative(input, c.useNumber)) {
@@ -1435,29 +1434,34 @@ export async function botReplyServer(
       if (digits.length < 10) return { reply: [t.badPhone], chips: [c.useNumber], state };
       bookPhone = digits;
     }
+    return { reply: [t.askAge], chips: [], state: { stage: "await_age", slot: state.slot, name: state.name, pendingPhone: bookPhone, replacePending: state.replacePending, claim: state.claim } };
+  }
+
+  // age collected: validate then ask gender
+  if (state.stage === "await_age" && state.slot) {
+    const age = parseInt(input.trim(), 10);
+    if (isNaN(age) || age < 1 || age > 120) return { reply: [t.badAge], chips: [], state };
+    return { reply: [t.askGender], chips: [c.genderMale, c.genderFemale], state: { stage: "await_gender", slot: state.slot, name: state.name, pendingPhone: state.pendingPhone, pendingAge: age, replacePending: state.replacePending, claim: state.claim } };
+  }
+
+  // gender collected: submit booking
+  if (state.stage === "await_gender" && state.slot && state.pendingPhone != null && state.pendingAge != null) {
+    const lower = input.trim().toLowerCase();
+    const gender: "M" | "F" | null =
+      lower === c.genderMale.toLowerCase() || lower === "male" || lower === "m" ? "M" :
+      lower === c.genderFemale.toLowerCase() || lower === "female" || lower === "f" ? "F" :
+      null;
+    const bookPhone = state.pendingPhone;
+    const age = state.pendingAge;
     try {
-      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age: 0, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending, claim: state.claim });
-      // Returning / free-review claims skip the payment step, so there's no
-      // Razorpay webhook to notify staff — this path calls backend.addBooking
-      // directly (not /api/book), so it must fire the desk email itself, same
-      // as the Flow and /api/book paths already do.
+      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age, gender, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending, claim: state.claim });
       if (appt.claimType) await backend.notifyClaimBooking(appt);
-      // The booking is done — offer to settle the fee right here, so the
-      // patient doesn't have to know a "pay" keyword exists or find the My
-      // Appointment page. The chip routes into the shared pay intent below.
       return bookingDoneReply(t, c, appt, state.slot, state.name, bookPhone, [c.avail, c.about, c.location, c.done]);
     } catch (err) {
       if (err instanceof PendingHoldError) {
-        // A payment_pending hold already sits on this number. Don't stack a
-        // second slot — point them at paying
-        // the hold they already have. Pay now routes into the shared pay intent
-        // (which uses the sender's number, the default booking number).
         return { reply: [t.pendingHold], chips: [c.payNow, c.startOver, c.view, c.book], state: { stage: "idle" } };
       }
       if (err instanceof DuplicateSlotError) {
-        // The number already holds a live booking at this exact slot — a
-        // duplicate tap, not a fresh slot. Point them at managing that booking
-        // (reschedule/cancel) or picking a different time.
         return { reply: [t.duplicateSlot], chips: [c.view, c.resched, c.book], state: { stage: "idle" } };
       }
       if (err instanceof SlotTakenError) {
@@ -1472,7 +1476,7 @@ export async function botReplyServer(
         }
         return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win, claim: state.claim } };
       }
-      await reportBotError("bot", "booking failed", { stage: "await_phone", phone: bookPhone }, err, { severity: "critical" });
+      await reportBotError("bot", "booking failed", { stage: "await_gender", phone: bookPhone }, err, { severity: "critical" });
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
     }
   }

@@ -39,9 +39,22 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 } },
   formatDetection: { telephone: true },
   verification: { other: { "facebook-domain-verification": "ges6fj8n9tf73wtfqv5ql30d0fmo1x" } },
+  appleWebApp: { capable: true, title: clinic.shortName, statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icon.png", sizes: "512x512", type: "image/png" }],
+  },
 };
 
-export const viewport: Viewport = { themeColor: "#0c7a68" };
+export const viewport: Viewport = {
+  themeColor: "#0c7a68",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+};
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const jsonLd = {
