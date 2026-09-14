@@ -29,48 +29,12 @@ async function staffRole(
   return typeof data === "string" && data ? data : "staff";
 }
 
-function buildCsp(nonce: string): string {
-  const isDev = process.env.NODE_ENV === "development";
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  return [
-    "default-src 'self'",
-    // strict-dynamic + nonce: Next.js attaches the nonce to its own inline
-    // bootstrap scripts automatically when it finds 'nonce-{value}' in the
-    // script-src. No external script tags are used — payment is a redirect,
-    // all JS is bundled. unsafe-eval only in dev (React error overlays).
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
-    // Tailwind and component inline-style props: keeping unsafe-inline on
-    // style-src is common and doesn't expose script execution.
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' blob: data:",
-    "font-src 'self'",
-    // connect-src covers client-side fetch (Supabase realtime + REST).
-    // Razorpay calls are all server-side; payment redirect is navigation.
-    `connect-src 'self'${supabaseUrl ? ` ${supabaseUrl}` : ""}`,
-    "object-src 'none'",
-    "base-uri 'self'",
-    // frame-ancestors duplicates X-Frame-Options: DENY but CSP wins in
-    // modern browsers.
-    "frame-ancestors 'none'",
-    "upgrade-insecure-requests",
-  ].join("; ");
-}
-
 export async function proxy(req: NextRequest) {
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const csp = buildCsp(nonce);
-
-  // Always attach nonce to request headers so Next.js can pick it up for its
-  // own inline script tags during server rendering.
   const reqHeaders = new Headers(req.headers);
-  reqHeaders.set("x-nonce", nonce);
-  reqHeaders.set("Content-Security-Policy", csp);
 
-  // If the DB isn't configured (mock mode), skip auth gating; still set CSP.
+  // If the DB isn't configured (mock mode), skip auth gating.
   if (!URL || !ANON) {
-    const res = NextResponse.next({ request: { headers: reqHeaders } });
-    res.headers.set("Content-Security-Policy", csp);
-    return res;
+    return NextResponse.next({ request: { headers: reqHeaders } });
   }
 
   let res = NextResponse.next({ request: { headers: reqHeaders } });
@@ -79,7 +43,6 @@ export async function proxy(req: NextRequest) {
       getAll: () => req.cookies.getAll(),
       setAll: (list) => {
         list.forEach(({ name, value }) => req.cookies.set(name, value));
-        // Supabase may create a new response to write cookies; carry CSP forward.
         res = NextResponse.next({ request: { headers: reqHeaders } });
         list.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
       },
@@ -91,29 +54,19 @@ export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const isPortal = path.startsWith("/admin") || path.startsWith("/doctor");
 
-  // Lock both portals; bounce logged-out (or non-staff) users to /login.
-  // Either staff email can reach either portal — a two-person clinic isn't
-  // worth a hard role wall — this only decides where /login sends you by
-  // default, not who's allowed in.
   if (isPortal && !(await isStaff(supabase, user?.email))) {
-    if (user) await supabase.auth.signOut(); // logged in but not staff — don't leave a dangling session
+    if (user) await supabase.auth.signOut();
     const to = req.nextUrl.clone();
     to.pathname = "/login";
     to.searchParams.set("next", req.nextUrl.pathname);
-    const redirect = NextResponse.redirect(to);
-    redirect.headers.set("Content-Security-Policy", csp);
-    return redirect;
+    return NextResponse.redirect(to);
   }
-  // Already signed in as staff? Skip the login page, straight to their portal.
   if (path === "/login" && (await isStaff(supabase, user?.email))) {
     const to = req.nextUrl.clone();
     to.pathname = (await staffRole(supabase, user?.email)) === "doctor" ? "/doctor" : "/admin";
-    const redirect = NextResponse.redirect(to);
-    redirect.headers.set("Content-Security-Policy", csp);
-    return redirect;
+    return NextResponse.redirect(to);
   }
 
-  res.headers.set("Content-Security-Policy", csp);
   return res;
 }
 
