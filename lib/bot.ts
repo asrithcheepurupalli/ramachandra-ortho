@@ -862,7 +862,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
   if (state.stage === "await_age" && state.slot) {
     const age = parseInt(input.trim(), 10);
     if (isNaN(age) || age < 1 || age > 120) return { reply: [t.badAge], chips: [], state };
-    return { reply: [t.askGender], chips: [c.genderMale, c.genderFemale, c.genderSkip], state: { stage: "await_gender", slot: state.slot, name: state.name, pendingPhone: state.pendingPhone, pendingAge: age, replacePending: state.replacePending, claim: state.claim } };
+    return { reply: [t.askGender], chips: [c.genderMale, c.genderFemale], state: { stage: "await_gender", slot: state.slot, name: state.name, pendingPhone: state.pendingPhone, pendingAge: age, replacePending: state.replacePending, claim: state.claim } };
   }
 
   // collecting gender then submitting the booking
