@@ -77,6 +77,8 @@ export type BotState = {
     | "await_patient_type"
     | "await_name"
     | "await_phone"
+    | "await_age"
+    | "await_gender"
     | "await_pay_pick"
     | "await_pay_phone"
     | "await_view_phone"
@@ -100,6 +102,8 @@ export type BotState = {
   otpPhone?: string; // website chat: phone awaiting the 6-digit WhatsApp code
   viewPhone?: string; // website chat: phone whose appointments were just listed
   replacePending?: boolean; // carry "start fresh" intent through the booking flow
+  pendingPhone?: string; // carry validated phone through age/gender collection steps
+  pendingAge?: number;   // carry age through the gender step before submitting
   // Patient type chosen up front (new = unset). Carried through the slot picker
   // and into addBooking, so returning/free-review claims land straight in
   // reserved with no online payment, mirroring the website form + WhatsApp Flow.
@@ -108,7 +112,8 @@ export type BotState = {
 // Stages the "cancel" escape hatch checks against, shared by the client and
 // server bot so a future stage addition can't silently drift between them.
 const MID_FLOW_STAGES: BotState["stage"][] = [
-  "await_patient_type", "await_name", "await_phone", "await_pay_pick", "await_pay_phone",
+  "await_patient_type", "await_name", "await_phone", "await_age", "await_gender",
+  "await_pay_pick", "await_pay_phone",
   "await_view_phone", "await_resched_phone", "await_resched_pick", "await_otp",
 ];
 // A candidate appointment shown when a cancel request is ambiguous (more
@@ -304,7 +309,10 @@ type PhrasePack = {
   about: string;
   fallback: string;
   thanks: string;
-  chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string; startOver: string; patientNew: string; patientReturning: string; patientReview: string };
+  askAge: string;
+  badAge: string;
+  askGender: string;
+  chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string; startOver: string; patientNew: string; patientReturning: string; patientReview: string; genderMale: string; genderFemale: string; genderSkip: string };
 };
 
 // Appointment times are estimates, stated once at booking-complete: a patient's
@@ -372,7 +380,10 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}*\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nSpecialties: ${clinic.doctor.specialties.join(", ")}.\nRated ${clinic.rating.score}★ from ${clinic.rating.count}+ ${clinic.rating.source} reviews.\n\nEnjoyed your visit? Leave us a review:\n${clinic.rating.reviewUrl}`,
     fallback: "I can tell you if the doctor is in, tell you about the doctor, book you an appointment, or share timings and location. What would you like?",
     thanks: `You're welcome 🙏 Get well soon! If you have a moment, a quick Google review helps other patients find us:\n${clinic.rating.reviewUrl}`,
-    chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now", startOver: "Start fresh", patientNew: "New patient", patientReturning: "Returning patient", patientReview: "Free review visit" },
+    askAge: "What is the patient's age?",
+    badAge: "Please enter a valid age (e.g. 35).",
+    askGender: "And the gender?",
+    chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now", startOver: "Start fresh", patientNew: "New patient", patientReturning: "Returning patient", patientReview: "Free review visit", genderMale: "Male", genderFemale: "Female", genderSkip: "Prefer not to say" },
   },
   te: {
     greet: `నమస్కారం 🙏 నేను ${clinic.shortName} అసిస్టెంట్‌ని. మీకు ఎలా సహాయపడగలను?`,
@@ -429,7 +440,10 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}* గురించి:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nస్పెషాలిటీలు: ${clinic.doctor.specialties.join(", ")}.\n${clinic.rating.source} రేటింగ్: ${clinic.rating.score}★ (${clinic.rating.count}+ రివ్యూలు).\n\nమీ విజిట్ నచ్చిందా? మాకు రివ్యూ ఇవ్వండి:\n${clinic.rating.reviewUrl}`,
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
     thanks: `సంతోషం 🙏 త్వరగా కోలుకోండి! కొద్ది సమయం ఉంటే, ఒక గూగుల్ రివ్యూ ఇతర పేషెంట్లకు సహాయపడుతుంది:\n${clinic.rating.reviewUrl}`,
-    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్‌మెంట్ చూడండి", resched: "షెడ్యూల్ మార్చండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", startOver: "మళ్ళీ మొదలుపెట్టండి", patientNew: "కొత్త పేషెంట్", patientReturning: "మళ్ళీ వచ్చే పేషెంట్", patientReview: "ఉచిత రీవిజిట్" },
+    askAge: "పేషెంట్ వయస్సు ఎంత?",
+    badAge: "దయచేసి సరైన వయస్సు ఇవ్వండి (ఉదా: 35).",
+    askGender: "లింగం?",
+    chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్‌మెంట్ చూడండి", resched: "షెడ్యూల్ మార్చండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", startOver: "మళ్ళీ మొదలుపెట్టండి", patientNew: "కొత్త పేషెంట్", patientReturning: "మళ్ళీ వచ్చే పేషెంట్", patientReview: "ఉచిత రీవిజిట్", genderMale: "పురుషుడు", genderFemale: "స్త్రీ", genderSkip: "చెప్పదలచుకోలేదు" },
   },
   hi: {
     greet: `नमस्ते 🙏 मैं ${clinic.shortName} का असिस्टेंट हूँ। मैं आपकी कैसे मदद करूँ?`,
@@ -486,7 +500,10 @@ const P: Record<Lang, PhrasePack> = {
     about: `👨‍⚕️ *${dr}* के बारे में:\n${clinic.doctor.title}.\n${clinic.doctor.experienceNote}.\nविशेषज्ञता: ${clinic.doctor.specialties.join(", ")}.\n${clinic.rating.source} रेटिंग: ${clinic.rating.score}★ (${clinic.rating.count}+ समीक्षाएं).\n\nआपकी विजिट अच्छी रही? हमें एक रिव्यू दें:\n${clinic.rating.reviewUrl}`,
     fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, डॉक्टर के बारे में बता सकता हूँ, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
     thanks: `आपका स्वागत है 🙏 जल्दी स्वस्थ हों! अगर समय हो, तो एक गूगल रिव्यू दूसरे मरीज़ों की मदद करता है:\n${clinic.rating.reviewUrl}`,
-    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें", startOver: "नया स्लॉट बुक करें", patientNew: "नया मरीज़", patientReturning: "दोबारा आ रहे मरीज़", patientReview: "फ्री रिव्यू विज़िट" },
+    askAge: "मरीज़ की उम्र क्या है?",
+    badAge: "कृपया सही उम्र दर्ज करें (जैसे 35)।",
+    askGender: "और लिंग?",
+    chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें", startOver: "नया स्लॉट बुक करें", patientNew: "नया मरीज़", patientReturning: "दोबारा आ रहे मरीज़", patientReview: "फ्री रिव्यू विज़िट", genderMale: "पुरुष", genderFemale: "महिला", genderSkip: "बताना नहीं चाहते" },
   },
 };
 
@@ -837,15 +854,35 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
   if (state.stage === "await_phone" && state.slot) {
     const digits = input.replace(/\D/g, "");
     if (digits.length < 10) return { reply: [t.badPhone], chips: [], state };
+    // Phone validated — collect age next before submitting
+    return { reply: [t.askAge], chips: [], state: { stage: "await_age", slot: state.slot, name: state.name, pendingPhone: input.trim(), replacePending: state.replacePending, claim: state.claim } };
+  }
 
+  // collecting age
+  if (state.stage === "await_age" && state.slot) {
+    const age = parseInt(input.trim(), 10);
+    if (isNaN(age) || age < 1 || age > 120) return { reply: [t.badAge], chips: [], state };
+    return { reply: [t.askGender], chips: [c.genderMale, c.genderFemale, c.genderSkip], state: { stage: "await_gender", slot: state.slot, name: state.name, pendingPhone: state.pendingPhone, pendingAge: age, replacePending: state.replacePending, claim: state.claim } };
+  }
+
+  // collecting gender then submitting the booking
+  if (state.stage === "await_gender" && state.slot && state.pendingPhone != null && state.pendingAge != null) {
+    const lower = input.trim().toLowerCase();
+    const gender: "M" | "F" | null =
+      lower === c.genderMale.toLowerCase() || lower === "male" || lower === "m" ? "M" :
+      lower === c.genderFemale.toLowerCase() || lower === "female" || lower === "f" ? "F" :
+      null;
+    const phone = state.pendingPhone;
+    const age = state.pendingAge;
     try {
       const res = await fetch("/api/book", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: state.name || "Patient",
-          phone: input.trim(),
-          age: 0,
+          phone,
+          age,
+          gender,
           date: state.slot.date,
           time: state.slot.time,
           source,
@@ -855,18 +892,10 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       });
       const body = res.ok || res.status === 409 ? await res.json() : null;
       if (res.status === 409 && body?.code === "pending_hold") {
-        // A payment_pending hold is already on this number — don't book a
-        // second slot. Point them at
-        // paying the hold they already have; viewPhone carries the typed number
-        // so the Pay now chip resolves it without re-asking.
-        return { reply: [t.pendingHold], chips: [c.payNow, c.startOver, c.view, c.book], state: { stage: "idle", viewPhone: input.trim() } };
+        return { reply: [t.pendingHold], chips: [c.payNow, c.startOver, c.view, c.book], state: { stage: "idle", viewPhone: phone } };
       }
       if (res.status === 409 && body?.code === "duplicate_slot") {
-        // The phone already holds a live booking at this exact date+time—
-        // the second tap stacks a duplicate token. Tell them it's already
-        // theirs and offer reschedule + a different slot; view keeps them
-        // inside the flow so reschedule/cancel resolve without re-asking.
-        return { reply: [t.duplicateSlot], chips: [c.view, c.resched, c.book], state: { stage: "idle", viewPhone: input.trim() } };
+        return { reply: [t.duplicateSlot], chips: [c.view, c.resched, c.book], state: { stage: "idle", viewPhone: phone } };
       }
       if (res.status === 409) {
         const fresh = await timesForDate(state.slot.date);
@@ -882,9 +911,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       }
       if (!res.ok) throw new Error("booking failed");
       const { appointment: appt } = body as { appointment: Appt };
-      // slot/name/viewPhone carry through the completion state; the claim was
-      // fixed at the patient-type step, so nothing re-books or converts here.
-      return bookingDoneReply(t, c, appt, state.slot, state.name, input.trim(), [c.avail, c.about, c.done]);
+      return bookingDoneReply(t, c, appt, state.slot, state.name, phone, [c.avail, c.about, c.done]);
     } catch (err) {
       console.error("bot: booking failed", err);
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
