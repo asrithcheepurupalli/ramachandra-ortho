@@ -473,8 +473,8 @@ function LocationHours({ t }: { t: T }) {
               <span className="text-xs text-muted">Clinic landline</span>
             </a>
             <a href={`tel:${clinic.contact.phone}`} className="focus-ring ulink flex items-center gap-3 text-[15px]">
-              <MessageCircle className="h-4 w-4 shrink-0 text-brand" /> {clinic.contact.phone.replace("+91", "")}
-              <span className="text-xs text-muted">Mobile / WhatsApp</span>
+              <Phone className="h-4 w-4 shrink-0 text-brand" /> {clinic.contact.phone.replace("+91", "")}
+              <span className="text-xs text-muted">For appointments</span>
             </a>
             <a href={`tel:${clinic.contact.emergency}`} className="focus-ring ulink flex items-center gap-3 text-[15px]">
               <TriangleAlert className="h-4 w-4 shrink-0 text-brand" /> {clinic.contact.emergency.replace("+91", "")}
