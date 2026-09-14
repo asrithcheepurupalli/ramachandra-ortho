@@ -3,13 +3,6 @@ export type Service = { name: string; icon: string };
 
 export const serviceGroups: { group: string; items: Service[] }[] = [
   {
-    group: "Facilities at the clinic",
-    items: [
-      { name: "Physiotherapy", icon: "Dumbbell" },
-      { name: "Digital X-ray", icon: "Scan" },
-    ],
-  },
-  {
     group: "Orthopedics & Trauma",
     items: [
       { name: "Fracture management", icon: "Bone" },
@@ -19,6 +12,12 @@ export const serviceGroups: { group: string; items: Service[] }[] = [
       { name: "Sports injuries", icon: "Volleyball" },
       { name: "Trauma care", icon: "Ambulance" },
       { name: "Rheumatology", icon: "HandHeart" },
+    ],
+  },
+  {
+    group: "Facilities at the clinic",
+    items: [
+      { name: "Digital X-ray", icon: "Scan" },
     ],
   },
 ];

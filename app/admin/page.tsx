@@ -643,7 +643,7 @@ function Broadcast({ appts }: { appts: Appt[] }) {
   const toggle = (id: string) => setSel((s) => ({ ...s, [id]: !s[id] }));
 
   const presets: { key: string; label: string; scope: "today" | "next"; kind: "notice" | "reminder"; make: () => string }[] = [
-    { key: "late", label: "Running late", scope: "today", kind: "notice", make: () => `Dr. Ramachandra is running about ${mins} minutes late today. Sorry for the wait.` },
+    { key: "late", label: "Running late", scope: "today", kind: "notice", make: () => `Dr. Ramachandrudu is running about ${mins} minutes late today. Sorry for the wait.` },
     { key: "remind", label: "Reminder for the next session", scope: "next", kind: "reminder", make: () => `Reminder: you have an appointment at Ramachandra Ortho Care coming up. Kindly be on time. To reschedule or cancel, just reply on this chat.` },
     { key: "closed", label: "Clinic closed today", scope: "today", kind: "notice", make: () => "The clinic is closed today. We are sorry for the inconvenience and will help you rebook." },
   ];

@@ -105,14 +105,14 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
   }, []);
   return (
     <nav className={`sticky top-0 z-50 transition-all duration-300 ${scrolled ? "border-b border-line bg-bg/85 backdrop-blur-md shadow-[0_1px_0_rgba(0,0,0,0.02)]" : "bg-transparent"}`}>
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 md:px-8 h-16">
-        <Link href="/" className="focus-ring flex items-center gap-1.5 md:gap-2 group">
+      <div className={`mx-auto flex max-w-6xl items-center justify-between px-5 md:px-8 transition-all duration-300 ${scrolled ? "h-12 sm:h-14" : "h-16"}`}>
+        <Link href="/" className="focus-ring flex items-center gap-1.5 md:gap-2 group overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-mark.png" alt="" width={401} height={320} className="h-8 w-auto md:h-10 shrink-0 transition group-hover:scale-105" />
-          {/* Full name always on one line — on phones the logo and font step
-              down together so "Ramachandra Ortho" fits beside the lang toggle
-              instead of being squeezed off or ellipsized. */}
-          <span className="whitespace-nowrap text-sm md:text-base font-semibold leading-none">Ramachandra <span className="text-brand">Ortho<span className="hidden sm:inline"> Care</span></span></span>
+          <img src="/logo-mark.png" alt="" width={401} height={320} className={`w-auto shrink-0 transition-all duration-300 group-hover:scale-105 ${scrolled ? "h-7 sm:h-8" : "h-9 sm:h-10 md:h-11"}`} />
+          <span className={`whitespace-nowrap font-semibold leading-tight transition-all duration-300 ${scrolled ? "text-sm" : "text-base sm:text-lg md:text-xl"}`}>
+            <span className={`transition-all duration-300 ${scrolled ? "hidden" : "inline"}`}>Ramachandra </span>
+            <span className="text-brand">Ortho<span className={`transition-all duration-300 ${scrolled ? "hidden" : "inline"}`}>{" "}Care</span></span>
+          </span>
         </Link>
         <div className="flex items-center gap-1.5 md:gap-2">
           <div className="hidden md:flex items-center gap-1 mr-1">
@@ -121,14 +121,10 @@ function Nav({ lang, setLang, t }: { lang: Lang; setLang: (l: Lang) => void; t: 
             ))}
           </div>
           <Link href="/my-appointment" className="focus-ring ulink hidden md:inline-flex items-center rounded-lg px-3 py-2 text-sm text-muted hover:text-ink">{t("nav.myappt")}</Link>
-          {/* Desktop gets the text link above; phones only have this icon in
-              the top nav, since the sticky MobileBar's two slots are already
-              taken by Book + WhatsApp */}
           <Link href="/my-appointment" aria-label={t("nav.myappt")} className="focus-ring press md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:text-ink hover:bg-surface">
             <Search className="h-[18px] w-[18px]" />
           </Link>
           <LangToggle lang={lang} setLang={setLang} />
-          {/* Book lives in the mobile action bar on phones, so the nav stays clean */}
           <Link href="/book" className="focus-ring press ml-0.5 hidden md:inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-dark">
             {t("nav.book")} <ChevronRight className="h-4 w-4" />
           </Link>
@@ -180,8 +176,11 @@ function Hero({ status, t }: { status: Status | null; t: T }) {
                 <CalendarPlus className="h-[18px] w-[18px]" /> {t("cta.book")}
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
               </Link>
-              <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="focus-ring press inline-flex items-center gap-2 rounded-full border border-line bg-surface px-6 py-3.5 text-[15px] font-semibold text-ink transition hover:border-brand/40">
+              <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandrudu.")} target="_blank" rel="noreferrer" className="focus-ring press inline-flex items-center gap-2 rounded-full border border-line bg-surface px-6 py-3.5 text-[15px] font-semibold text-ink transition hover:border-brand/40">
                 <MessageCircle className="h-[18px] w-[18px] text-brand" /> {t("cta.whatsapp")}
+              </a>
+              <a href={`tel:${clinic.contact.phone}`} className="focus-ring ulink inline-flex items-center gap-2 text-[14px] text-muted hover:text-ink">
+                <Phone className="h-4 w-4 text-brand" /> For appointments: {clinic.contact.phone.replace("+91", "").replace(/(\d{5})(\d{5})/, "$1 $2")}
               </a>
             </div>
           </Reveal>
@@ -306,7 +305,7 @@ function WhatsAppSection({ t }: { t: T }) {
                 </li>
               ))}
             </ul>
-            <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandra.")} target="_blank" rel="noreferrer" className="focus-ring press mt-6 inline-flex items-center gap-2 rounded-full bg-[#075E54] px-5 py-3 text-[14px] font-semibold text-white transition hover:brightness-110 md:mt-7 md:px-6 md:py-3.5 md:text-[15px]">
+            <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandrudu.")} target="_blank" rel="noreferrer" className="focus-ring press mt-6 inline-flex items-center gap-2 rounded-full bg-[#075E54] px-5 py-3 text-[14px] font-semibold text-white transition hover:brightness-110 md:mt-7 md:px-6 md:py-3.5 md:text-[15px]">
               <MessageCircle className="h-[18px] w-[18px]" /> {t("wa.open")}
             </a>
           </div>
@@ -442,7 +441,7 @@ function DoctorStrip({ t }: { t: T }) {
             <span className="text-sm font-semibold uppercase tracking-wider text-muted">{t("sec.doctor")}</span>
             <h2 className="mt-2 text-2xl font-semibold md:text-3xl">{clinic.doctor.name}</h2>
             <p className="mt-1 text-brand font-medium">{clinic.doctor.title}</p>
-            <p className="mt-4 max-w-xl leading-relaxed text-muted">{clinic.doctor.experienceNote}. Patients across Visakhapatnam trust Dr. Ramachandra for clear explanations, unhurried consultations and honest advice, from a hairline fracture to a full joint replacement.</p>
+            <p className="mt-4 max-w-xl leading-relaxed text-muted">{clinic.doctor.experienceNote}. Patients across Visakhapatnam trust Dr. Ramachandrudu for clear explanations, unhurried consultations and honest advice, from a hairline fracture to a full joint replacement.</p>
             <div className="mt-5 flex flex-wrap gap-2">
               {["10 years experience", ...clinic.doctor.specialties].map((s) => (
                 <span key={s} className="rounded-full bg-brand-tint px-3 py-1 text-xs font-medium text-brand">{s}</span>
@@ -511,7 +510,7 @@ function FAQ({ t }: { t: T }) {
   const [open, setOpen] = useState<number | null>(null);
   const items = [
     { q: t("faq.q1"), a: t("faq.a1") },
-    { q: t("faq.q2"), a: t("faq.a2", { fee: `${clinic.currency}${clinic.consultationFee}` }) },
+    { q: t("faq.q2"), a: t("faq.a2", { fee: `${clinic.currency}${clinic.consultationFee}`, returningFee: `${clinic.currency}${clinic.returningFee}` }) },
     { q: t("faq.q3"), a: t("faq.a3") },
     { q: t("faq.q4"), a: t("faq.a4") },
     { q: t("faq.q5"), a: t("faq.a5") },

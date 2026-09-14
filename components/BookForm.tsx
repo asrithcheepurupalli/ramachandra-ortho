@@ -390,7 +390,7 @@ export function BookForm() {
                 <CalendarDays className="h-4 w-4 shrink-0" /> {t("book.done.view")}
               </Link>
             )}
-            <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandra on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition hover:bg-brand-tint"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
+            <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandrudu on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition hover:bg-brand-tint"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
             {/* Stacked full-width, not a flex-1 side-by-side row. Telugu/Hindi
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}

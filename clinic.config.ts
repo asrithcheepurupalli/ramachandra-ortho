@@ -10,7 +10,7 @@ export const clinic = {
   tagline: "Bones, joints and mobility, in careful hands.",
   url: "https://ramachandraorthocare.com",
   doctor: {
-    name: "Dr. M. Ramachandra",
+    name: "Dr. Ramachandrudu (Rajesh)",
     title: "M.S. (Ortho) · Orthopedic Surgeon & Trauma Care Specialist",
     experienceNote: "10 years of experience in joint replacements, fractures and sports injuries",
     specialties: [
@@ -21,7 +21,6 @@ export const clinic = {
       "Pediatric orthopedics",
       "All types of arthritis",
       "Rheumatology",
-      "Physiotherapy",
     ],
   },
   rating: { score: 4.8, count: 123, source: "Google", reviewUrl: "https://g.page/r/Cfu45jtjzYAuEB0/review" },

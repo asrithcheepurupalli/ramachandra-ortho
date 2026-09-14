@@ -179,8 +179,9 @@ export function statusAt(now = new Date(), s: SchedState = liveState()): Status 
     if (mins >= toMin(w.start) && mins < toMin(w.end))
       return { state: "in", until: w.end, note };
   }
-  const laterToday = today.find((w) => toMin(w.start) > mins);
-  if (laterToday) return { state: "soon", opensAt: laterToday.start, note };
+  // Use allSlotsFor so disabled individual slots are excluded from the "opens at" time.
+  const nextSlot = allSlotsFor(now, s).find((t) => toMin(t) > mins);
+  if (nextSlot) return { state: "soon", opensAt: nextSlot, note };
 
   return { state: "out", next: nextOpen(now, s), note };
 }
