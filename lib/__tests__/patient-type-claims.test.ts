@@ -123,6 +123,15 @@ function driveBooking() {
     expect(state.stage).toBe("await_phone");
     // "yes" is an affirmative — keeps the sender's own number as the booking phone.
     out = await botReplyServer("yes", "en", state, PHONE, backend, sched, "whatsapp");
+    state = out.state;
+    // Bot now collects age and gender before calling addBooking.
+    if (state.stage === "await_age") {
+      out = await botReplyServer("30", "en", state, PHONE, backend, sched, "whatsapp");
+      state = out.state;
+    }
+    if (state.stage === "await_gender") {
+      out = await botReplyServer("Male", "en", state, PHONE, backend, sched, "whatsapp");
+    }
     return { out, addCalls, claimNotified };
   }
 
