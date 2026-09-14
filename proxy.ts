@@ -61,12 +61,9 @@ export async function proxy(req: NextRequest) {
     to.searchParams.set("next", req.nextUrl.pathname);
     return NextResponse.redirect(to);
   }
-  // Staff opening the PWA (start_url "/") or the homepage should land on their
-  // dashboard, not the patient-facing site.
-  if ((path === "/" || path === "/login") && (await isStaff(supabase, user?.email))) {
+  if (path === "/login" && (await isStaff(supabase, user?.email))) {
     const to = req.nextUrl.clone();
     to.pathname = (await staffRole(supabase, user?.email)) === "doctor" ? "/doctor" : "/admin";
-    to.search = "";
     return NextResponse.redirect(to);
   }
 
