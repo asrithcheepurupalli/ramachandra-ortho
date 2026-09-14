@@ -240,7 +240,10 @@ export default function Doctor() {
 
 function TodayTab({ appts, patchAppt, openDetail }: { appts: Appt[]; patchAppt: (id: string, patch: Partial<Appt>) => void; openDetail: (phone: string) => void }) {
   const now = nowIST();
-  const todayStr = ymd(now);
+  // Stable string deps for useMemo — memoized so the React compiler can prove stability
+  const todayStr = useMemo(() => ymd(nowIST()), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const yesterdayStr = useMemo(() => { const d = nowIST(); d.setDate(d.getDate() - 1); return ymd(d); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const todayAppts = useMemo(
     () => apptsForDate(appts, todayStr).filter((a) => a.status !== "payment_pending" && a.status !== "cancelled"),
     [appts, todayStr]
@@ -265,9 +268,6 @@ function TodayTab({ appts, patchAppt, openDetail }: { appts: Appt[]; patchAppt: 
   const lastTime = times[times.length - 1];
 
   // Yesterday stats
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = ymd(yesterday);
   const yesterdayAppts = useMemo(
     () => appts.filter((a) => a.date === yesterdayStr && a.status !== "payment_pending" && a.status !== "cancelled"),
     [appts, yesterdayStr]
