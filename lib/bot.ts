@@ -776,6 +776,17 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
   }
 
+  // Escape hatch: while waiting for patient-type selection, any recognized
+  // non-booking intent (reschedule, view, greet, avail, etc.) resets state so
+  // the patient can do what they actually asked for instead of being stuck.
+  // "book" / "startOver" / "fallback" stay — they belong to the booking flow.
+  if (state.stage === "await_patient_type") {
+    const escaped = detect(input);
+    if (!["book", "startOver", "fallback"].includes(escaped)) {
+      state = { stage: "idle" };
+    }
+  }
+
   // A wrong or expired OTP code used to be a dead end (retry-only, no way
   // out). Tapping the resched chip we now offer alongside a bad/expired code
   // should actually restart the OTP request, not get swallowed as another
@@ -1370,6 +1381,15 @@ export async function botReplyServer(
   // "cancel") instead of backing the patient out of a flow they no longer want.
   if (MID_FLOW_STAGES.includes(state.stage) && detect(input) === "cancel") {
     return { reply: [t.flowCancelled], chips: [c.book, c.avail], state: { stage: "idle" } };
+  }
+
+  // Escape hatch: while waiting for patient-type selection, any recognized
+  // non-booking intent resets state so the patient can do what they asked for.
+  if (state.stage === "await_patient_type") {
+    const escaped = detect(input);
+    if (!["book", "startOver", "fallback"].includes(escaped)) {
+      state = { stage: "idle" };
+    }
   }
 
   // picking which appointment to pay for, when the phone has more than one
