@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, MessageCircle, CalendarDays, Clock, User,
-  ChevronRight, PartyPopper, Ticket, Wallet, BadgeCheck,
+  ChevronRight, PartyPopper, Ticket, Wallet, BadgeCheck, ClipboardList,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels, langShort } from "@/lib/i18n";
@@ -364,6 +364,12 @@ export function BookForm() {
             </div>
           ) : (
             <p className="mt-5 text-sm leading-relaxed text-muted">{t("book.done.msg")}</p>
+          )}
+          {booked.claimType && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-800/40 dark:bg-amber-950/20">
+              <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">{t("book.done.bringPrescription")}</p>
+            </div>
           )}
           {/* The carry-over-to-next-day line is about confirmed no-shows; an
               unpaid booking is cancelled outright instead, so it would read as
