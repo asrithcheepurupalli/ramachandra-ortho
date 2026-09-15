@@ -304,12 +304,15 @@ const dateLabel = (date: string) => {
 /* ── TODAY: stats + live queue + walk-in + broadcast ───────────────────────── */
 function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
   const [date, setDate] = useState(() => ymd(new Date()));
+  const [showCancelled, setShowCancelled] = useState(false);
   const isToday = date === ymd(new Date());
   // payment_pending rows are online bookings still awaiting payment — not yet
   // real to the desk. Hidden until the Razorpay webhook flips them to reserved
   // (or the timeout cron cancels them), same as the doctor page.
   const list = apptsForDate(appts, date).filter((a) => a.status !== "payment_pending");
   const active = list.filter((a) => a.status !== "cancelled");
+  const cancelledRows = list.filter((a) => a.status === "cancelled");
+  const displayQueue = showCancelled ? [...active, ...cancelledRows] : active;
   const inQueue = list.filter((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
   const serving = list.find((a) => a.status === "consulting");
   const next = inQueue[0];
@@ -366,15 +369,26 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
               <h2 className="font-semibold">{isToday ? "Live queue" : "Queue"}</h2>
               {isToday && next && <span className="hidden text-xs text-muted sm:inline">next up: <b className="text-ink">#{next.token} {next.name}</b></span>}
             </div>
-            {isToday && (
-              <button onClick={callNext} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark sm:px-4 sm:py-2 sm:text-sm">
-                <PhoneCall className="h-4 w-4" /> Call next
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {cancelledRows.length > 0 && (
+                <button
+                  onClick={() => setShowCancelled((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition sm:px-4 sm:py-2 sm:text-sm ${showCancelled ? "border-out/40 bg-out/10 text-out" : "border-line text-muted hover:border-out/30 hover:text-out"}`}
+                >
+                  <X className="h-3.5 w-3.5" /> {showCancelled ? "Hide cancelled" : `Cancelled (${cancelledRows.length})`}
+                </button>
+              )}
+              {isToday && (
+                <button onClick={callNext} className="inline-flex items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark sm:px-4 sm:py-2 sm:text-sm">
+                  <PhoneCall className="h-4 w-4" /> Call next
+                </button>
+              )}
+            </div>
           </div>
           <ul className="divide-y divide-line">
-            {active.map((a) => <QueueRow key={a.id} a={a} patch={patch} />)}
-            {active.length === 0 && <li className="px-6 py-10 text-center text-sm text-muted">No appointments on this date.</li>}
+            {displayQueue.map((a) => <QueueRow key={a.id} a={a} patch={patch} />)}
+            {active.length === 0 && cancelledRows.length === 0 && <li className="px-6 py-10 text-center text-sm text-muted">No appointments on this date.</li>}
+            {active.length === 0 && cancelledRows.length > 0 && !showCancelled && <li className="px-6 py-10 text-center text-sm text-muted">No active appointments. {cancelledRows.length} cancelled — tap above to show.</li>}
           </ul>
         </div>
 

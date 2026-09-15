@@ -319,9 +319,9 @@ type PhrasePack = {
 // slot can slip with how earlier consultations and the doctor's pace run that
 // day, so nobody should plan their visit to the minute.
 const WAIT_NOTE: Record<Lang, string> = {
-  en: "Appointment times are estimates. Earlier consultations and the doctor's availability can push things back, usually by 30 minutes to an hour, so allow a little extra time when you plan to arrive.",
-  te: "అపాయింట్‌మెంట్ సమయం అంచనా మాత్రమే. మీకంటే ముందు ఉన్న కన్సల్టేషన్లు, డాక్టర్ లభ్యతను బట్టి సమయం వెనక్కి నెట్టవచ్చు, సాధారణంగా 30 నిమిషాల నుంచి ఒక గంట వరకు. రావాల్సినప్పుడు కొంచెం అదనపు సమయం పెట్టుకోండి.",
-  hi: "अपॉइंटमेंट का समय सिर्फ एक अनुमान है। पहले की सलाह और डॉक्टर की उपलब्धता के आधार पर इसमें आमतौर पर 30 मिनट से एक घंटे तक की देरी हो सकती है। आने के लिए थोड़ा अतिरिक्त समय रखें।",
+  en: "⏱ Times are estimates. Allow 30–60 min extra.",
+  te: "⏱ సమయాలు అంచనా మాత్రమే. 30–60 నిమిషాల అదనపు సమయం పెట్టుకోండి.",
+  hi: "⏱ समय अनुमानित है। 30–60 मिनट अतिरिक्त रखें।",
 };
 
 const P: Record<Lang, PhrasePack> = {
@@ -351,8 +351,8 @@ const P: Record<Lang, PhrasePack> = {
     flowSlotTaken: "Sorry, that slot was just taken. Please message us again to pick another time.",
     flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 15 minutes*. Complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
-        claimFreeConfirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · this review visit is free, nothing to pay.\n*Bring your previous prescription and reports.* Without them, this visit cannot be considered a free review.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
-        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt} to be paid at the clinic counter when you arrive. No online payment, the desk will collect it there.\n*Bring your previous prescription and reports.* Without them, this visit cannot be considered a returning patient visit.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
+        claimFreeConfirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · free review visit.\n\n*Bring your previous prescription and reports.* Without them, this visit cannot be considered a free review.\n\nMissed your slot? Moves to the next working day automatically.\n\n${WAIT_NOTE.en}`,
+        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt} — pay at desk.\n\n*Bring your previous prescription and reports.* Without them, this visit cannot be considered a returning patient visit.\n\nMissed your slot? Moves to the next working day automatically.\n\n${WAIT_NOTE.en}`,
     cancelAsk: `Cancellations are handled by the clinic, so I can't cancel it for you here. Would you like to move it to a new time instead? Tap *Reschedule*, or call the clinic on ${clinic.contact.phone} to cancel.`,
     payNone: "You don't have any unpaid appointments right now.",
     payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
@@ -411,8 +411,8 @@ const P: Record<Lang, PhrasePack> = {
     flowSlotTaken: "క్షమించండి, ఆ స్లాట్ ఇప్పుడే బుక్ అయ్యింది. దయచేసి మళ్ళీ మెసేజ్ చేసి వేరే సమయం ఎంచుకోండి.",
     flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఈ స్లాట్ *15 నిమిషాలు* మీ కోసమే ఉంటుంది. అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే పర్వాలేదు, అది దానంతట అదే మరుసటి రోజుకి మారిపోతుంది.\n${WAIT_NOTE.te}`,
-        claimFreeConfirm: (tok: number, s: string) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ఈ రివ్యూ విజిట్ ఫ్రీ, ఏమీ చెల్లించాల్సిన అవసరం లేదు.\n*పాత ప్రిస్క్రిప్షన్ మరియు రిపోర్టులు తీసుకురండి.* లేకపోతే ఫ్రీ రివ్యూగా పరిగణించబడదు.\nసమయం మిస్ అయితే పర్వాలేదు, అది దానంతట అదే మరుసటి రోజుకి మారిపోతుంది.\n${WAIT_NOTE.te}`,
-        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · మీరు చేరుకున్నప్పుడు క్లినిక్‌లో ${cur}${feeAmt} చెల్లించాలి. ఆన్‌లైన్ చెల్లింపు లేదు, డెస్క్ అక్కడే వసూలు చేస్తుంది.\n*పాత ప్రిస్క్రిప్షన్ మరియు రిపోర్టులు తీసుకురండి.* లేకపోతే రిటర్నింగ్ పేషెంట్‌గా పరిగణించబడదు.\nసమయం మిస్ అయితే పర్వాలేదు, అది దానంతట అదే మరుసటి రోజుకి మారిపోతుంది.\n${WAIT_NOTE.te}`,
+        claimFreeConfirm: (tok: number, s: string) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ఫ్రీ రివ్యూ విజిట్.\n\n*పాత ప్రిస్క్రిప్షన్ మరియు రిపోర్టులు తీసుకురండి.* లేకపోతే ఫ్రీ రివ్యూగా పరిగణించబడదు.\n\nస్లాట్ మిస్ అయితే మరుసటి రోజుకి దానంతట మారిపోతుంది.\n\n${WAIT_NOTE.te}`,
+        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt} — డెస్క్‌లో చెల్లించండి.\n\n*పాత ప్రిస్క్రిప్షన్ మరియు రిపోర్టులు తీసుకురండి.* లేకపోతే రిటర్నింగ్ పేషెంట్‌గా పరిగణించబడదు.\n\nస్లాట్ మిస్ అయితే మరుసటి రోజుకి దానంతట మారిపోతుంది.\n\n${WAIT_NOTE.te}`,
     cancelAsk: `రద్దులను క్లినిక్ నిర్వహిస్తుంది, కాబట్టి నేను ఇక్కడ రద్దు చేయలేను. బదులుగా కొత్త సమయానికి మార్చుకోవాలనుకుంటున్నారా? *షెడ్యూల్ మార్చండి* నొక్కండి, లేదా రద్దు కోసం క్లినిక్‌కు ${clinic.contact.phone} కాల్ చేయండి.`,
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
@@ -471,8 +471,8 @@ const P: Record<Lang, PhrasePack> = {
     flowSlotTaken: "माफ़ करें, वह स्लॉट अभी बुक हो गया। कृपया दोबारा मैसेज करके दूसरा समय चुनें।",
     flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *15 मिनट* के लिए होल्ड है। अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
-        claimFreeConfirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · यह रिव्यू विजिट फ्री है, कुछ भी भुगतान नहीं करना है।\n*पुराना प्रिस्क्रिप्शन और रिपोर्ट साथ लाएं।* बिना इनके यह विजिट फ्री रिव्यू नहीं मानी जाएगी।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
-        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · पहुँचने पर क्लिनिक पर ${cur}${feeAmt} देना है। कोई ऑनलाइन भुगतान नहीं, डेस्क वहीं वसूल करेगा।\n*पुराना प्रिस्क्रिप्शन और रिपोर्ट साथ लाएं।* बिना इनके यह रिटर्निंग पेशेंट विजिट नहीं मानी जाएगी।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
+        claimFreeConfirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · फ्री रिव्यू विजिट।\n\n*पुराना प्रिस्क्रिप्शन और रिपोर्ट साथ लाएं।* बिना इनके यह विजिट फ्री रिव्यू नहीं मानी जाएगी।\n\nस्लॉट मिस हो जाए तो अगले कार्य दिवस पर अपने आप चला जाएगा।\n\n${WAIT_NOTE.hi}`,
+        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt} — डेस्क पर दें।\n\n*पुराना प्रिस्क्रिप्शन और रिपोर्ट साथ लाएं।* बिना इनके यह रिटर्निंग पेशेंट विजिट नहीं मानी जाएगी।\n\nस्लॉट मिस हो जाए तो अगले कार्य दिवस पर अपने आप चला जाएगा।\n\n${WAIT_NOTE.hi}`,
     cancelAsk: `रद्दीकरण क्लिनिक संभालता है, इसलिए मैं इसे यहाँ रद्द नहीं कर सकता। क्या आप इसके बजाय इसे किसी नए समय पर ले जाना चाहेंगे? *रीशेड्यूल* दबाएँ, या रद्द करने के लिए क्लिनिक को ${clinic.contact.phone} पर कॉल करें।`,
     payNone: "अभी आपके पास कोई बकाया अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
