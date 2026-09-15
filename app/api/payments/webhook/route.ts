@@ -5,7 +5,7 @@
 // handler; a bad signature or unhandled event is logged and swallowed.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbMarkPaidByPaymentLink } from "@/lib/db";
-import { sendPaymentReceived } from "@/lib/meta-whatsapp";
+import { sendPaymentReceived, sendBookingConfirmation } from "@/lib/meta-whatsapp";
 import { sendNewAppointmentEmail } from "@/lib/mailer";
 import { verifyWebhookSignature } from "@/lib/razorpay";
 import { report, reportError } from "@/lib/bugdesk";
@@ -33,7 +33,9 @@ export async function POST(req: NextRequest) {
     const appt = await dbMarkPaidByPaymentLink(paymentLinkId, paymentId, capturedAmountPaise);
     if (appt) {
       const whatsappOk = await sendPaymentReceived(appt);
-      if (!whatsappOk) await reportError("payments/webhook", new Error("WhatsApp notify failed"), { severity: "warning", info: { channel: "whatsapp", appt: appt.id } });
+      if (!whatsappOk) await reportError("payments/webhook", new Error("WhatsApp payment notify failed"), { severity: "warning", info: { channel: "whatsapp", appt: appt.id } });
+      const confirmOk = await sendBookingConfirmation(appt);
+      if (!confirmOk) await reportError("payments/webhook", new Error("WhatsApp confirmation notify failed"), { severity: "warning", info: { channel: "whatsapp_confirm", appt: appt.id } });
       const emailOk = await sendNewAppointmentEmail(appt);
       if (!emailOk) await reportError("payments/webhook", new Error("email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
     } else {
