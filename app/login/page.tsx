@@ -70,9 +70,14 @@ function LoginForm() {
     const stillLocked = lockedUntil();
     if (stillLocked) { setLockUntil(stillLocked); setErr(lockedMsg(stillLocked)); return; }
 
+    // Allow short usernames like "admin" or "doctor" — append the domain if no @ present
+    const resolvedEmail = email.trim().includes("@")
+      ? email.trim()
+      : `${email.trim()}@ramachandraorthocare.com`;
+
     setBusy(true); setErr("");
     const supabase = supabaseBrowser();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email: resolvedEmail, password });
     if (error) {
       setBusy(false);
       recordFailedAttempt();
@@ -86,7 +91,7 @@ function LoginForm() {
     // route by role so a doctor login lands on /doctor by default.
     let next = explicitNext;
     if (!next) {
-      const { data } = await supabase.rpc("staff_role", { check_email: email });
+      const { data } = await supabase.rpc("staff_role", { check_email: resolvedEmail });
       next = data === "doctor" ? "/doctor" : "/admin";
     }
     setBusy(false);
@@ -102,7 +107,7 @@ function LoginForm() {
         <p className="mt-1 text-sm text-muted">Sign in to manage {clinic.shortName}.</p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <label htmlFor="login-email" className="sr-only">Email</label>
-          <input id="login-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className="focus-ring w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+          <input id="login-email" type="text" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin or doctor" autoComplete="email" className="focus-ring w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
           <label htmlFor="login-password" className="sr-only">Password</label>
           <input id="login-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" className="focus-ring w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
           {err && <p className="text-sm text-out">{err}</p>}

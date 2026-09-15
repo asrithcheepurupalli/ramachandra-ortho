@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, CalendarCog, Users, IndianRupee, ArrowLeft, Plus,
   Megaphone, PhoneCall, Check, X, Play, Clock, CircleDot, Globe, MessageCircle,
-  Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff, LogOut, Send,
+  Footprints, RotateCcw, ChevronLeft, ChevronRight, CalendarOff, LogOut, Send,
 } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import {
@@ -107,7 +107,7 @@ async function signOutStaff() {
   window.location.href = "/login";
 }
 
-type Tab = "today" | "schedule" | "calendar" | "patients" | "revenue" | "bugdesk";
+type Tab = "today" | "schedule" | "calendar" | "patients" | "revenue";
 const money = (n: number) => `${clinic.currency}${n.toLocaleString("en-IN")}`;
 
 const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
@@ -116,7 +116,6 @@ const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: "calendar", label: "Calendar", icon: CalendarOff },
   { id: "patients", label: "Patients", icon: Users },
   { id: "revenue", label: "Revenue", icon: IndianRupee },
-  { id: "bugdesk", label: "Bug desk", icon: TriangleAlert },
 ];
 
 // Auth note: no explicit session check here — proxy.ts redirects any
@@ -213,9 +212,7 @@ export default function Admin() {
             <Patients appts={appts} />
           ) : tab === "revenue" ? (
             <Revenue appts={appts} />
-          ) : (
-            <BugDesk />
-          )}
+          ) : null}
         </div>
       </main>
     </div>
@@ -1166,130 +1163,4 @@ function Revenue({ appts }: { appts: Appt[] }) {
   );
 }
 
-/* ── Bug desk ─────────────────────────────────────────────────────────────── */
-type BugRow = {
-  fingerprint: string;
-  source: string;
-  message: string;
-  severity: "critical" | "warning";
-  count: number;
-  first_seen: string;
-  last_seen: string;
-  alerted_at: string | null;
-  resolved: boolean;
-};
 
-// Same IST short format the bug desk emails use (client-side mirror of
-// fmtLastSeen in lib/bugdesk.ts, which is server-only).
-const bugLastSeen = (iso: string) =>
-  new Date(iso).toLocaleString("en-IN", {
-    timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-  });
-
-function BugDesk() {
-  const [rows, setRows] = useState<BugRow[]>([]);
-  const [filter, setFilter] = useState<"all" | "critical" | "warning">("all");
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-
-  const load = () => {
-    // No setLoading(true) here: useState(true) initializes loading, and calling
-    // setState synchronously inside the effect body triggers the React Compiler
-    // react-hooks/set-state-in-effect rule.
-    fetch("/api/admin/bugdesk")
-      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-      .then((d) => { setRows(d.rows ?? []); setLoadError(false); })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoading(false));
-  };
-  useEffect(load, []);
-
-  // Optimistic flip, refetch on failure so the toggle can't lie to the desk.
-  const toggle = (row: BugRow) => {
-    const next = !row.resolved;
-    setRows((prev) => prev.map((r) => (r.fingerprint === row.fingerprint ? { ...r, resolved: next } : r)));
-    fetch("/api/admin/bugdesk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fingerprint: row.fingerprint, resolved: next }),
-    }).catch(() => load());
-  };
-
-  const open = rows.filter((r) => (filter === "all" ? true : r.severity === filter));
-  const openCount = rows.filter((r) => !r.resolved).length;
-  const criticalOpen = rows.filter((r) => !r.resolved && r.severity === "critical").length;
-
-  return (
-    <div className="max-w-4xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-lg">
-          Bug desk
-          {openCount > 0 && (
-            <span className={`ml-2 rounded-full px-2.5 py-1 text-xs font-medium ${criticalOpen ? "bg-accent-tint text-accent" : "bg-brand-tint text-brand"}`}>
-              {criticalOpen > 0 ? `${criticalOpen} critical · ${openCount} open` : `${openCount} open`}
-            </span>
-          )}
-        </h2>
-        <div className="flex gap-1.5">
-          {(["all", "critical", "warning"] as const).map((f) => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`rounded-full px-4 py-2 text-xs font-medium capitalize transition ${filter === f ? "bg-brand text-white" : "border border-line bg-paper text-muted hover:text-ink"}`}>
-              {f === "all" ? "All" : f}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {loadError && !rows.length && <p className="text-sm text-out">Couldn&rsquo;t load the bug desk. Refresh to retry.</p>}
-      {loading && <p className="text-sm text-muted">Loading&hellip;</p>}
-
-      {!loading && open.length === 0 ? (
-        <div className="rounded-2xl border border-line bg-paper px-6 py-10 text-center text-sm text-muted">
-          {loadError ? "Bug desk unavailable." : filter === "all" ? "No issues logged. Quiet is good." : `No ${filter} issues.`}
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-line bg-paper">
-          <table className="w-full min-w-[560px] text-sm">
-            <thead>
-              <tr className="border-b border-line bg-bone/60 text-left text-[11px] uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Severity</th>
-                <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Issue</th>
-                <th className="px-4 py-3 font-semibold sm:px-6 sm:py-3.5">Last seen</th>
-                <th className="px-4 py-3 text-right font-semibold sm:px-6 sm:py-3.5">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {open.map((r) => (
-                <tr key={r.fingerprint} className={`transition hover:bg-bone/40 ${r.resolved ? "opacity-60" : ""}`}>
-                  <td className="px-6 py-3.5">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${r.severity === "critical" ? "bg-accent-tint text-accent" : "bg-brand-tint text-brand"}`}>
-                      {r.severity === "critical" ? "Critical" : "Warning"}
-                    </span>
-                    <div className="mt-1 font-mono text-xs text-muted">{r.source}</div>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <p className="break-words">{r.message}</p>
-                    <p className="mt-1 text-xs text-muted">
-                      {r.count > 1 ? `${r.count} occurrences` : "Once"}
-                      {r.count > 1 && <> &middot; first {bugLastSeen(r.first_seen)}</>}
-                      {r.alerted_at && <> &middot; <span className="text-brand">alerted</span></>}
-                    </p>
-                  </td>
-                  <td className="whitespace-nowrap px-6 py-3.5 text-muted">{bugLastSeen(r.last_seen)}</td>
-                  <td className="px-6 py-3.5 text-right">
-                    {r.resolved && <span className="mr-2.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">Resolved</span>}
-                    <button onClick={() => toggle(r)}
-                      className={`shrink-0 rounded-lg border border-line px-3.5 py-1.5 text-xs font-medium transition ${r.resolved ? "text-muted hover:text-ink" : "text-ink hover:bg-brand-tint/60"}`}>
-                      {r.resolved ? "Reopen" : "Resolve"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="text-xs text-muted">Critical errors email the desk instantly (once per hour per issue); everything surfaces in the 6-hourly digest until resolved. An issue that keeps recurring keeps its count climbing.</p>
-    </div>
-  );
-}
