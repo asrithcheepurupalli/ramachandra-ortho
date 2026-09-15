@@ -369,7 +369,7 @@ export async function dbAddBooking(input: {
       .select("token")
       .eq("appt_date", input.date);
     if (dayErr) throw dayErr;
-    const token = (dayAppts ?? []).reduce((m, a) => Math.max(m, a.token as number), 0) + 1;
+    const token = (dayAppts ?? []).reduce((m, a) => Math.max(m, a.token as number), 10) + 1;
 
     const { data: row, error } = await db
       .from("appointments")

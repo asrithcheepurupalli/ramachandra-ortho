@@ -214,7 +214,7 @@ export function addWalkIn(input: { name: string; phone: string; age: number; gen
   const all = read();
   const today = ymd(new Date());
   const todays = all.filter((a) => a.date === today);
-  const token = (todays.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
+  const token = Math.max(todays.reduce((m, a) => Math.max(m, a.token), 0), 10) + 1;
   // One flat consultation fee for everyone; an existing registry entry only
   // keeps its stable patient code (mirrors dbAddBooking).
   const phone = normalizePhone(input.phone);
@@ -246,7 +246,7 @@ export function addBooking(input: {
   if (isPastLeadTime(input.date, input.time, new Date())) throw new InvalidSlotError();
   const all = read();
   const dayAppts = all.filter((a) => a.date === input.date);
-  const token = (dayAppts.reduce((m, a) => Math.max(m, a.token), 0) || 0) + 1;
+  const token = Math.max(dayAppts.reduce((m, a) => Math.max(m, a.token), 0), 10) + 1;
   const phone = normalizePhone(input.phone);
   // Mirror dbAddBooking's pending-hold guard: a phone with an unpaid hold can't
   // book a second slot (one unpaid hold, then the webhook confirms it).

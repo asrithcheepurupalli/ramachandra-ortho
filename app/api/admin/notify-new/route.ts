@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
     token: typeof body?.token === "number" ? body.token : Number.NaN,
     name: typeof body?.name === "string" ? body.name.trim() : "",
     phone: typeof body?.phone === "string" ? body.phone.trim() : "",
+    age: typeof body?.age === "number" ? body.age : 0,
+    gender: (body?.gender === "M" || body?.gender === "F") ? body.gender as "M" | "F" : null,
     date: typeof body?.date === "string" ? body.date : "",
     time: typeof body?.time === "string" ? body.time : "",
     fee: typeof body?.fee === "number" ? body.fee : 0,
