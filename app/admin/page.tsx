@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, CalendarCog, Users, IndianRupee, ArrowLeft, Plus,
   Megaphone, PhoneCall, Check, X, Play, Clock, CircleDot, Globe, MessageCircle,
-  Footprints, RotateCcw, ChevronLeft, ChevronRight, CalendarOff, LogOut, Send,
+  Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff, LogOut, Send,
 } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import {

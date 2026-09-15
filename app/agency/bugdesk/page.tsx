@@ -27,24 +27,26 @@ function bugLastSeen(iso: string) {
 const TOKEN_KEY = "agency_token";
 
 export default function AgencyBugDesk() {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => {
+    try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; }
+  });
   const [input, setInput] = useState("");
   const [authError, setAuthError] = useState("");
   const [checking, setChecking] = useState(false);
 
   const [rows, setRows] = useState<BugRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Initialize loading=true when a token is already stored so the first fetch
+  // doesn't flash the empty state. Never set loading inside an effect body
+  // directly — that triggers react-hooks/set-state-in-effect.
+  const [loading, setLoading] = useState(() => {
+    try { return !!sessionStorage.getItem(TOKEN_KEY); } catch { return false; }
+  });
   const [loadError, setLoadError] = useState("");
   const [filter, setFilter] = useState<"all" | "critical" | "warning">("all");
 
-  useEffect(() => {
-    const stored = sessionStorage.getItem(TOKEN_KEY);
-    if (stored) setToken(stored);
-  }, []);
-
   const fetchRows = useCallback(async (t: string) => {
-    setLoading(true);
-    setLoadError("");
+    // No setState calls before the first await — that would fire synchronously
+    // inside the useEffect body and trigger react-hooks/set-state-in-effect.
     try {
       const res = await fetch("/api/agency/bugdesk", {
         headers: { Authorization: `Bearer ${t}` },
@@ -53,11 +55,13 @@ export default function AgencyBugDesk() {
         sessionStorage.removeItem(TOKEN_KEY);
         setToken(null);
         setLoadError("Session expired. Please re-enter the password.");
+        setLoading(false);
         return;
       }
-      if (!res.ok) { setLoadError("Could not load bug desk."); return; }
+      if (!res.ok) { setLoadError("Could not load bug desk."); setLoading(false); return; }
       const json = await res.json();
       setRows(json.rows ?? []);
+      setLoadError("");
     } catch {
       setLoadError("Network error. Please try again.");
     } finally {
@@ -66,7 +70,7 @@ export default function AgencyBugDesk() {
   }, []);
 
   useEffect(() => {
-    if (token) fetchRows(token);
+    if (token) { void fetchRows(token); }
   }, [token, fetchRows]);
 
   async function handleLogin(e: React.FormEvent) {
