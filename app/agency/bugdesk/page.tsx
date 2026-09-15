@@ -44,33 +44,30 @@ export default function AgencyBugDesk() {
   const [loadError, setLoadError] = useState("");
   const [filter, setFilter] = useState<"all" | "critical" | "warning">("all");
 
-  const fetchRows = useCallback(async (t: string) => {
-    // No setState calls before the first await — that would fire synchronously
-    // inside the useEffect body and trigger react-hooks/set-state-in-effect.
-    try {
-      const res = await fetch("/api/agency/bugdesk", {
-        headers: { Authorization: `Bearer ${t}` },
-      });
-      if (res.status === 401) {
-        sessionStorage.removeItem(TOKEN_KEY);
-        setToken(null);
-        setLoadError("Session expired. Please re-enter the password.");
-        setLoading(false);
-        return;
-      }
-      if (!res.ok) { setLoadError("Could not load bug desk."); setLoading(false); return; }
-      const json = await res.json();
-      setRows(json.rows ?? []);
-      setLoadError("");
-    } catch {
-      setLoadError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+  const fetchRows = useCallback((t: string) => {
+    // Promise-chain (not async/await) so the linter sees no setState calls in
+    // the synchronous function body — all setState runs inside .then/.catch/.finally
+    // callbacks, matching the react-hooks/set-state-in-effect rule.
+    fetch("/api/agency/bugdesk", { headers: { Authorization: `Bearer ${t}` } })
+      .then((res) => {
+        if (res.status === 401) {
+          sessionStorage.removeItem(TOKEN_KEY);
+          setToken(null);
+          setLoadError("Session expired. Please re-enter the password.");
+          return null;
+        }
+        if (!res.ok) { setLoadError("Could not load bug desk."); return null; }
+        return res.json() as Promise<{ rows: BugRow[] }>;
+      })
+      .then((json) => {
+        if (json) { setRows(json.rows ?? []); setLoadError(""); }
+      })
+      .catch(() => setLoadError("Network error. Please try again."))
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (token) { void fetchRows(token); }
+    if (token) fetchRows(token);
   }, [token, fetchRows]);
 
   async function handleLogin(e: React.FormEvent) {
