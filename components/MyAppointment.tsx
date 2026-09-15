@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, CalendarDays, Clock, User, Ticket, Search, PencilLine, Wallet,
-  MessageCircle, ShieldCheck,
+  MessageCircle, ShieldCheck, ClipboardList,
 } from "lucide-react";
 import { clinic, type Lang } from "@/clinic.config";
 import { tr, langLabels } from "@/lib/i18n";
@@ -225,6 +225,13 @@ function ApptCard({
           }
         />
       </dl>
+
+      {appt.claimType && (
+        <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-800/40 dark:bg-amber-950/20">
+          <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">{t("book.done.bringPrescription")}</p>
+        </div>
+      )}
 
       {err && <p role="alert" className="mt-3 text-sm text-out">{err}</p>}
 
