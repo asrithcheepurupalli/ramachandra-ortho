@@ -18,6 +18,7 @@ export const serviceGroups: { group: string; items: Service[] }[] = [
     group: "Facilities at the clinic",
     items: [
       { name: "Digital X-ray", icon: "Scan" },
+      { name: "Physiotherapy", icon: "Dumbbell" },
     ],
   },
 ];
