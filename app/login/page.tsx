@@ -49,6 +49,7 @@ function LoginForm() {
   const explicitNext = params.get("next");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [lockUntil, setLockUntil] = useState<number | null>(() => lockedUntil());
   const [err, setErr] = useState<string>(() => {
     const l = lockedUntil();
@@ -76,7 +77,7 @@ function LoginForm() {
       : `${email.trim()}@ramachandraorthocare.com`;
 
     setBusy(true); setErr("");
-    const supabase = supabaseBrowser();
+    const supabase = supabaseBrowser({ remember });
     const { error } = await supabase.auth.signInWithPassword({ email: resolvedEmail, password });
     if (error) {
       setBusy(false);
@@ -110,6 +111,10 @@ function LoginForm() {
           <input id="login-email" type="text" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin or doctor" autoComplete="email" className="focus-ring w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
           <label htmlFor="login-password" className="sr-only">Password</label>
           <input id="login-password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" autoComplete="current-password" className="focus-ring w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
+          <label className="flex cursor-pointer items-center gap-2.5 pt-1">
+            <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="h-4 w-4 accent-brand" />
+            <span className="text-sm text-muted">Remember me</span>
+          </label>
           {err && <p className="text-sm text-out">{err}</p>}
           <button disabled={busy || isLocked} className="focus-ring press flex w-full items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
             <LogIn className="h-4 w-4" /> {busy ? "Signing in…" : "Sign in"}

@@ -44,7 +44,11 @@ export async function proxy(req: NextRequest) {
       setAll: (list) => {
         list.forEach(({ name, value }) => req.cookies.set(name, value));
         res = NextResponse.next({ request: { headers: reqHeaders } });
-        list.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
+        // Preserve a maxAge if Supabase set one; fall back to 30 days so that
+        // "Remember me" sessions stay alive across browser restarts.
+        list.forEach(({ name, value, options }) =>
+          res.cookies.set(name, value, { maxAge: 60 * 60 * 24 * 30, ...options })
+        );
       },
     },
   });

@@ -21,6 +21,7 @@ export const clinic = {
       "Pediatric orthopedics",
       "All types of arthritis",
       "Rheumatology",
+      "Physiotherapy",
     ],
   },
   rating: { score: 4.8, count: 123, source: "Google", reviewUrl: "https://g.page/r/Cfu45jtjzYAuEB0/review" },

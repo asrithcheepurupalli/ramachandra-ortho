@@ -352,17 +352,19 @@ export async function sendBackupEmail(json: string, dateLabel: string): Promise<
 // ── Sender: new appointment ──────────────────────────────────────────────────
 
 export async function sendNewAppointmentEmail(
-  appt: Pick<Appt, "token" | "name" | "phone" | "date" | "time" | "fee" | "source" | "patientCode">
+  appt: Pick<Appt, "token" | "name" | "phone" | "age" | "gender" | "date" | "time" | "fee" | "source" | "patientCode">
 ): Promise<boolean> {
   const adminEmail = clinic.contact.adminEmail;
   if (!adminEmail) return false;
 
   const dateLabel = longDate(appt.date);
   const srcTitle = SRC_LABEL[appt.source] ?? appt.source;
+  const ageGender = [appt.age ? `${appt.age} yrs` : null, appt.gender === "M" ? "Male" : appt.gender === "F" ? "Female" : null].filter(Boolean).join(" · ");
 
   const body = `
     ${detailsCard(`
       ${detailRow("Patient", esc(appt.name))}
+      ${appt.age || appt.gender ? detailRow("Age / Gender", esc(ageGender)) : ""}
       ${detailRow("Phone", humanPhone(esc(appt.phone)))}
       ${detailRow("Code", appt.patientCode ? `#${esc(appt.patientCode)}` : "New patient")}
       ${detailRow("Date", esc(dateLabel))}
