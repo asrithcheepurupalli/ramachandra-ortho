@@ -8,6 +8,7 @@ import { normalizePhone, isValidIndianMobile } from "@/lib/phone";
 import { isRateLimited } from "@/lib/rate-limit";
 import { reportError } from "@/lib/bugdesk";
 import { sendNewAppointmentEmail } from "@/lib/mailer";
+import { sendBookingConfirmation } from "@/lib/meta-whatsapp";
 
 type Source = "website" | "whatsapp" | "walkin";
 const isSource = (v: unknown): v is Source => v === "website" || v === "whatsapp" || v === "walkin";
@@ -70,8 +71,10 @@ export async function POST(req: NextRequest) {
     // A claimed booking skips payment_pending and Razorpay entirely, so it
     // never reaches the webhook that would otherwise fire this — send it here.
     if (appt.claimType) {
-      const ok = await sendNewAppointmentEmail(appt);
-      if (!ok) await reportError("book", new Error("claim email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
+      const emailOk = await sendNewAppointmentEmail(appt);
+      if (!emailOk) await reportError("book", new Error("claim email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
+      const waOk = await sendBookingConfirmation(appt);
+      if (!waOk) await reportError("book", new Error("claim whatsapp confirmation failed"), { severity: "warning", info: { channel: "whatsapp", appt: appt.id } });
     }
     return NextResponse.json({ appointment: appt }, { status: 201 });
   } catch (err) {
