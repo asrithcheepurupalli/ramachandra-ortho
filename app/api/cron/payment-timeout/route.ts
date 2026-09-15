@@ -84,15 +84,11 @@ export async function POST(req: NextRequest) {
   }
 
   // ── post-expiry re-nudge ──────────────────────────────────────────────────
-  // WhatsApp patients whose link expired (row cancelled by this or an earlier
-  // tick) get exactly one nudge. Mark-then-send with the same idempotency guard
-  // as the reminder crons: only the row that wins the conditional update on
-  // expired_payment_nudged_at being null sends; a failed send rolls the flag
-  // back so the next tick (within 5 min) retries inside Meta's 24h window.
-  // Bounded to the last 24h so a never-sent nudge is not retried forever. A row
-  // revived meanwhile (status payment_pending) exits both the read and the
-  // win-guard. Soft-gated on META_WHATSAPP_TOKEN: without it every send returns
-  // false, which would spam Bedbug criticals on non-prod deployments.
+  // Both WhatsApp and website patients get the same interactive nudge. Mark-then-
+  // send with idempotency guard: only the row that wins the conditional update on
+  // expired_payment_nudged_at being null sends; a failed send rolls the flag back
+  // so the next tick (within 5 min) retries. Bounded to the last 24h so a
+  // never-sent nudge is not retried forever.
   const nudged: string[] = [];
   if (process.env.META_WHATSAPP_TOKEN) {
     const { data: toNudge, error: nudgeErr } = await supabaseAdmin()
@@ -101,7 +97,7 @@ export async function POST(req: NextRequest) {
       .eq("status", "cancelled")
       .eq("cancel_reason", "payment_timeout")
       .is("expired_payment_nudged_at", null)
-      .eq("source", "whatsapp")
+      .in("source", ["whatsapp", "website"])
       .gt("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
       .not("phone", "is", null);
 
@@ -117,7 +113,7 @@ export async function POST(req: NextRequest) {
           .eq("status", "cancelled")
           .is("expired_payment_nudged_at", null)
           .select("id");
-        if (!claimed?.length) continue; // another tick already nudged, or the row was revived
+        if (!claimed?.length) continue;
         const rollback = async () => { await supabaseAdmin().from("appointments").update({ expired_payment_nudged_at: null }).eq("id", row.id).eq("status", "cancelled"); };
         try {
           const sent = await sendButtons(row.phone, NUDGE_BODY, [RESUME_PAY_CHIPS.link, RESUME_PAY_CHIPS.change]);
