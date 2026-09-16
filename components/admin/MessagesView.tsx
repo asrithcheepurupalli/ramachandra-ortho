@@ -1,22 +1,24 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
   MessageSquare, RefreshCw, Search, CheckCircle2, XCircle, AlertCircle,
-  Clock, Phone, User, ShieldAlert, Sparkles, Filter, ChevronDown, Check,
+  Clock, Phone, User,
 } from "lucide-react";
 import { hasSupabase } from "@/lib/supabase";
 import { loadMockWhatsAppLogs, type WhatsAppLog } from "@/lib/store";
 
 export function MessagesView() {
-  const [logs, setLogs] = useState<WhatsAppLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [logs, setLogs] = useState<WhatsAppLog[]>(() =>
+    typeof window !== "undefined" && !hasSupabase() ? loadMockWhatsAppLogs() : []
+  );
+  const [loading, setLoading] = useState<boolean>(() => hasSupabase());
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "sent" | "failed" | "skipped">("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "template" | "text" | "interactive">("all");
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
     if (!hasSupabase()) {
@@ -35,10 +37,32 @@ export function MessagesView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchLogs();
+    if (!hasSupabase()) return;
+    let ignore = false;
+    fetch("/api/admin/messages?limit=200")
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (!ignore) {
+          setLogs(data.logs || []);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          console.error("Failed to load messages", err);
+          setError("Could not load WhatsApp logs. Please try again.");
+          setLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const filteredLogs = useMemo(() => {
@@ -240,7 +264,6 @@ export function MessagesView() {
           {filteredLogs.map((log) => {
             const isSent = log.status === "sent";
             const isFailed = log.status === "failed";
-            const isSkipped = log.status === "skipped";
 
             return (
               <div

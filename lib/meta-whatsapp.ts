@@ -108,11 +108,6 @@ async function callGraphApiWithResult(payload: Record<string, unknown>): Promise
   return { ok: false, error: lastError || "Unknown send failure" };
 }
 
-async function callGraphApi(payload: Record<string, unknown>): Promise<boolean> {
-  const res = await callGraphApiWithResult(payload);
-  return res.ok;
-}
-
 function recordWhatsAppLog(entry: {
   phone: string;
   patientName?: string | null;
