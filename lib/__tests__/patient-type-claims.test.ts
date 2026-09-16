@@ -82,7 +82,7 @@ function driveBooking() {
         paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null,
         reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null,
         createdAt: Date.now(), notes: null, patientCode: null,
-        claimType: claim, paymentDeadlineAt: claim ? null : Date.now() + 15 * 60 * 1000,
+        claimType: claim, paymentDeadlineAt: claim ? null : Date.now() + 15 * 60 * 1000, locality: null,
       };
     },
     activeAppointmentsByPhone: () => Promise.resolve([]),
@@ -124,13 +124,17 @@ function driveBooking() {
     // "yes" is an affirmative — keeps the sender's own number as the booking phone.
     out = await botReplyServer("yes", "en", state, PHONE, backend, sched, "whatsapp");
     state = out.state;
-    // Bot now collects age and gender before calling addBooking.
+    // Bot now collects age, gender, and locality before calling addBooking.
     if (state.stage === "await_age") {
       out = await botReplyServer("30", "en", state, PHONE, backend, sched, "whatsapp");
       state = out.state;
     }
     if (state.stage === "await_gender") {
       out = await botReplyServer("Male", "en", state, PHONE, backend, sched, "whatsapp");
+      state = out.state;
+    }
+    if (state.stage === "await_locality") {
+      out = await botReplyServer("Dwaraka Nagar", "en", state, PHONE, backend, sched, "whatsapp");
     }
     return { out, addCalls, claimNotified };
   }
