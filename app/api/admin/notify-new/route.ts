@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     fee: typeof body?.fee === "number" ? body.fee : 0,
     source: ("walkin" as Source),
     patientCode: typeof body?.patientCode === "string" ? body.patientCode : null,
+    locality: typeof body?.locality === "string" && body.locality.trim() ? body.locality.trim() : null,
   };
 
   if (!appt.name || !appt.phone || !appt.date || !appt.time || !Number.isFinite(appt.token)) {

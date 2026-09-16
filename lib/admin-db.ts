@@ -55,6 +55,7 @@ function rowToAppt(r: DbApptRow): Appt {
     patientCode: r.patient_code ?? null,
     claimType: r.claim_type as "returning_unverified" | "review_free" | null,
     paymentDeadlineAt: null,
+    locality: null,
   };
 }
 

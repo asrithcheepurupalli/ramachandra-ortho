@@ -1191,7 +1191,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
 // untouched.
 // ─────────────────────────────────────────────────────────────────────────────
 export type Backend = {
-  addBooking: (input: { name: string; phone: string; age: number; gender?: "M" | "F" | null; date: string; time: string; source?: Source; replacePending?: boolean; claim?: "returning_unverified" | "review_free" }) => Promise<Appt>;
+  addBooking: (input: { name: string; phone: string; age: number; gender?: "M" | "F" | null; locality?: string | null; date: string; time: string; source?: Source; replacePending?: boolean; claim?: "returning_unverified" | "review_free" }) => Promise<Appt>;
   // includePending adds payment_pending rows — the pay intent needs them, the
   // view/reschedule intents don't (an unpaid booking isn't confirmed yet).
   activeAppointmentsByPhone: (phone: string, includePending?: boolean) => Promise<Appt[]>;
