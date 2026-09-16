@@ -10,7 +10,7 @@ import {
   defaultWeeklyHours, allSlotsFor, ymd, nowIST, isPastLeadTime,
   type WeeklyHours, type Exception, type Override, type SchedState,
 } from "@/lib/schedule";
-import type { Appt, ApptStatus, Source } from "@/lib/store";
+import type { Appt, ApptStatus, Source, WhatsAppLog } from "@/lib/store";
 import type { ServerBotState } from "@/lib/bot";
 import { SlotTakenError, InvalidSlotError, PendingHoldError, DuplicateSlotError } from "@/lib/errors";
 import { createPaymentLink } from "@/lib/razorpay";
@@ -969,3 +969,80 @@ export async function dbSaveWaSession(
     );
   if (error) throw error;
 }
+
+// ── Outgoing WhatsApp message logs (7-day retention) ─────────────────────────
+type DbWhatsAppLogRow = {
+  id: string;
+  phone: string;
+  patient_name: string | null;
+  message_type: string;
+  template_name: string | null;
+  status: string;
+  details: string | null;
+  error_message: string | null;
+  created_at: string;
+};
+
+function rowToWhatsAppLog(r: DbWhatsAppLogRow): WhatsAppLog {
+  return {
+    id: r.id,
+    phone: r.phone,
+    patientName: r.patient_name ?? null,
+    messageType: (r.message_type as WhatsAppLog["messageType"]) || "template",
+    templateName: r.template_name ?? null,
+    status: (r.status as WhatsAppLog["status"]) || "sent",
+    details: r.details ?? null,
+    errorMessage: r.error_message ?? null,
+    createdAt: new Date(r.created_at).getTime(),
+  };
+}
+
+export async function dbInsertWhatsAppLog(entry: {
+  phone: string;
+  patientName?: string | null;
+  messageType: "template" | "text" | "interactive";
+  templateName?: string | null;
+  status: "sent" | "failed" | "skipped";
+  details?: string | null;
+  errorMessage?: string | null;
+}): Promise<void> {
+  try {
+    const db = supabaseAdmin();
+    await db.from("whatsapp_logs").insert({
+      phone: entry.phone,
+      patient_name: entry.patientName ?? null,
+      message_type: entry.messageType,
+      template_name: entry.templateName ?? null,
+      status: entry.status,
+      details: entry.details ?? null,
+      error_message: entry.errorMessage ?? null,
+    });
+  } catch (err) {
+    console.error("Failed to insert whatsapp log:", err);
+  }
+}
+
+export async function dbGetWhatsAppLogs(limit: number = 100): Promise<WhatsAppLog[]> {
+  const db = supabaseAdmin();
+  // Auto prune entries older than 7 days
+  await dbPruneWhatsAppLogs().catch(() => {});
+
+  const { data, error } = await db
+    .from("whatsapp_logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map(rowToWhatsAppLog);
+}
+
+export async function dbPruneWhatsAppLogs(): Promise<void> {
+  try {
+    const db = supabaseAdmin();
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    await db.from("whatsapp_logs").delete().lt("created_at", cutoff);
+  } catch (err) {
+    console.error("Failed to prune whatsapp logs:", err);
+  }
+}
+

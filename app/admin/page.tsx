@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   LayoutDashboard, CalendarCog, Users, IndianRupee, ArrowLeft, Plus,
   Megaphone, PhoneCall, Check, X, Play, Clock, CircleDot, Globe, MessageCircle,
-  Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff, LogOut, Send,
+  Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff, LogOut, Send, MessageSquare,
 } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import {
@@ -26,6 +26,7 @@ import {
   useDbScheduleTick,
 } from "@/lib/admin-db";
 import { CalendarView } from "@/components/admin/CalendarView";
+import { MessagesView } from "@/components/admin/MessagesView";
 import { downloadCsv } from "@/lib/csv";
 
 type Patch = (id: string, p: Partial<Appt>) => void;
@@ -107,7 +108,7 @@ async function signOutStaff() {
   window.location.href = "/login";
 }
 
-type Tab = "today" | "schedule" | "calendar" | "patients" | "revenue";
+type Tab = "today" | "schedule" | "calendar" | "patients" | "revenue" | "messages";
 const money = (n: number) => `${clinic.currency}${n.toLocaleString("en-IN")}`;
 
 const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
@@ -116,6 +117,7 @@ const NAV: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: "calendar", label: "Calendar", icon: CalendarOff },
   { id: "patients", label: "Patients", icon: Users },
   { id: "revenue", label: "Revenue", icon: IndianRupee },
+  { id: "messages", label: "Messages", icon: MessageSquare },
 ];
 
 // Auth note: no explicit session check here — proxy.ts redirects any
@@ -212,6 +214,8 @@ export default function Admin() {
             <Patients appts={appts} />
           ) : tab === "revenue" ? (
             <Revenue appts={appts} />
+          ) : tab === "messages" ? (
+            <div className="p-4 md:p-8 xl:p-10"><MessagesView /></div>
           ) : null}
         </div>
       </main>

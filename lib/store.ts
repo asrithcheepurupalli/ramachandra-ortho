@@ -48,6 +48,18 @@ export type Appt = {
   locality: string | null; // patient's area/neighbourhood, e.g. "MVP Colony"
 };
 
+export type WhatsAppLog = {
+  id: string;
+  phone: string;
+  patientName: string | null;
+  messageType: "template" | "text" | "interactive";
+  templateName: string | null;
+  status: "sent" | "failed" | "skipped";
+  details: string | null;
+  errorMessage: string | null;
+  createdAt: number;
+};
+
 const KEY = "roc.appts.v1";
 
 // ── mock patient registry (localStorage) ─────────────────────────────────────
@@ -405,3 +417,32 @@ export function getOverrideMode(): "auto" | "in" | "out" {
   const ov = overrideRef.current;
   return ov && ov.date === ymd(new Date()) ? ov.mode : "auto";
 }
+
+// ── mock WhatsApp logs (localStorage) ────────────────────────────────────────
+const MOCK_WAL_KEY = "roc.walogs.v1";
+
+export function loadMockWhatsAppLogs(): WhatsAppLog[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(MOCK_WAL_KEY);
+    return raw ? (JSON.parse(raw) as WhatsAppLog[]) : [];
+  } catch { return []; }
+}
+
+export function saveMockWhatsAppLog(entry: Omit<WhatsAppLog, "id" | "createdAt">): WhatsAppLog {
+  const log: WhatsAppLog = {
+    ...entry,
+    id: `wal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    createdAt: Date.now(),
+  };
+  if (typeof window !== "undefined") {
+    try {
+      const logs = loadMockWhatsAppLogs();
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const pruned = [log, ...logs].filter((l) => l.createdAt >= cutoff);
+      localStorage.setItem(MOCK_WAL_KEY, JSON.stringify(pruned.slice(0, 200)));
+    } catch {}
+  }
+  return log;
+}
+

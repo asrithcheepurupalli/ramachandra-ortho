@@ -13,6 +13,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { fmt } from "@/lib/schedule";
 import type { Appt } from "@/lib/store";
+import { dbInsertWhatsAppLog } from "@/lib/db";
 
 const GRAPH_VERSION = "v21.0";
 
@@ -66,14 +67,16 @@ function sleep(ms: number): Promise<void> {
 // assuming success just because the HTTP call didn't throw. Retries once on
 // network errors and 5xx/429 responses (transient) — never on other 4xx,
 // which represent a rejected request that a retry can't fix.
-async function callGraphApi(payload: Record<string, unknown>): Promise<boolean> {
+async function callGraphApiWithResult(payload: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const token = process.env.META_WHATSAPP_TOKEN;
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
   if (!token || !phoneNumberId) {
-    console.error("Meta WhatsApp send skipped: META_WHATSAPP_TOKEN or META_PHONE_NUMBER_ID not set");
-    return false;
+    const msg = "META_WHATSAPP_TOKEN or META_PHONE_NUMBER_ID not set";
+    console.error(`Meta WhatsApp send skipped: ${msg}`);
+    return { ok: false, error: msg };
   }
 
+  let lastError = "";
   for (let attempt = 1; attempt <= GRAPH_MAX_ATTEMPTS; attempt++) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), GRAPH_TIMEOUT_MS);
@@ -85,21 +88,43 @@ async function callGraphApi(payload: Record<string, unknown>): Promise<boolean> 
         signal: controller.signal,
       });
       if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        lastError = `HTTP ${res.status}: ${errText}`;
         const retryable = res.status === 429 || res.status >= 500;
-        console.error("Meta WhatsApp send failed", res.status, await res.text().catch(() => ""));
+        console.error("Meta WhatsApp send failed", res.status, errText);
         if (retryable && attempt < GRAPH_MAX_ATTEMPTS) { await sleep(GRAPH_RETRY_DELAY_MS); continue; }
-        return false;
+        return { ok: false, error: lastError };
       }
-      return true;
-    } catch (err) {
+      return { ok: true };
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err.message : String(err);
       console.error("Meta WhatsApp send error", err);
       if (attempt < GRAPH_MAX_ATTEMPTS) { await sleep(GRAPH_RETRY_DELAY_MS); continue; }
-      return false;
+      return { ok: false, error: lastError };
     } finally {
       clearTimeout(timeout);
     }
   }
-  return false;
+  return { ok: false, error: lastError || "Unknown send failure" };
+}
+
+async function callGraphApi(payload: Record<string, unknown>): Promise<boolean> {
+  const res = await callGraphApiWithResult(payload);
+  return res.ok;
+}
+
+function recordWhatsAppLog(entry: {
+  phone: string;
+  patientName?: string | null;
+  messageType: "template" | "text" | "interactive";
+  templateName?: string | null;
+  status: "sent" | "failed" | "skipped";
+  details?: string | null;
+  errorMessage?: string | null;
+}) {
+  dbInsertWhatsAppLog(entry).catch((err) => {
+    console.error("Failed to record whatsapp log:", err);
+  });
 }
 
 // Free-form text reply, only valid inside an active (patient-initiated,
@@ -108,20 +133,49 @@ async function callGraphApi(payload: Record<string, unknown>): Promise<boolean> 
 // recipient outside that window, which callGraphApi now surfaces as a
 // `false` return instead of swallowing, so a broadcast can report who it
 // actually reached.
-export async function sendText(phone: string, body: string): Promise<boolean> {
+export async function sendText(phone: string, body: string, patientName?: string | null): Promise<boolean> {
   const to = normalizeIndianPhone(phone);
-  if (!to) return false;
-  return callGraphApi({ to, type: "text", text: { body } });
+  if (!to) {
+    recordWhatsAppLog({
+      phone,
+      patientName,
+      messageType: "text",
+      status: "failed",
+      details: body.slice(0, 160),
+      errorMessage: "Invalid phone number",
+    });
+    return false;
+  }
+  const res = await callGraphApiWithResult({ to, type: "text", text: { body } });
+  recordWhatsAppLog({
+    phone,
+    patientName,
+    messageType: "text",
+    status: res.ok ? "sent" : "failed",
+    details: body.slice(0, 160),
+    errorMessage: res.error ?? null,
+  });
+  return res.ok;
 }
 
 // Reply buttons — up to 3 tappable options, title capped at 20 chars (Meta's
 // hard limit). Used instead of sendText's numbered-list-as-plain-text for
 // short option sets (e.g. picking a morning/evening window) so the patient
 // taps instead of reading and typing a number.
-export async function sendButtons(phone: string, body: string, options: string[]): Promise<boolean> {
+export async function sendButtons(phone: string, body: string, options: string[], patientName?: string | null): Promise<boolean> {
   const to = normalizeIndianPhone(phone);
-  if (!to || !options.length) return false;
-  return callGraphApi({
+  if (!to || !options.length) {
+    recordWhatsAppLog({
+      phone,
+      patientName,
+      messageType: "interactive",
+      status: "failed",
+      details: `Buttons: [${options.join(", ")}] | ${body.slice(0, 120)}`,
+      errorMessage: !to ? "Invalid phone number" : "Empty options",
+    });
+    return false;
+  }
+  const payload = {
     to,
     type: "interactive",
     interactive: {
@@ -134,17 +188,37 @@ export async function sendButtons(phone: string, body: string, options: string[]
         })),
       },
     },
+  };
+  const res = await callGraphApiWithResult(payload);
+  recordWhatsAppLog({
+    phone,
+    patientName,
+    messageType: "interactive",
+    status: res.ok ? "sent" : "failed",
+    details: `Buttons: [${options.join(", ")}] | ${body.slice(0, 120)}`,
+    errorMessage: res.error ?? null,
   });
+  return res.ok;
 }
 
 // List message — up to 10 rows (single section), title capped at 24 chars.
 // Used for option sets too long for buttons (a week of day chips, a window's
 // worth of time slots) so the patient still taps rather than reading a
 // numbered wall of text and typing a digit back.
-export async function sendList(phone: string, body: string, buttonLabel: string, options: string[]): Promise<boolean> {
+export async function sendList(phone: string, body: string, buttonLabel: string, options: string[], patientName?: string | null): Promise<boolean> {
   const to = normalizeIndianPhone(phone);
-  if (!to || !options.length) return false;
-  return callGraphApi({
+  if (!to || !options.length) {
+    recordWhatsAppLog({
+      phone,
+      patientName,
+      messageType: "interactive",
+      status: "failed",
+      details: `List: ${buttonLabel} (${options.length} rows) | ${body.slice(0, 120)}`,
+      errorMessage: !to ? "Invalid phone number" : "Empty options",
+    });
+    return false;
+  }
+  const payload = {
     to,
     type: "interactive",
     interactive: {
@@ -157,7 +231,17 @@ export async function sendList(phone: string, body: string, buttonLabel: string,
         ],
       },
     },
+  };
+  const res = await callGraphApiWithResult(payload);
+  recordWhatsAppLog({
+    phone,
+    patientName,
+    messageType: "interactive",
+    status: res.ok ? "sent" : "failed",
+    details: `List: ${buttonLabel} (${options.length} rows) | ${body.slice(0, 120)}`,
+    errorMessage: res.error ?? null,
   });
+  return res.ok;
 }
 
 // Meta locks a language code from accepting NEW templates for ~4 weeks after a
@@ -176,14 +260,36 @@ async function sendTemplate(
   templateName: string | undefined,
   params: string[],
   lang: string = process.env.META_TEMPLATE_LANG || "en_US",
-  urlButtonValue?: string
+  urlButtonValue?: string,
+  patientName?: string | null
 ): Promise<boolean> {
   const to = normalizeIndianPhone(phone);
   if (!templateName) {
-    console.error("Meta WhatsApp template send skipped: template name env var not set");
+    const msg = "Template name env var not set";
+    console.error(`Meta WhatsApp template send skipped: ${msg}`);
+    recordWhatsAppLog({
+      phone,
+      patientName,
+      messageType: "template",
+      templateName: "unconfigured",
+      status: "skipped",
+      details: params.length ? `Params: [${params.join(", ")}]` : null,
+      errorMessage: msg,
+    });
     return false;
   }
-  if (!to) return false;
+  if (!to) {
+    recordWhatsAppLog({
+      phone,
+      patientName,
+      messageType: "template",
+      templateName,
+      status: "failed",
+      details: params.length ? `Params: [${params.join(", ")}]` : null,
+      errorMessage: "Invalid phone number",
+    });
+    return false;
+  }
 
   const components: Record<string, unknown>[] = [];
   // Omit the body component entirely for a template whose body has no {{n}}
@@ -202,7 +308,7 @@ async function sendTemplate(
     components.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: urlButtonValue }] });
   }
 
-  return callGraphApi({
+  const res = await callGraphApiWithResult({
     to,
     type: "template",
     template: {
@@ -211,6 +317,18 @@ async function sendTemplate(
       ...(components.length ? { components } : {}),
     },
   });
+
+  recordWhatsAppLog({
+    phone,
+    patientName,
+    messageType: "template",
+    templateName,
+    status: res.ok ? "sent" : "failed",
+    details: params.length ? `Params: [${params.join(", ")}]` : (urlButtonValue ? `Code: ${urlButtonValue}` : null),
+    errorMessage: res.error ?? null,
+  });
+
+  return res.ok;
 }
 
 function dateTimeLabel(appt: Pick<Appt, "date" | "time">): string {
@@ -231,14 +349,14 @@ export function sendBookingConfirmation(appt: Pick<Appt, "name" | "phone" | "dat
       appt.name,
       dateTimeLabel(appt),
       `Token #${appt.token}`,
-    ], templateLang("META_TEMPLATE_LANG_CONFIRM_V2"));
+    ], templateLang("META_TEMPLATE_LANG_CONFIRM_V2"), undefined, appt.name);
   }
   return sendTemplate(appt.phone, process.env.META_TEMPLATE_CONFIRM, [
     appt.name,
     dateTimeLabel(appt),
     "Orthopedic Consultation",
     `Token #${appt.token}`,
-  ], templateLang("META_TEMPLATE_LANG_CONFIRM"));
+  ], templateLang("META_TEMPLATE_LANG_CONFIRM"), undefined, appt.name);
 }
 
 // Fired when staff cancels a booking from /admin.
@@ -247,7 +365,7 @@ export function sendBookingCancellation(appt: Pick<Appt, "name" | "phone" | "dat
     appt.name,
     dateTimeLabel(appt),
     `Token #${appt.token}`,
-  ], templateLang("META_TEMPLATE_LANG_CANCEL"));
+  ], templateLang("META_TEMPLATE_LANG_CANCEL"), undefined, appt.name);
 }
 
 // Fired by the Razorpay webhook once a payment link is paid. Optional —
@@ -259,7 +377,7 @@ export function sendPaymentReceived(appt: Pick<Appt, "name" | "phone" | "date" |
     appt.name,
     dateTimeLabel(appt),
     `Token #${appt.token}`,
-  ], templateLang("META_TEMPLATE_LANG_PAID"));
+  ], templateLang("META_TEMPLATE_LANG_PAID"), undefined, appt.name);
 }
 
 // Fired by /admin's Broadcast panel (running-late / closed-today notices to
@@ -267,7 +385,7 @@ export function sendPaymentReceived(appt: Pick<Appt, "name" | "phone" | "date" |
 // book via the website and never open a WhatsApp conversation — sendText
 // only reaches the few who happen to have an active (<24h) chat.
 export function sendClinicNotice(phone: string, name: string, message: string) {
-  return sendTemplate(phone, process.env.META_TEMPLATE_NOTICE, [name, message], templateLang("META_TEMPLATE_LANG_NOTICE"));
+  return sendTemplate(phone, process.env.META_TEMPLATE_NOTICE, [name, message], templateLang("META_TEMPLATE_LANG_NOTICE"), undefined, name);
 }
 
 // Fired automatically by the /api/cron/reminders cron (never by the admin
@@ -282,7 +400,7 @@ export function sendReminder(phone: string, name: string, date: string, time: st
   // expects it); the send recipient can still be a 91-prefixed legacy row.
   const urlPhone = phone.replace(/\D/g, "").slice(-10);
   return sendTemplate(phone, process.env.META_TEMPLATE_REMINDER, [name, dateLabel, fmt(time)],
-    templateLang("META_TEMPLATE_LANG_REMINDER"), urlPhone);
+    templateLang("META_TEMPLATE_LANG_REMINDER"), urlPhone, name);
 }
 
 // Static re-engagement nudge (zero body params — "Book Appointment" + "Call"
@@ -299,7 +417,7 @@ export function sendWelcomeBookingLink(phone: string) {
 // template), so no urlButtonValue — the classic templates' rule that the button
 // component only appears for a parameterized URL button.
 export function sendReviewNudge(phone: string, name: string) {
-  return sendTemplate(phone, process.env.META_TEMPLATE_REVIEW_NUDGE, [name], templateLang("META_TEMPLATE_LANG_REVIEW_NUDGE"));
+  return sendTemplate(phone, process.env.META_TEMPLATE_REVIEW_NUDGE, [name], templateLang("META_TEMPLATE_LANG_REVIEW_NUDGE"), undefined, name);
 }
 
 // Fired daily by the /api/cron/free-visit-nudge cron (8:00 AM IST) to patients
@@ -308,7 +426,7 @@ export function sendReviewNudge(phone: string, name: string) {
 // "Free review visit" in the chat (which the bot routes into a claim booking),
 // so the template ships no button.
 export function sendFreeReviewNudge(phone: string, name: string) {
-  return sendTemplate(phone, process.env.META_TEMPLATE_FREE_REVIEW_NUDGE, [name], templateLang("META_TEMPLATE_LANG_FREE_REVIEW_NUDGE"));
+  return sendTemplate(phone, process.env.META_TEMPLATE_FREE_REVIEW_NUDGE, [name], templateLang("META_TEMPLATE_LANG_FREE_REVIEW_NUDGE"), undefined, name);
 }
 
 // Patient-verification code, sent outside any conversation window so it must
