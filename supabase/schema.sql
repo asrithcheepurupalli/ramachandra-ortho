@@ -296,3 +296,6 @@ drop trigger if exists trg_guard_razorpay_columns on public.appointments;
 create trigger trg_guard_razorpay_columns
   before update on public.appointments
   for each row execute function public.guard_razorpay_columns();
+
+-- migration 015: locality
+alter table public.appointments add column if not exists locality text;

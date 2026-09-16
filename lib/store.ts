@@ -45,6 +45,7 @@ export type Appt = {
   patientCode: string | null; // human-readable patient ID (ROC-####), null when not matched
   claimType: "returning_unverified" | "review_free" | null; // self-declared exemption (free review visit); null for ordinary bookings
   paymentDeadlineAt: number | null; // epoch ms; 15 min window for payment_pending bookings, null for walk-ins / legacy
+  locality: string | null; // patient's area/neighbourhood, e.g. "MVP Colony"
 };
 
 const KEY = "roc.appts.v1";
@@ -118,7 +119,7 @@ function seed(): Appt[] {
     id: rid(), token: i + 1, name: r[0], phone: r[1], age: r[2], gender: r[7], date: today,
     time: times[i], status: r[4], source: r[3], fee, paid: r[5], paidVia: r[6],
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null, createdAt: Date.now() - (10 - i) * 6e5,
-    notes: null, patientCode: codeFor(r[1], r[0]), claimType: null, paymentDeadlineAt: null,
+    notes: null, patientCode: codeFor(r[1], r[0]), claimType: null, paymentDeadlineAt: null, locality: null,
   }));
 }
 
@@ -210,7 +211,7 @@ function write(next: Appt[]) {
 function subscribe(l: () => void) { listeners.add(l); return () => listeners.delete(l); }
 
 // ── public actions ──────────────────────────────────────────────────────────
-export function addWalkIn(input: { name: string; phone: string; age: number; gender?: "M" | "F" | null; source?: Source }) {
+export function addWalkIn(input: { name: string; phone: string; age: number; gender?: "M" | "F" | null; locality?: string | null; source?: Source }) {
   const all = read();
   const today = ymd(new Date());
   const todays = all.filter((a) => a.date === today);
@@ -228,7 +229,7 @@ export function addWalkIn(input: { name: string; phone: string; age: number; gen
     time: new Date().toTimeString().slice(0, 5), status: "waiting",
     source: input.source ?? "walkin", fee, paid: false, paidVia: null,
     paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null, createdAt: Date.now(),
-    notes: null, patientCode, claimType: null, paymentDeadlineAt: null,
+    notes: null, patientCode, claimType: null, paymentDeadlineAt: null, locality: input.locality ?? null,
   };
   write([...all, appt]);
   return appt;
@@ -240,7 +241,7 @@ export function addWalkIn(input: { name: string; phone: string; age: number; gen
 // claim: a self-declared payment exemption ("review_free") — see dbAddBooking.
 // Skips payment_pending/the deadline entirely and lands straight in "reserved".
 export function addBooking(input: {
-  name: string; phone: string; age: number; gender?: "M" | "F" | null; date: string; time: string; source?: Source; replacePending?: boolean;
+  name: string; phone: string; age: number; gender?: "M" | "F" | null; locality?: string | null; date: string; time: string; source?: Source; replacePending?: boolean;
   claim?: "returning_unverified" | "review_free";
 }): Appt {
   if (isPastLeadTime(input.date, input.time, new Date())) throw new InvalidSlotError();
@@ -287,6 +288,7 @@ export function addBooking(input: {
     paid: claim === "review_free", paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null, createdAt: Date.now(),
     notes: null, patientCode, claimType: claim,
     paymentDeadlineAt: claim ? null : Date.now() + PAYMENT_WINDOW_MS,
+    locality: input.locality ?? null,
   };
   write([...nextAll, appt]);
   return appt;

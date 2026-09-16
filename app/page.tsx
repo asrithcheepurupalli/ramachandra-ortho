@@ -206,9 +206,6 @@ function Hero({ status, t }: { status: Status | null; t: T }) {
           <Reveal delay={60}>
             <h1 className="mt-4 text-[1.6rem] font-semibold leading-[1.15] tracking-[-0.02em] md:mt-6 md:text-[3.4rem] md:leading-[1.03] text-ink text-balance">{t("hero.title")}</h1>
           </Reveal>
-          <Reveal delay={120}>
-            <p className="mt-3 max-w-lg text-[14px] leading-relaxed text-muted md:mt-5 md:text-[17px]">{t("hero.subtitle")}</p>
-          </Reveal>
           {/* On phones the Today card + sticky bar carry the actions, so this
               button pair is desktop-only to keep the mobile hero uncluttered. */}
           <Reveal delay={180}>

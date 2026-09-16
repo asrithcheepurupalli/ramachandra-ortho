@@ -44,7 +44,7 @@ export function BookForm() {
   const [daysLoading, setDaysLoading] = useState(true);
   const [selDate, setSelDate] = useState<string | null>(null);
   const [selTime, setSelTime] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "", age: 0 as number, gender: "" as "" | "M" | "F" });
+  const [form, setForm] = useState({ name: "", phone: "", age: 0 as number, gender: "" as "" | "M" | "F", locality: "" });
   const [booked, setBooked] = useState<Appt | null>(null);
   const [err, setErr] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -232,6 +232,7 @@ export function BookForm() {
     if (!isValidIndianMobile(normalizePhone(form.phone))) { setErr(t("book.badphone")); return; }
     if (form.age <= 0 || form.age > 150) { setErr(t("book.needage")); return; }
     if (form.gender !== "M" && form.gender !== "F") { setErr(t("book.needgender")); return; }
+    if (!form.locality.trim()) { setErr(t("book.needlocality")); return; }
     if (!effDate || !selTime || submitting) return;
 
     setPendingHold(false);
@@ -591,6 +592,8 @@ export function BookForm() {
                 </button>
               ))}
             </fieldset>
+            <label htmlFor="book-locality" className="sr-only">{t("book.locality")}</label>
+            <input id="book-locality" value={form.locality} onChange={(e) => { setForm({ ...form, locality: e.target.value }); setErr(""); }} placeholder={t("book.locality")} maxLength={100} className="w-full rounded-xl border border-line bg-bg px-4 py-3 text-[15px] outline-none focus:border-brand focus:bg-surface" />
           </div>
           {err && <p id="book-error" role="alert" className="mt-2 text-sm text-out">{err}</p>}
           {pendingHold && (

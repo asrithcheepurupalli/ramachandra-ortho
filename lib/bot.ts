@@ -79,6 +79,7 @@ export type BotState = {
     | "await_phone"
     | "await_age"
     | "await_gender"
+    | "await_locality"
     | "await_pay_pick"
     | "await_pay_phone"
     | "await_view_phone"
@@ -102,8 +103,9 @@ export type BotState = {
   otpPhone?: string; // website chat: phone awaiting the 6-digit WhatsApp code
   viewPhone?: string; // website chat: phone whose appointments were just listed
   replacePending?: boolean; // carry "start fresh" intent through the booking flow
-  pendingPhone?: string; // carry validated phone through age/gender collection steps
+  pendingPhone?: string; // carry validated phone through age/gender/locality collection steps
   pendingAge?: number;   // carry age through the gender step before submitting
+  pendingGender?: "M" | "F" | null; // carry gender through the locality step before submitting
   // Patient type chosen up front (new = unset). Carried through the slot picker
   // and into addBooking, so returning/free-review claims land straight in
   // reserved with no online payment, mirroring the website form + WhatsApp Flow.
@@ -112,7 +114,7 @@ export type BotState = {
 // Stages the "cancel" escape hatch checks against, shared by the client and
 // server bot so a future stage addition can't silently drift between them.
 const MID_FLOW_STAGES: BotState["stage"][] = [
-  "await_patient_type", "await_name", "await_phone", "await_age", "await_gender",
+  "await_patient_type", "await_name", "await_phone", "await_age", "await_gender", "await_locality",
   "await_pay_pick", "await_pay_phone",
   "await_view_phone", "await_resched_phone", "await_resched_pick", "await_otp",
 ];
@@ -310,6 +312,7 @@ type PhrasePack = {
   fallback: string;
   thanks: string;
   askAge: string;
+  askLocality: string;
   badAge: string;
   askGender: string;
   chips: { avail: string; book: string; view: string; resched: string; timings: string; location: string; about: string; done: string; useNumber: string; payNow: string; startOver: string; patientNew: string; patientReturning: string; patientReview: string; genderMale: string; genderFemale: string; genderSkip: string };
@@ -381,6 +384,7 @@ const P: Record<Lang, PhrasePack> = {
     fallback: "I can tell you if the doctor is in, tell you about the doctor, book you an appointment, or share timings and location. What would you like?",
     thanks: `You're welcome 🙏 Get well soon! If you have a moment, a quick Google review helps other patients find us:\n${clinic.rating.reviewUrl}`,
     askAge: "What is the patient's age?",
+    askLocality: "And which area or locality are you from? (e.g. MVP Colony, Gajuwaka)",
     badAge: "Please enter a valid age (e.g. 35).",
     askGender: "And the gender?",
     chips: { avail: "Is the doctor in today?", book: "Book appointment", view: "View my appointment", resched: "Reschedule", timings: "Timings & fees", location: "Location", about: "About the doctor", done: "Thanks!", useNumber: "Use this number", payNow: "Pay now", startOver: "Start fresh", patientNew: "New patient", patientReturning: "Returning patient", patientReview: "Free review visit", genderMale: "Male", genderFemale: "Female", genderSkip: "Prefer not to say" },
@@ -441,6 +445,7 @@ const P: Record<Lang, PhrasePack> = {
     fallback: "డాక్టర్ ఉన్నారో లేదో చెప్పగలను, డాక్టర్ గురించి చెప్పగలను, అపాయింట్‌మెంట్ బుక్ చేయగలను, లేదా సమయాలు, చిరునామా చెప్పగలను. ఏం కావాలి?",
     thanks: `సంతోషం 🙏 త్వరగా కోలుకోండి! కొద్ది సమయం ఉంటే, ఒక గూగుల్ రివ్యూ ఇతర పేషెంట్లకు సహాయపడుతుంది:\n${clinic.rating.reviewUrl}`,
     askAge: "పేషెంట్ వయస్సు ఎంత?",
+    askLocality: "మీరు ఏ ప్రాంతం నుండి వస్తున్నారు? (ఉదా: MVP కాలనీ, గాజువాక)",
     badAge: "దయచేసి సరైన వయస్సు ఇవ్వండి (ఉదా: 35).",
     askGender: "లింగం?",
     chips: { avail: "ఈరోజు డాక్టర్ ఉన్నారా?", book: "అపాయింట్‌మెంట్ బుక్ చేయండి", view: "నా అపాయింట్‌మెంట్ చూడండి", resched: "షెడ్యూల్ మార్చండి", timings: "సమయాలు & ఫీజు", location: "చిరునామా", about: "డాక్టర్ గురించి", done: "ధన్యవాదాలు!", useNumber: "ఈ నంబర్ వాడండి", payNow: "ఇప్పుడే చెల్లించండి", startOver: "మళ్ళీ మొదలుపెట్టండి", patientNew: "కొత్త పేషెంట్", patientReturning: "మళ్ళీ వచ్చే పేషెంట్", patientReview: "ఉచిత రీవిజిట్", genderMale: "పురుషుడు", genderFemale: "స్త్రీ", genderSkip: "చెప్పదలచుకోలేదు" },
@@ -501,6 +506,7 @@ const P: Record<Lang, PhrasePack> = {
     fallback: "मैं बता सकता हूँ कि डॉक्टर उपलब्ध हैं या नहीं, डॉक्टर के बारे में बता सकता हूँ, अपॉइंटमेंट बुक कर सकता हूँ, या समय व पता बता सकता हूँ। क्या चाहिए?",
     thanks: `आपका स्वागत है 🙏 जल्दी स्वस्थ हों! अगर समय हो, तो एक गूगल रिव्यू दूसरे मरीज़ों की मदद करता है:\n${clinic.rating.reviewUrl}`,
     askAge: "मरीज़ की उम्र क्या है?",
+    askLocality: "आप किस क्षेत्र से हैं? (जैसे MVP Colony, Gajuwaka)",
     badAge: "कृपया सही उम्र दर्ज करें (जैसे 35)।",
     askGender: "और लिंग?",
     chips: { avail: "क्या डॉक्टर आज उपलब्ध हैं?", book: "अपॉइंटमेंट बुक करें", view: "मेरा अपॉइंटमेंट देखें", resched: "रीशेड्यूल", timings: "समय व फीस", location: "पता", about: "डॉक्टर के बारे में", done: "धन्यवाद!", useNumber: "यही नंबर उपयोग करें", payNow: "अभी भुगतान करें", startOver: "नया स्लॉट बुक करें", patientNew: "नया मरीज़", patientReturning: "दोबारा आ रहे मरीज़", patientReview: "फ्री रिव्यू विज़िट", genderMale: "पुरुष", genderFemale: "महिला", genderSkip: "बताना नहीं चाहते" },
@@ -876,15 +882,22 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     return { reply: [t.askGender], chips: [c.genderMale, c.genderFemale], state: { stage: "await_gender", slot: state.slot, name: state.name, pendingPhone: state.pendingPhone, pendingAge: age, replacePending: state.replacePending, claim: state.claim } };
   }
 
-  // collecting gender then submitting the booking
+  // collecting gender — now ask locality before submitting
   if (state.stage === "await_gender" && state.slot && state.pendingPhone != null && state.pendingAge != null) {
     const lower = input.trim().toLowerCase();
     const gender: "M" | "F" | null =
       lower === c.genderMale.toLowerCase() || lower === "male" || lower === "m" ? "M" :
       lower === c.genderFemale.toLowerCase() || lower === "female" || lower === "f" ? "F" :
       null;
+    return { reply: [t.askLocality], chips: [], state: { stage: "await_locality", slot: state.slot, name: state.name, pendingPhone: state.pendingPhone, pendingAge: state.pendingAge, pendingGender: gender, replacePending: state.replacePending, claim: state.claim } };
+  }
+
+  // collecting locality then submitting the booking
+  if (state.stage === "await_locality" && state.slot && state.pendingPhone != null && state.pendingAge != null) {
+    const locality = input.trim() || null;
     const phone = state.pendingPhone;
     const age = state.pendingAge;
+    const gender = state.pendingGender ?? null;
     try {
       const res = await fetch("/api/book", {
         method: "POST",
@@ -894,6 +907,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
           phone,
           age,
           gender,
+          locality,
           date: state.slot.date,
           time: state.slot.time,
           source,
@@ -1464,17 +1478,24 @@ export async function botReplyServer(
     return { reply: [t.askGender], chips: [c.genderMale, c.genderFemale], state: { stage: "await_gender", slot: state.slot, name: state.name, pendingPhone: state.pendingPhone, pendingAge: age, replacePending: state.replacePending, claim: state.claim } };
   }
 
-  // gender collected: submit booking
+  // gender collected: ask locality before submitting
   if (state.stage === "await_gender" && state.slot && state.pendingPhone != null && state.pendingAge != null) {
     const lower = input.trim().toLowerCase();
     const gender: "M" | "F" | null =
       lower === c.genderMale.toLowerCase() || lower === "male" || lower === "m" ? "M" :
       lower === c.genderFemale.toLowerCase() || lower === "female" || lower === "f" ? "F" :
       null;
+    return { reply: [t.askLocality], chips: [], state: { stage: "await_locality", slot: state.slot, name: state.name, pendingPhone: state.pendingPhone, pendingAge: state.pendingAge, pendingGender: gender, replacePending: state.replacePending, claim: state.claim } };
+  }
+
+  // locality collected: submit booking
+  if (state.stage === "await_locality" && state.slot && state.pendingPhone != null && state.pendingAge != null) {
+    const locality = input.trim() || null;
     const bookPhone = state.pendingPhone;
     const age = state.pendingAge;
+    const gender = state.pendingGender ?? null;
     try {
-      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age, gender, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending, claim: state.claim });
+      const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age, gender, locality, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending, claim: state.claim });
       if (appt.claimType) await backend.notifyClaimBooking(appt);
       return bookingDoneReply(t, c, appt, state.slot, state.name, bookPhone, [c.avail, c.about, c.location, c.done]);
     } catch (err) {
@@ -1496,7 +1517,7 @@ export async function botReplyServer(
         }
         return { reply: [t.slotTaken], chips: scoped.map(fmt), state: { stage: "idle", pendingDate: state.slot.date, pendingWindow: win, claim: state.claim } };
       }
-      await reportBotError("bot", "booking failed", { stage: "await_gender", phone: bookPhone }, err, { severity: "critical" });
+      await reportBotError("bot", "booking failed", { stage: "await_locality", phone: bookPhone }, err, { severity: "critical" });
       return { reply: [t.bookFail], chips: [c.book, c.avail], state: { stage: "idle" } };
     }
   }

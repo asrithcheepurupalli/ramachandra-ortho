@@ -107,6 +107,7 @@ type DbApptRow = {
   notes: string | null; patient_code: string | null; claim_type: string | null;
   review_nudge_sent_at: string | null; free_visit_reminder_sent_at: string | null;
   cancel_reason: string | null; expired_payment_nudged_at: string | null;
+  locality: string | null;
 };
 function rowToAppt(r: DbApptRow): Appt {
   return {
@@ -136,6 +137,7 @@ function rowToAppt(r: DbApptRow): Appt {
     patientCode: r.patient_code ?? null,
     claimType: r.claim_type as "returning_unverified" | "review_free" | null,
     paymentDeadlineAt: null, // server-side: expiry is enforced by the payment-timeout cron against created_at
+    locality: r.locality ?? null,
   };
 }
 
@@ -174,7 +176,7 @@ async function ensurePatient(
 // person at the desk. A claimed booking skips payment_pending and Razorpay
 // entirely and lands straight in "reserved".
 export async function dbAddBooking(input: {
-  name: string; phone: string; age: number; gender?: "M" | "F" | null; date: string; time: string; source?: Source; replacePending?: boolean;
+  name: string; phone: string; age: number; gender?: "M" | "F" | null; locality?: string | null; date: string; time: string; source?: Source; replacePending?: boolean;
   claim?: "returning_unverified" | "review_free";
 }): Promise<Appt> {
   const db = supabaseAdmin();
@@ -381,6 +383,7 @@ export async function dbAddBooking(input: {
         phone,
         age: input.age,
         gender: input.gender ?? null,
+        locality: input.locality ?? null,
         reason: "Consultation",
         appt_date: input.date,
         appt_time: input.time,

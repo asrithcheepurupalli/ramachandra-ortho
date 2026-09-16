@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { name, phone, age, gender, date, time, source, replacePending, claim } = body ?? {};
+  const { name, phone, age, gender, locality, date, time, source, replacePending, claim } = body ?? {};
   if (typeof name !== "string" || !name.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
   if (name.trim().length > 100) return NextResponse.json({ error: "name must be 100 characters or fewer" }, { status: 400 });
   if (typeof phone !== "string" || !phone.trim()) return NextResponse.json({ error: "phone is required" }, { status: 400 });
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
       phone,
       age,
       gender: isGender(gender) ? gender : null,
+      locality: typeof locality === "string" && locality.trim() ? locality.trim() : null,
       date,
       time,
       source: isSource(source) ? source : "website",
