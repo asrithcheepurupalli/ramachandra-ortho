@@ -100,8 +100,8 @@ webhook -> `reserved`. Enforcement rules:
 **OP Slip Printing (`/print/op-slip`):**
 - Zero-margin A4 print stylesheet (`@page { size: A4 portrait; margin: 0mm !important; }`).
 - Fits pre-printed clinic stationery with customizable top offset (default 48mm), left/right margin (15mm), and font size (13pt) calibrated via interactive sliders.
-- Displays: Patient Details (Name, `(PT#####)` code, Age Years/ Gender, Locality, Mobile / Phone), Date (`DD/MM/YYYY`), Op Valid up to (+10 days validity), Token Number, and Slot Time.
-- Accessible directly from the admin queue row or notification email (`/print/op-slip?name=...&code=...&phone=...&date=...&token=...`).
+- Displays: Patient Details (Name without static label prefix to prevent wrapping, `(PT#####)` code, Age Years/ Gender, Locality, Mobile / Phone), Date (`DD/MM/YYYY`), and Op Valid up to (+10 days validity). Interactive edit panel allows staff to update any patient field before printing.
+- Accessible directly from the admin queue row or notification email (`/print/op-slip?name=...&code=...&phone=...&date=...`).
 
 **Appointment self-service.** Phone number is the trust boundary (no patient logins). Lookup
 is free; cancel/reschedule/pay on legacy appointments require a one-time WhatsApp OTP proof
