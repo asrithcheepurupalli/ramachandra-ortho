@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Front Desk Quick Reference Card — Ramachandra Ortho Care</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --brand: #0c7a68;
+      --brand-dark: #085044;
+      --brand-light: #e6f4f1;
+      --ink: #0f172a;
+      --muted: #475569;
+      --surface: #ffffff;
+      --bg: #f8fafc;
+      --border: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .no-print-bar {
+      width: 100%;
+      max-width: 210mm;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .btn-print {
+      background: var(--brand);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-sheet {
+      width: 210mm;
+      min-height: 297mm;
+      background: var(--surface);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+      border-radius: 4px;
+      padding: 16mm 18mm 14mm;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .header {
+      border-bottom: 2px solid var(--brand);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .header h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20pt;
+      font-weight: 900;
+      color: var(--brand-dark);
+    }
+    .header-tag {
+      background: var(--brand-light);
+      color: var(--brand-dark);
+      font-size: 9pt;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .grid-workflows {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .flow-box {
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      background: #fafafa;
+    }
+    .flow-box.primary {
+      border-color: var(--brand);
+      background: #f0fdfa;
+    }
+    .flow-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 12pt;
+      font-weight: 800;
+      color: var(--brand-dark);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .flow-steps {
+      list-style: none;
+      counter-reset: flow-counter;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .flow-steps li {
+      counter-increment: flow-counter;
+      font-size: 9pt;
+      line-height: 1.35;
+      position: relative;
+      padding-left: 20px;
+      color: var(--ink);
+    }
+    .flow-steps li::before {
+      content: counter(flow-counter);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 15px;
+      height: 15px;
+      background: var(--brand);
+      color: white;
+      border-radius: 50%;
+      font-size: 7.5pt;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tips-section {
+      background: #fffbeb;
+      border: 1.5px solid #fde68a;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    .tips-title {
+      font-size: 10pt;
+      font-weight: 800;
+      color: #92400e;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tips-list {
+      font-size: 8.5pt;
+      color: #78350f;
+      line-height: 1.4;
+      padding-left: 18px;
+    }
+
+    .system-creds-box {
+      border-top: 2px dashed #cbd5e1;
+      padding-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+    .cred-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .cred-label {
+      font-size: 8pt;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .cred-val {
+      font-size: 9.5pt;
+      font-weight: 800;
+      color: var(--ink);
+      font-family: monospace;
+      margin-top: 2px;
+      word-break: break-all;
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      .no-print-bar {
+        display: none !important;
+      }
+      .card-sheet {
+        box-shadow: none;
+        border: none;
+        width: 100%;
+        min-height: 100vh;
+        border-radius: 0;
+        padding: 12mm 16mm 10mm;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="no-print-bar">
+    <div>
+      <strong style="font-size: 15px; color: #0c7a68;">📋 Front Desk Quick Reference Card (A4 Printable)</strong>
+      <div style="font-size: 12px; color: #64748b;">Laminate or place at the reception computer for instant workflow guide</div>
+    </div>
+    <button class="btn-print" onclick="window.print()">
+      🖨️ Print Reference Card
+    </button>
+  </div>
+
+  <div class="card-sheet">
+    <div>
+      <div class="header">
+        <div>
+          <h1>Front Desk Operating Guide</h1>
+          <p style="font-size: 10pt; color: #475569; font-weight: 600;">Ramachandra Ortho Care · Clinic Management System</p>
+        </div>
+        <div class="header-tag">Reception Cheat Sheet</div>
+      </div>
+
+      <div class="grid-workflows">
+        <!-- Flow 1: Walk-In -->
+        <div class="flow-box primary">
+          <div class="flow-title">1. Add Walk-In Patient</div>
+          <ol class="flow-steps">
+            <li>Click <strong>+ Walk-In Patient</strong> button in Admin.</li>
+            <li>Enter <strong>Phone Number</strong> (auto-detects returning patients).</li>
+            <li>Enter <strong>Name, Age, Gender, and Locality</strong>.</li>
+            <li>Select <strong>Consultation (₹350)</strong> or <strong>Free Review (₹0)</strong>.</li>
+            <li>Click <strong>Book Appointment</strong>. Token is assigned immediately!</li>
+          </ol>
+        </div>
+
+        <!-- Flow 2: OP Slip Printing -->
+        <div class="flow-box primary">
+          <div class="flow-title">2. Print OP Slip (Letterhead)</div>
+          <ol class="flow-steps">
+            <li>In today's queue, find the patient row.</li>
+            <li>Click the <strong>🖨️ Printer Icon</strong> next to their name.</li>
+            <li>Or click the print link in the confirmation email.</li>
+            <li>Insert pre-printed letterhead into the printer tray.</li>
+            <li>Press <strong>Print</strong> (48mm top margin is pre-aligned).</li>
+          </ol>
+        </div>
+
+        <!-- Flow 3: Patient Arrives & Waiting -->
+        <div class="flow-box">
+          <div class="flow-title">3. Manage Queue Status</div>
+          <ol class="flow-steps">
+            <li>When patient arrives at clinic: click <strong>Mark Waiting</strong>.</li>
+            <li>When doctor calls patient: status moves to <strong>Consulting</strong>.</li>
+            <li>When doctor finishes: click <strong>Mark Done</strong>.</li>
+            <li>Collect ₹350 cash / UPI and mark <strong>Paid</strong>.</li>
+          </ol>
+        </div>
+
+        <!-- Flow 4: Reschedule / Cancel -->
+        <div class="flow-box">
+          <div class="flow-title">4. Reschedule / Cancel</div>
+          <ol class="flow-steps">
+            <li>If patient calls to reschedule: click <strong>Reschedule</strong> and pick a new slot.</li>
+            <li>If cancelling: click <strong>Cancel</strong>.</li>
+            <li>Cancelled appointments move to the <em>"Show Cancelled"</em> dropdown filter.</li>
+            <li>Automated WhatsApp notification sends immediately.</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- Free 10-day review policy callout -->
+      <div class="tips-section">
+        <div class="tips-title">⭐ 10-Day Free Follow-Up Rule (Important)</div>
+        <ul class="tips-list">
+          <li>Every paid consultation includes <strong>1 free review visit within 10 days</strong>.</li>
+          <li>Always check if the patient has their previous prescription slip.</li>
+          <li>The system automatically tracks the 10-day validity window and nudges the patient via WhatsApp.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- System Links & Contacts -->
+    <div class="system-creds-box">
+      <div class="cred-card">
+        <div class="cred-label">Staff Portal URL</div>
+        <div class="cred-val">ramachandraorthocare.com/admin</div>
+      </div>
+      <div class="cred-card">
+        <div class="cred-label">Doctor Portal URL</div>
+        <div class="cred-val">ramachandraorthocare.com/doctor</div>
+      </div>
+      <div class="cred-card">
+        <div class="cred-label">WhatsApp Booking Bot</div>
+        <div class="cred-val">+91 93814 39203</div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

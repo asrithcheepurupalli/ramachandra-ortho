@@ -6,6 +6,7 @@ import {
   LayoutDashboard, CalendarCog, Users, IndianRupee, ArrowLeft, Plus,
   Megaphone, PhoneCall, Check, X, Play, Clock, CircleDot, Globe, MessageCircle,
   Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff, LogOut, Send, MessageSquare,
+  Printer,
 } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import {
@@ -530,6 +531,28 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
         ) : a.status !== "cancelled" ? (
           <button onClick={() => changePaid(a.id, a, patch)} title={`Collect ${money(a.fee)} in cash`} className="shrink-0 rounded-full border border-dashed border-out/40 px-2.5 py-0.5 text-[11px] font-medium text-out hover:bg-out/5">Collect</button>
         ) : null}
+        {a.status !== "cancelled" && (
+          <button
+            onClick={() => {
+              const params = new URLSearchParams({
+                name: a.name || "",
+                code: a.patientCode || "",
+                age: a.age ? String(a.age) : "",
+                gender: a.gender || "",
+                locality: a.locality || "",
+                date: a.date || "",
+                time: a.time || "",
+                token: String(a.token || ""),
+                autoprint: "1",
+              });
+              window.open(`/print/op-slip?${params.toString()}`, "_blank");
+            }}
+            title="Print OP Slip on Letterhead"
+            className="rounded-lg border border-line p-2 text-muted hover:text-brand hover:bg-brand-tint"
+          >
+            <Printer className="h-[18px] w-[18px]" />
+          </button>
+        )}
         {["reserved", "confirmed", "waiting"].includes(a.status) && (
           <button onClick={() => changeStatus(a.id, "consulting", a.status, patch)} title="Start consult" className="rounded-lg border border-line p-2 text-brand hover:bg-brand-tint"><Play className="h-[18px] w-[18px]" /></button>
         )}

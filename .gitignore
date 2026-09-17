@@ -50,3 +50,8 @@ skills-lock.json
 
 # confidential internal docs (pricing, budget, valuation) -- never committed
 docs/internal/
+docs/handbook/
+docs/*.pdf
+docs/REDESIGN*
+docs/RUNBOOK.md
+supabase/.temp/

@@ -404,6 +404,20 @@ export async function sendNewAppointmentEmail(
   const srcTitle = SRC_LABEL[appt.source] ?? appt.source;
   const ageGender = [appt.age ? `${appt.age} yrs` : null, appt.gender === "M" ? "Male" : appt.gender === "F" ? "Female" : null].filter(Boolean).join(" · ");
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ramachandraorthocare.com";
+  const printParams = new URLSearchParams({
+    name: appt.name || "",
+    code: appt.patientCode || "",
+    age: appt.age ? String(appt.age) : "",
+    gender: appt.gender || "",
+    locality: appt.locality || clinic.location.city || "Visakhapatnam",
+    date: appt.date || "",
+    time: appt.time || "",
+    token: String(appt.token || ""),
+    autoprint: "1",
+  });
+  const printUrl = `${siteUrl}/print/op-slip?${printParams.toString()}`;
+
   const body = `
     <div class="e-no-print">
       ${detailsCard(`
@@ -417,7 +431,17 @@ export async function sendNewAppointmentEmail(
         ${detailRow("Via", esc(srcTitle))}
         ${detailRow("Fee", `${esc(clinic.currency)}${esc(appt.fee)}`, { accent: true })}
       `)}
-      <p style="margin:18px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Payment is confirmed and the patient is on the live queue. Front desk: load clinic A4 letterhead in the printer tray and print (Ctrl+P / ⌘P) to print the OP prescription slip below.</p>
+
+      <div style="margin:22px 0 16px;text-align:center;">
+        <a href="${printUrl}" target="_blank" style="display:inline-block;padding:12px 24px;background-color:#0c7a68;color:#ffffff;text-decoration:none;border-radius:10px;font-family:${FONT};font-size:14px;font-weight:700;letter-spacing:0.01em;box-shadow:0 2px 5px rgba(0,0,0,0.12);">
+          🖨️ Open &amp; Print OP Slip on Letterhead
+        </a>
+        <p style="margin:8px 0 0;font-family:${FONT};font-size:11.5px;color:${BRAND.muted};">
+          Direct browser print page without Gmail headers, pre-calibrated to 48mm top margin.
+        </p>
+      </div>
+
+      <p style="margin:16px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Payment is confirmed and the patient is on the live queue. Click the button above to print directly onto pre-printed clinic A4 stationery.</p>
     </div>
 
     <!-- Printable OP Prescription Slip on pre-printed clinic A4 letterhead -->

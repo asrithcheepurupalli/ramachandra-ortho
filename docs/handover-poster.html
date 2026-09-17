@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ramachandra Ortho Care — QR Booking Poster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --brand: #0c7a68;
+      --brand-dark: #085044;
+      --brand-light: #e6f4f1;
+      --brand-accent: #15a089;
+      --gold: #d97706;
+      --ink: #0f172a;
+      --muted: #475569;
+      --surface: #ffffff;
+      --bg: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .no-print-bar {
+      width: 100%;
+      max-width: 210mm;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .btn-print {
+      background: var(--brand);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+    .btn-print:hover {
+      background: var(--brand-dark);
+    }
+
+    /* A4 Poster Canvas (210mm x 297mm) */
+    .poster-sheet {
+      width: 210mm;
+      min-height: 297mm;
+      background: var(--surface);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.08);
+      border-radius: 4px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16mm 18mm 14mm;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+
+    /* Top decorative border */
+    .top-accent-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 8mm;
+      background: linear-gradient(90deg, var(--brand-dark), var(--brand), var(--brand-accent));
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      padding-top: 4mm;
+    }
+    .clinic-badge {
+      display: inline-block;
+      padding: 4px 14px;
+      background: var(--brand-light);
+      color: var(--brand-dark);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+    .clinic-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 26pt;
+      font-weight: 900;
+      color: var(--brand-dark);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
+    .doctor-meta {
+      margin-top: 6px;
+      font-size: 13pt;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .doctor-sub {
+      font-size: 10.5pt;
+      font-weight: 600;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Main CTA Box */
+    .cta-card {
+      background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%);
+      border: 2.5px solid var(--brand);
+      border-radius: 20px;
+      padding: 20px;
+      text-align: center;
+      margin: 12px 0;
+      box-shadow: 0 8px 24px rgba(12, 122, 104, 0.08);
+      position: relative;
+    }
+    .cta-heading-en {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20pt;
+      font-weight: 800;
+      color: var(--brand-dark);
+      letter-spacing: -0.01em;
+    }
+    .cta-heading-te {
+      font-size: 14pt;
+      font-weight: 700;
+      color: var(--brand);
+      margin-top: 3px;
+    }
+    .cta-sub {
+      font-size: 10pt;
+      color: var(--muted);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    /* QR Code Display */
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: 16px 0 12px;
+    }
+    .qr-frame {
+      background: white;
+      padding: 16px;
+      border-radius: 16px;
+      border: 2px solid #cbd5e1;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    }
+    .qr-url {
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 12pt;
+      font-weight: 800;
+      color: var(--brand-dark);
+      background: var(--brand-light);
+      padding: 5px 14px;
+      border-radius: 8px;
+    }
+
+    /* 3 Quick Features Row */
+    .features-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin: 10px 0;
+    }
+    .feature-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px;
+      text-align: center;
+    }
+    .feature-icon {
+      font-size: 16pt;
+      margin-bottom: 2px;
+    }
+    .feature-title {
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .feature-desc {
+      font-size: 8pt;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* Bottom Info Grid */
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 14px;
+      border-top: 1.5px dashed #cbd5e1;
+      padding-top: 12px;
+      margin-top: 6px;
+    }
+    .info-block h4 {
+      font-size: 9.5pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--brand-dark);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .info-block p {
+      font-size: 9pt;
+      color: var(--ink);
+      line-height: 1.45;
+    }
+    .whatsapp-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #25d366;
+      color: white;
+      font-weight: 800;
+      font-size: 11pt;
+      padding: 6px 14px;
+      border-radius: 8px;
+      margin-top: 4px;
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      .no-print-bar {
+        display: none !important;
+      }
+      .poster-sheet {
+        box-shadow: none;
+        border: none;
+        width: 100%;
+        min-height: 100vh;
+        border-radius: 0;
+        padding: 12mm 16mm 10mm;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="no-print-bar">
+    <div>
+      <strong style="font-size: 15px; color: #0c7a68;">🪧 Clinic QR Booking Poster (A4 Printable)</strong>
+      <div style="font-size: 12px; color: #64748b;">Ready to print and display at reception, waiting lobby & entrance</div>
+    </div>
+    <button class="btn-print" onclick="window.print()">
+      🖨️ Print Poster (A4)
+    </button>
+  </div>
+
+  <div class="poster-sheet">
+    <div class="top-accent-bar"></div>
+
+    <!-- Header -->
+    <div class="header">
+      <div class="clinic-badge">Orthopedic & Trauma Care Specialist</div>
+      <h1 class="clinic-title">Ramachandra Ortho Care</h1>
+      <div class="doctor-meta">Dr. Ramachandrudu (Rajesh)</div>
+      <div class="doctor-sub">M.S. (Ortho) · Joint Replacements, Fractures & Sports Injuries</div>
+    </div>
+
+    <!-- Main QR Card -->
+    <div class="cta-card">
+      <h2 class="cta-heading-en">Scan to Book Appointment Online</h2>
+      <div class="cta-heading-te">ఆన్‌లైన్‌లో అపాయింట్‌మెంట్ బుక్ చేసుకోండి</div>
+      <p class="cta-sub">Instant live token · Skip the waiting line · 24/7 Booking</p>
+
+      <div class="qr-container">
+        <div class="qr-frame">
+          <div id="qrcode"></div>
+        </div>
+        <div class="qr-url">ramachandraorthocare.com/book</div>
+      </div>
+
+      <!-- 3 Key Features -->
+      <div class="features-row">
+        <div class="feature-box">
+          <div class="feature-icon">⚡</div>
+          <div class="feature-title">Live Token</div>
+          <div class="feature-desc">Know your turn before arriving</div>
+        </div>
+        <div class="feature-box">
+          <div class="feature-icon">💬</div>
+          <div class="feature-title">WhatsApp Updates</div>
+          <div class="feature-desc">Live reminders on your phone</div>
+        </div>
+        <div class="feature-box">
+          <div class="feature-icon">🔄</div>
+          <div class="feature-title">Free 10-Day Review</div>
+          <div class="feature-desc">Free follow-up included</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Information -->
+    <div class="footer-grid">
+      <div class="info-block">
+        <h4>🏥 Clinic Timings (Mon - Sat)</h4>
+        <p><strong>Morning:</strong> 10:00 AM – 12:30 PM</p>
+        <p><strong>Evening:</strong> 06:00 PM – 07:45 PM</p>
+        <p style="color: #d97706; font-size: 8.5pt; font-weight: 600; margin-top: 3px;">Sunday: Holiday</p>
+        <p style="font-size: 8.5pt; color: #64748b; margin-top: 4px;">Phanidhar Plaza, Ground Floor, Main Road, Chinnamushidiwada, Vizag</p>
+      </div>
+
+      <div class="info-block" style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; justify-content: center;">
+        <h4 style="justify-content: flex-end;">📲 Book on WhatsApp</h4>
+        <div class="whatsapp-badge">
+          <span>💬</span> +91 93814 39203
+        </div>
+        <p style="font-size: 8pt; color: #64748b; margin-top: 6px;">Send "Hi" on WhatsApp to book anytime</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    new QRCode(document.getElementById("qrcode"), {
+      text: "https://ramachandraorthocare.com/book",
+      width: 175,
+      height: 175,
+      colorDark: "#085044",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.H
+    });
+  </script>
+</body>
+</html>
