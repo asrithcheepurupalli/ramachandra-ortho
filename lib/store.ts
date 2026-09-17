@@ -42,7 +42,7 @@ export type Appt = {
   expiredPaymentNudgedAt: number | null; // epoch ms of the "your payment link expired" nudge; null = not yet nudged
   createdAt: number;
   notes: string | null; // doctor's free-text clinical note, written from the doctor portal only
-  patientCode: string | null; // human-readable patient ID (ROC-####), null when not matched
+  patientCode: string | null; // human-readable patient ID (PT#####), null when not matched
   claimType: "returning_unverified" | "review_free" | null; // self-declared exemption (free review visit); null for ordinary bookings
   paymentDeadlineAt: number | null; // epoch ms; 15 min window for payment_pending bookings, null for walk-ins / legacy
   locality: string | null; // patient's area/neighbourhood, e.g. "MVP Colony"
@@ -64,7 +64,7 @@ const KEY = "roc.appts.v1";
 
 // ── mock patient registry (localStorage) ─────────────────────────────────────
 // Mirrors the Supabase `patients` table (deduped by phone, each with a stable
-// human-readable code, the ROC-#### codes). A phone only ever has one stable
+// human-readable code, the PT##### codes). A phone only ever has one stable
 // code; it no longer changes the booking fee, everyone pays the same.
 const PKEY = "roc.patients.v1";
 type PatientEntry = { patientCode: string; name: string; createdAt: number };
@@ -80,13 +80,13 @@ function loadPatients(): PatientRegistry {
 function savePatients(reg: PatientRegistry) {
   try { localStorage.setItem(PKEY, JSON.stringify(reg)); } catch {}
 }
-// Smallest unused ROC-#### sequence number, monotonic across the registry.
+// Smallest unused PT##### sequence number, monotonic across the registry starting at PT29500.
 function nextPatientCode(reg: PatientRegistry): string {
   const n = Object.values(reg).reduce((m, p) => {
-    const hit = /^ROC-(\d{4})$/.exec(p.patientCode);
+    const hit = /^PT(\d+)$/.exec(p.patientCode);
     return hit ? Math.max(m, Number(hit[1])) : m;
-  }, 0);
-  return `ROC-${String(n + 1).padStart(4, "0")}`;
+  }, 29499);
+  return `PT${n + 1}`;
 }
 // Upsert a phone into the registry (assigns a code on first sight) and return
 // its entry. Mirrors the DB's upsert-on-phone behavior.
@@ -120,10 +120,10 @@ function seed(): Appt[] {
   // Register each seed patient in the registry so the returning lookup + fee
   // work against a fresh, seeded store, and carry each code onto its rows.
   const reg = loadPatients();
-  let counter = 0;
+  let counter = 29499;
   const codeFor = (phone: string, name: string) => {
     if (!phone) return null;
-    if (!reg[phone]) reg[phone] = { patientCode: `ROC-${String(++counter).padStart(4, "0")}`, name, createdAt: Date.now() };
+    if (!reg[phone]) reg[phone] = { patientCode: `PT${++counter}`, name, createdAt: Date.now() };
     return reg[phone].patientCode;
   };
   savePatients(reg);

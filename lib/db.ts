@@ -143,7 +143,7 @@ function rowToAppt(r: DbApptRow): Appt {
 
 // Creates the patient row for a phone if it doesn't exist yet. The upsert
 // targets the patients phone unique index: a returning phone gets its existing
-// row back (id + ROC code), a first insert gets a fresh ROC-#### via the
+// row back (id + PT code), a first insert gets a fresh PT##### via the
 // patients_code_trigger. Patients are created ONLY from a confirmed booking —
 // dbAddBooking defers a new phone until the booking is real (the payment
 // webhook flipping payment_pending→reserved, or a claim booking landing

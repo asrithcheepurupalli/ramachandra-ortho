@@ -11,16 +11,16 @@ create table if not exists public.patients (
   id          uuid primary key default gen_random_uuid(),
   name        text not null,
   phone       text,
-  patient_code text,                        -- human-readable ID e.g. ROC-0001
+  patient_code text,                        -- human-readable ID e.g. PT29500
   created_at  timestamptz not null default now()
 );
--- Patient codes: auto-assigned ROC-#### on insert (new phone), kept on upsert
+-- Patient codes: auto-assigned PT##### starting from PT29500 on insert (new phone), kept on upsert
 -- (existing phone). The sequence is the only counter; gaps are fine.
-create sequence if not exists patient_code_seq;
+create sequence if not exists patient_code_seq start with 29500;
 create or replace function assign_patient_code() returns trigger language plpgsql as $$
 begin
   if new.patient_code is null then
-    new.patient_code := 'ROC-' || lpad(nextval('patient_code_seq')::text, 4, '0');
+    new.patient_code := 'PT' || nextval('patient_code_seq')::text;
   end if;
   return new;
 end $$;
@@ -29,7 +29,7 @@ create trigger patients_code_trigger before insert on public.patients
   for each row execute function assign_patient_code();
 -- Backfill rows created before this migration so every patient has a code.
 update public.patients set patient_code =
-  'ROC-' || lpad(nextval('patient_code_seq')::text, 4, '0')
+  'PT' || nextval('patient_code_seq')::text
   where patient_code is null;
 create unique index if not exists patients_code_idx on public.patients (patient_code);
 -- Plain (non-partial) unique index — required so PostgREST's
@@ -102,7 +102,7 @@ alter table public.appointments add column if not exists expired_payment_nudged_
 -- Never surfaced on the website/WhatsApp side — clinical content stays
 -- internal to staff.
 alter table public.appointments add column if not exists notes text;
--- Denormalized copy of the patient's readable ID (ROC-####). patient_code is
+-- Denormalized copy of the patient's readable ID (PT#####). patient_code is
 -- stable + unique per patient, so a copy on each appointment is safe and lets
 -- queue/patients views show it without a join.
 alter table public.appointments add column if not exists patient_code text;

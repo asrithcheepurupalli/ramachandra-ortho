@@ -163,7 +163,7 @@ function shell(opts: {
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&display=swap" rel="stylesheet">
 <style>
   /* Geist loads for clients that fetch web fonts; inline styles guarantee the
-     layut everywhere else. Dark mode for Apple Mail + Gmail's auto-dark. */
+     layout everywhere else. Dark mode for Apple Mail + Gmail's auto-dark. */
   @media (prefers-color-scheme: dark) {
     .e-bg { background-color: #0d1612 !important; }
     .e-card { background-color: #111b17 !important; border-color:#26352e !important; }
@@ -180,6 +180,35 @@ function shell(opts: {
   @media (max-width: 620px) {
     .e-mobile { padding-left: 18px !important; padding-right: 18px !important; }
   }
+  /* Print styling: Front desk loads pre-printed clinic A4 letterhead in the printer tray.
+     Hides all email chrome and prints the OP prescription slip starting ~48mm down to clear
+     the pre-printed green header banner. */
+  @media print {
+    body, .e-bg { background-color: #ffffff !important; background: transparent !important; margin: 0 !important; padding: 0 !important; }
+    .e-no-print { display: none !important; visibility: hidden !important; height: 0 !important; margin: 0 !important; padding: 0 !important; }
+    .e-card { border: none !important; box-shadow: none !important; max-width: 100% !important; width: 100% !important; background: transparent !important; }
+    .e-mobile { padding: 0 !important; }
+    .e-op-slip-print {
+      display: block !important;
+      margin-top: 48mm !important;
+      padding: 0 8mm !important;
+      width: 100% !important;
+      background: transparent !important;
+      border: none !important;
+    }
+    .e-op-slip-table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      font-family: Arial, Helvetica, sans-serif !important;
+      font-size: 13pt !important;
+      line-height: 1.5 !important;
+      color: #000000 !important;
+    }
+    @page {
+      size: A4 portrait;
+      margin: 0;
+    }
+  }
 </style>
 </head>
 <body style="margin:0;padding:0;-webkit-text-size-adjust:100%;word-spacing:normal;">
@@ -187,8 +216,8 @@ function shell(opts: {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 12px;">
       <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;color:${BRAND.bone};">${esc(preheader)}</div>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="e-card" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid ${BRAND.line};border-radius:18px;overflow:hidden;">
-        <tr><td height="4" bgcolor="${BRAND.accent}" style="background-color:${BRAND.accent};font-size:0;line-height:0;">&nbsp;</td></tr>
-        <tr>
+        <tr class="e-no-print"><td height="4" bgcolor="${BRAND.accent}" style="background-color:${BRAND.accent};font-size:0;line-height:0;">&nbsp;</td></tr>
+        <tr class="e-no-print">
           <td class="e-mobile" style="padding:26px 32px 22px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
               <tr>
@@ -204,8 +233,8 @@ function shell(opts: {
             </table>
           </td>
         </tr>
-        <tr><td class="e-line" height="1" style="height:1px;background-color:${BRAND.line};font-size:0;">&nbsp;</td></tr>
-        <tr>
+        <tr class="e-no-print"><td class="e-line" height="1" style="height:1px;background-color:${BRAND.line};font-size:0;">&nbsp;</td></tr>
+        <tr class="e-no-print">
           <td class="e-mobile" style="padding:30px 32px 8px;">
             <h1 style="margin:0;font-family:${FONT};font-size:23px;font-weight:600;letter-spacing:-0.02em;line-height:1.22;color:${BRAND.ink};">${headline}</h1>
             <p class="e-muted" style="margin:10px 0 0;font-family:${FONT};font-size:14px;line-height:1.55;color:${BRAND.muted};">${sub}</p>
@@ -214,8 +243,8 @@ function shell(opts: {
         <tr>
           <td class="e-mobile" style="padding:2px 32px 30px;">${body}</td>
         </tr>
-        <tr><td class="e-line" height="1" style="height:1px;background-color:${BRAND.line};font-size:0;">&nbsp;</td></tr>
-        <tr>
+        <tr class="e-no-print"><td class="e-line" height="1" style="height:1px;background-color:${BRAND.line};font-size:0;">&nbsp;</td></tr>
+        <tr class="e-no-print">
           <td class="e-mobile" style="padding:22px 32px 26px;background-color:${BRAND.soft};">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
               <tr>
@@ -351,6 +380,20 @@ export async function sendBackupEmail(json: string, dateLabel: string): Promise<
 
 // ── Sender: new appointment ──────────────────────────────────────────────────
 
+function formatOpDate(dateStr: string): string {
+  const [y, m, d] = (dateStr || "").split("-");
+  return y && m && d ? `${d.padStart(2, "0")}/${m.padStart(2, "0")}/${y}` : dateStr;
+}
+
+function getOpValidUpTo(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + 10);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${d.getFullYear()}`;
+}
+
 export async function sendNewAppointmentEmail(
   appt: Pick<Appt, "token" | "name" | "phone" | "age" | "gender" | "locality" | "date" | "time" | "fee" | "source" | "patientCode">
 ): Promise<boolean> {
@@ -362,18 +405,53 @@ export async function sendNewAppointmentEmail(
   const ageGender = [appt.age ? `${appt.age} yrs` : null, appt.gender === "M" ? "Male" : appt.gender === "F" ? "Female" : null].filter(Boolean).join(" · ");
 
   const body = `
-    ${detailsCard(`
-      ${detailRow("Patient", esc(appt.name))}
-      ${appt.age || appt.gender ? detailRow("Age / Gender", esc(ageGender)) : ""}
-      ${appt.locality ? detailRow("Locality", esc(appt.locality)) : ""}
-      ${detailRow("Phone", humanPhone(esc(appt.phone)))}
-      ${detailRow("Code", appt.patientCode ? `#${esc(appt.patientCode)}` : "New patient")}
-      ${detailRow("Date", esc(dateLabel))}
-      ${detailRow("Time", esc(fmt(appt.time)))}
-      ${detailRow("Via", esc(srcTitle))}
-      ${detailRow("Fee", `${esc(clinic.currency)}${esc(appt.fee)}`, { accent: true })}
-    `)}
-    <p style="margin:18px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Payment is confirmed and the patient is on the live queue. Nothing else to do today.</p>`;
+    <div class="e-no-print">
+      ${detailsCard(`
+        ${detailRow("Patient", esc(appt.name))}
+        ${appt.age || appt.gender ? detailRow("Age / Gender", esc(ageGender)) : ""}
+        ${appt.locality ? detailRow("Locality", esc(appt.locality)) : ""}
+        ${detailRow("Phone", humanPhone(esc(appt.phone)))}
+        ${detailRow("Code", appt.patientCode ? `#${esc(appt.patientCode)}` : "New patient")}
+        ${detailRow("Date", esc(dateLabel))}
+        ${detailRow("Time", esc(fmt(appt.time)))}
+        ${detailRow("Via", esc(srcTitle))}
+        ${detailRow("Fee", `${esc(clinic.currency)}${esc(appt.fee)}`, { accent: true })}
+      `)}
+      <p style="margin:18px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Payment is confirmed and the patient is on the live queue. Front desk: load clinic A4 letterhead in the printer tray and print (Ctrl+P / ⌘P) to print the OP prescription slip below.</p>
+    </div>
+
+    <!-- Printable OP Prescription Slip on pre-printed clinic A4 letterhead -->
+    <div class="e-op-slip-print" style="margin-top:20px;padding:16px 18px;background-color:#ffffff;border:1.5px dashed ${BRAND.accent};border-radius:14px;">
+      <div class="e-no-print" style="font-family:${FONT};font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${BRAND.accentDark};margin-bottom:12px;">
+        🖨️ OP Prescription Slip Details (Prints directly on A4 letterhead)
+      </div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="e-op-slip-table" style="font-family:${FONT};font-size:13px;line-height:1.6;color:${BRAND.ink};">
+        <tr>
+          <td style="width:58%;vertical-align:top;padding-right:12px;">
+            <div style="font-size:14px;font-weight:700;color:#000000;line-height:1.35;">
+              Patient Details : ${esc(appt.name)}${appt.patientCode ? ` (${esc(appt.patientCode)})` : ""}
+            </div>
+            <div style="font-size:13px;font-weight:500;color:#111111;margin-top:4px;">
+              ${appt.age ? `${esc(appt.age)} Years/ ` : "— Years/ "}${appt.gender === "M" ? "Male" : appt.gender === "F" ? "Female" : esc(appt.gender || "—")}
+            </div>
+            <div style="font-size:13px;font-weight:500;color:#222222;margin-top:3px;">
+              ${esc(appt.locality || clinic.location.city || "Visakhapatnam")}
+            </div>
+          </td>
+          <td style="width:42%;vertical-align:top;text-align:right;">
+            <div style="font-size:13px;font-weight:700;color:#000000;">
+              Date : ${esc(formatOpDate(appt.date))}
+            </div>
+            <div style="font-size:12.5px;font-weight:600;color:#111111;margin-top:4px;">
+              Op Valid up to ${esc(getOpValidUpTo(appt.date))}
+            </div>
+            <div class="e-no-print" style="font-size:11px;color:${BRAND.muted};margin-top:4px;">
+              Token #${esc(appt.token)} · ${esc(fmt(appt.time))}
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>`;
 
   const r = await sendEmail({
     to: adminEmail,
