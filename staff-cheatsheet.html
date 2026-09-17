@@ -1,0 +1,325 @@
+<title>Staff Quick Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f5f8f6;
+  --surface: #ffffff;
+  --ink: #0e1a17;
+  --muted: #5c6b66;
+  --line: #e3ebe7;
+  --brand: #0c7a68;
+  --brand-dark: #0a5d50;
+  --brand-tint: #e2f1ec;
+  --accent: #ef6f53;
+  --shadow: 0 1px 2px rgba(14, 26, 23, 0.04), 0 12px 32px -18px rgba(12, 122, 104, 0.28);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: 20px;
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: var(--shadow);
+}
+
+.header {
+  border-bottom: 2px solid var(--brand);
+  padding-bottom: 20px;
+  margin-bottom: 28px;
+}
+
+.clinic-name {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+
+.clinic-name .brand { color: var(--brand); }
+
+.subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.section {
+  margin-bottom: 32px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--brand-dark);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.01em;
+}
+
+.emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.url-box {
+  background: var(--brand-tint);
+  border: 1.5px solid var(--brand);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-family: ui-monospace, 'SF Mono', Monaco, monospace;
+  font-size: 13px;
+  color: var(--brand-dark);
+  font-weight: 600;
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  background: var(--bg);
+  border-radius: 8px;
+  border-left: 3px solid var(--brand);
+}
+
+.step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--brand);
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.step-text {
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.step-text strong {
+  font-weight: 700;
+  color: var(--brand-dark);
+}
+
+.simple-step {
+  padding: 12px 14px;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.alert {
+  background: #fef5e7;
+  border: 1.5px solid #f39c12;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-top: 28px;
+}
+
+.alert-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #d68910;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.alert-list {
+  list-style: none;
+  padding: 0;
+}
+
+.alert-list li {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.6;
+  padding-left: 18px;
+  position: relative;
+  margin-bottom: 4px;
+}
+
+.alert-list li:last-child {
+  margin-bottom: 0;
+}
+
+.alert-list li::before {
+  content: "•";
+  position: absolute;
+  left: 6px;
+  color: #f39c12;
+  font-weight: 700;
+}
+
+.contact {
+  background: var(--brand-tint);
+  border: 2px solid var(--brand);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  margin-top: 32px;
+}
+
+.contact-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.contact-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--brand-dark);
+  margin-bottom: 2px;
+  letter-spacing: -0.02em;
+}
+
+.contact-label {
+  font-size: 12px;
+  color: var(--brand);
+  font-weight: 600;
+}
+
+@media print {
+  body {
+    background: white;
+    padding: 0;
+  }
+  .container {
+    box-shadow: none;
+    padding: 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 12px;
+  }
+  .container {
+    padding: 20px;
+  }
+  .clinic-name {
+    font-size: 20px;
+  }
+  .section-title {
+    font-size: 15px;
+  }
+}
+</style>
+
+<div class="container">
+  <div class="header">
+    <div class="clinic-name">Ramachandra <span class="brand">Ortho Care</span></div>
+    <div class="subtitle">Staff Quick Reference — Keep this at the reception desk</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="emoji">🔐</span> Login</div>
+    <div class="url-box">https://rcorthocare.made-by-ac.com/admin</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">Open the URL above on any computer or phone</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">Click <strong>"Sign in with OTP"</strong> and enter your registered email</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">Check your email for the login code and enter it</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="emoji">📋</span> Daily Tasks</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Check today's queue:</strong> All appointments for today appear on the main screen</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>When a patient arrives:</strong> Click "Arrived" next to their name — token shows on TV</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>After consultation:</strong> Click "Done" — patient gets automatic WhatsApp review request</div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-text"><strong>Add walk-in patient:</strong> Click "+ Walk-in" button, fill name/phone/age, click Add</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="emoji">📢</span> Broadcast Messages</div>
+    <div class="simple-step">
+      Click <strong>"Broadcast"</strong> tab to send WhatsApp to all today's patients (running late / closed notice)
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title"><span class="emoji">👨‍⚕️</span> Doctor Dashboard</div>
+    <div class="url-box">https://rcorthocare.made-by-ac.com/doctor</div>
+    <div class="simple-step">
+      Doctor can view queue, patient history, and stats — same login with doctor's registered email
+    </div>
+  </div>
+
+  <div class="alert">
+    <div class="alert-title">⚠️ If Something Looks Wrong</div>
+    <ul class="alert-list">
+      <li>If a patient didn't receive WhatsApp/email, check their phone/email is correct</li>
+      <li>For any other issues, contact the developer below</li>
+    </ul>
+  </div>
+
+  <div class="contact">
+    <div class="contact-title">Technical Support</div>
+    <div class="contact-name">Asrith Cheepurupalli</div>
+    <div class="contact-label">Built by made.</div>
+  </div>
+</div>

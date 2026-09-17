@@ -3,9 +3,10 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Printer, Sliders, ArrowLeft, Eye, RotateCcw, Check, UserCheck } from "lucide-react";
+import { Printer, Sliders, ArrowLeft, Eye, RotateCcw } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import { fmt, nowIST, ymd } from "@/lib/schedule";
+import { supabaseBrowser, hasSupabase } from "@/lib/supabase";
 
 function formatOpDate(dateStr: string): string {
   if (!dateStr) return "";
@@ -31,6 +32,7 @@ function OpSlipPrinterInner() {
   const initialAge = searchParams.get("age") || "";
   const initialGender = searchParams.get("gender") || "";
   const initialLocality = searchParams.get("locality") || clinic.location.city || "Visakhapatnam";
+  const initialPhone = searchParams.get("phone") || searchParams.get("mobile") || "";
   const initialDate = searchParams.get("date") || ymd(nowIST());
   const initialTime = searchParams.get("time") || "";
   const initialToken = searchParams.get("token") || "";
@@ -42,33 +44,46 @@ function OpSlipPrinterInner() {
   const [age, setAge] = useState(initialAge);
   const [gender, setGender] = useState(initialGender);
   const [locality, setLocality] = useState(initialLocality);
+  const [phone, setPhone] = useState(initialPhone);
   const [date, setDate] = useState(initialDate);
   const [token, setToken] = useState(initialToken);
   const [time, setTime] = useState(initialTime);
 
   // Calibration & margin settings (persisted to localStorage)
-  const [topMarginMm, setTopMarginMm] = useState(48);
-  const [leftMarginMm, setLeftMarginMm] = useState(15);
-  const [rightMarginMm, setRightMarginMm] = useState(15);
-  const [fontSizePt, setFontSizePt] = useState(13);
+  const [topMarginMm, setTopMarginMm] = useState(() => {
+    if (typeof window === "undefined") return 48;
+    try {
+      const saved = localStorage.getItem("roc_op_slip_top_mm");
+      if (saved && !isNaN(Number(saved))) return Number(saved);
+    } catch {}
+    return 48;
+  });
+  const [leftMarginMm, setLeftMarginMm] = useState(() => {
+    if (typeof window === "undefined") return 15;
+    try {
+      const saved = localStorage.getItem("roc_op_slip_left_mm");
+      if (saved && !isNaN(Number(saved))) return Number(saved);
+    } catch {}
+    return 15;
+  });
+  const [rightMarginMm, setRightMarginMm] = useState(() => {
+    if (typeof window === "undefined") return 15;
+    try {
+      const saved = localStorage.getItem("roc_op_slip_right_mm");
+      if (saved && !isNaN(Number(saved))) return Number(saved);
+    } catch {}
+    return 15;
+  });
+  const [fontSizePt, setFontSizePt] = useState(() => {
+    if (typeof window === "undefined") return 13;
+    try {
+      const saved = localStorage.getItem("roc_op_slip_font_pt");
+      if (saved && !isNaN(Number(saved))) return Number(saved);
+    } catch {}
+    return 13;
+  });
   const [showOverlay, setShowOverlay] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  // Load saved calibration from localStorage
-  useEffect(() => {
-    setMounted(true);
-    try {
-      const savedTop = localStorage.getItem("roc_op_slip_top_mm");
-      const savedLeft = localStorage.getItem("roc_op_slip_left_mm");
-      const savedRight = localStorage.getItem("roc_op_slip_right_mm");
-      const savedFont = localStorage.getItem("roc_op_slip_font_pt");
-      if (savedTop && !isNaN(Number(savedTop))) setTopMarginMm(Number(savedTop));
-      if (savedLeft && !isNaN(Number(savedLeft))) setLeftMarginMm(Number(savedLeft));
-      if (savedRight && !isNaN(Number(savedRight))) setRightMarginMm(Number(savedRight));
-      if (savedFont && !isNaN(Number(savedFont))) setFontSizePt(Number(savedFont));
-    } catch {}
-  }, []);
 
   const saveTopMargin = (val: number) => {
     setTopMarginMm(val);
@@ -89,13 +104,67 @@ function OpSlipPrinterInner() {
 
   // Autoprint handler if opened from notification email or print shortcut
   useEffect(() => {
-    if (autoprint && mounted) {
+    if (autoprint) {
       const timer = setTimeout(() => {
         window.print();
-      }, 400);
+      }, 500);
       return () => clearTimeout(timer);
     }
-  }, [autoprint, mounted]);
+  }, [autoprint]);
+
+  // Auto-resolve missing patient data (phone, locality, age, gender) from Supabase if opened with partial parameters
+  useEffect(() => {
+    if (!hasSupabase()) return;
+    if (!phone && (code || name)) {
+      const db = supabaseBrowser();
+      let cancelled = false;
+
+      async function fetchPatient() {
+        try {
+          if (code) {
+            const { data: pData } = await db.from("patients").select("phone, name, age, gender, locality").eq("patient_code", code).maybeSingle();
+            if (cancelled) return;
+            if (pData) {
+              if (pData.phone) setPhone((prev) => prev || pData.phone || "");
+              if (pData.name) setName((prev) => prev || pData.name || "");
+              if (pData.age) setAge((prev) => prev || String(pData.age) || "");
+              if (pData.gender) setGender((prev) => prev || pData.gender || "");
+              if (pData.locality) setLocality((prev) => (!prev || prev === clinic.location.city ? pData.locality || prev : prev));
+              return;
+            }
+
+            const { data: aData } = await db.from("appointments").select("phone, name, age, gender, locality").eq("patient_code", code).order("created_at", { ascending: false }).limit(1).maybeSingle();
+            if (cancelled) return;
+            if (aData) {
+              if (aData.phone) setPhone((prev) => prev || aData.phone || "");
+              if (aData.name) setName((prev) => prev || aData.name || "");
+              if (aData.age) setAge((prev) => prev || String(aData.age) || "");
+              if (aData.gender) setGender((prev) => prev || aData.gender || "");
+              if (aData.locality) setLocality((prev) => (!prev || prev === clinic.location.city ? aData.locality || prev : prev));
+              return;
+            }
+          }
+
+          if (name) {
+            const { data: pNameData } = await db.from("patients").select("phone, patient_code, age, gender, locality").ilike("name", name.trim()).order("created_at", { ascending: false }).limit(1).maybeSingle();
+            if (cancelled) return;
+            if (pNameData) {
+              if (pNameData.phone) setPhone((prev) => prev || pNameData.phone || "");
+              if (pNameData.patient_code) setCode((prev) => prev || pNameData.patient_code || "");
+              if (pNameData.age) setAge((prev) => prev || String(pNameData.age) || "");
+              if (pNameData.gender) setGender((prev) => prev || pNameData.gender || "");
+              if (pNameData.locality) setLocality((prev) => (!prev || prev === clinic.location.city ? pNameData.locality || prev : prev));
+            }
+          }
+        } catch {}
+      }
+
+      fetchPatient();
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [code, name, phone]);
 
   const genderDisplay = gender === "M" || gender === "Male" ? "Male" : gender === "F" || gender === "Female" ? "Female" : gender || "—";
   const ageGenderDisplay = `${age ? `${age} Years/ ` : "— Years/ "}${genderDisplay}`;
@@ -253,7 +322,7 @@ function OpSlipPrinterInner() {
                 <h2 className="text-xs font-bold text-neutral-800 uppercase tracking-wide">
                   Edit Details Before Printing
                 </h2>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <div>
                     <label className="text-[10px] font-medium text-neutral-500">Patient Name</label>
                     <input
@@ -272,6 +341,16 @@ function OpSlipPrinterInner() {
                       onChange={(e) => setCode(e.target.value)}
                       placeholder="PT29500"
                       className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs font-mono font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-neutral-500">Mobile / Phone</label>
+                    <input
+                      type="text"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="9876543210"
+                      className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs"
                     />
                   </div>
                   <div>
@@ -313,6 +392,26 @@ function OpSlipPrinterInner() {
                       type="date"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
+                      className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-neutral-500">Token Number</label>
+                    <input
+                      type="text"
+                      value={token}
+                      onChange={(e) => setToken(e.target.value)}
+                      placeholder="e.g. 1"
+                      className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-neutral-500">Slot Time</label>
+                    <input
+                      type="text"
+                      value={time}
+                      onChange={(e) => setTime(e.target.value)}
+                      placeholder="e.g. 18:30"
                       className="w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs"
                     />
                   </div>
@@ -380,6 +479,7 @@ function OpSlipPrinterInner() {
                 </div>
                 <div className="font-medium text-black">
                   {locality || "Visakhapatnam"}
+                  <span className="ml-2">· Ph: {phone || "____________________"}</span>
                 </div>
               </div>
 

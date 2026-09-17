@@ -26,6 +26,7 @@ type DbApptRow = {
   notes: string | null; patient_code: string | null; claim_type: string | null;
   review_nudge_sent_at: string | null; free_visit_reminder_sent_at: string | null;
   cancel_reason: string | null; expired_payment_nudged_at: string | null;
+  locality: string | null;
 };
 function rowToAppt(r: DbApptRow): Appt {
   return {
@@ -55,7 +56,7 @@ function rowToAppt(r: DbApptRow): Appt {
     patientCode: r.patient_code ?? null,
     claimType: r.claim_type as "returning_unverified" | "review_free" | null,
     paymentDeadlineAt: null,
-    locality: null,
+    locality: r.locality ?? null,
   };
 }
 
@@ -136,7 +137,14 @@ export function useAdminAppts(): [Appt[], (id: string, patch: Partial<Appt>) => 
 }
 
 // ── walk-in / status / paid ──────────────────────────────────────────────────
-export async function dbAddWalkIn(input: { name: string; phone: string; age: number; gender?: "M" | "F" | null; source?: Source }): Promise<Appt> {
+export async function dbAddWalkIn(input: {
+  name: string;
+  phone: string;
+  age: number;
+  gender?: "M" | "F" | null;
+  locality?: string | null;
+  source?: Source;
+}): Promise<Appt> {
   const db = supabaseBrowser();
   const today = ymd(new Date());
   const name = input.name.trim();
@@ -182,6 +190,7 @@ export async function dbAddWalkIn(input: { name: string; phone: string; age: num
       phone,
       age: input.age,
       gender: input.gender ?? null,
+      locality: input.locality ?? null,
       reason: "Consultation",
       appt_date: today,
       appt_time: new Date().toTimeString().slice(0, 5),

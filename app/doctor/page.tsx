@@ -6,7 +6,7 @@ import {
   Calendar as CalendarIcon, Users, ArrowLeft, LogOut, RotateCcw,
   ChevronLeft, ChevronRight, Globe, MessageCircle, Footprints,
   Activity, Check, X, Clock, UserCheck, AlertCircle, Search,
-  ChevronDown, ChevronUp, BarChart3, TrendingUp, IndianRupee,
+  ChevronDown, ChevronUp, BarChart3, TrendingUp, IndianRupee, Printer,
 } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import { useMounted, apptsForDate, resetDemo, setNotes, ageGenderLabel, type Appt, type ApptStatus, type Source } from "@/lib/store";
@@ -412,6 +412,29 @@ function QueueRow({ a, appts, todayStr, markDone, openDetail }: {
 
         {/* Actions */}
         <div className="flex shrink-0 items-center gap-1.5">
+          {a.status !== "cancelled" && (
+            <button
+              onClick={() => {
+                const params = new URLSearchParams({
+                  name: a.name || "",
+                  code: a.patientCode || "",
+                  age: a.age ? String(a.age) : "",
+                  gender: a.gender || "",
+                  locality: a.locality || "",
+                  phone: a.phone || "",
+                  date: a.date || "",
+                  time: a.time || "",
+                  token: String(a.token || ""),
+                  autoprint: "1",
+                });
+                window.open(`/print/op-slip?${params.toString()}`, "_blank");
+              }}
+              title="Print OP Slip on Letterhead"
+              className="rounded-lg border border-line p-2 text-muted hover:text-brand hover:border-brand/40 transition"
+            >
+              <Printer className="h-4 w-4" />
+            </button>
+          )}
           <button onClick={() => setShowNotes(!showNotes)} title={showNotes ? "Hide notes" : "Write note"}
             className={`rounded-lg border p-2 text-sm transition ${showNotes ? "border-brand bg-brand-tint text-brand" : "border-line text-muted hover:text-brand hover:border-brand/40"}`}>
             {showNotes ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}

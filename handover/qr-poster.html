@@ -1,0 +1,291 @@
+<title>Booking QR Poster</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+
+  :root {
+    --ink: #1a2332;
+    --muted: #6b7a8d;
+    --brand: #2563eb;
+    --brand-light: #dbeafe;
+    --bone: #f8f9fb;
+    --paper: #ffffff;
+    --line: #e2e6ec;
+    --accent: #0d9488;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #e8ecf0;
+      --muted: #8b9aad;
+      --brand: #60a5fa;
+      --brand-light: #1e3a5f;
+      --bone: #0f1724;
+      --paper: #1a2332;
+      --line: #2a3648;
+      --accent: #2dd4bf;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e8ecf0;
+    --muted: #8b9aad;
+    --brand: #60a5fa;
+    --brand-light: #1e3a5f;
+    --bone: #0f1724;
+    --paper: #1a2332;
+    --line: #2a3648;
+    --accent: #2dd4bf;
+  }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .poster {
+    width: 100%;
+    max-width: 595px; /* A4 width at 72dpi */
+    aspect-ratio: 210 / 297;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 40px 36px;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Subtle corner accent */
+  .poster::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: var(--brand);
+  }
+
+  .clinic-name {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 28px;
+    line-height: 1.15;
+    text-align: center;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+  .clinic-name span {
+    color: var(--brand);
+  }
+
+  .doctor-name {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 32px;
+    letter-spacing: 0.02em;
+  }
+
+  .qr-frame {
+    background: var(--bone);
+    border: 2px solid var(--line);
+    border-radius: 20px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .qr-code {
+    width: 220px;
+    height: 220px;
+    background: #fff;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  .qr-code canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .scan-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--brand);
+    background: var(--brand-light);
+    padding: 6px 16px;
+    border-radius: 100px;
+  }
+
+  .cta-block {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .cta-en {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 22px;
+    line-height: 1.3;
+    color: var(--ink);
+    margin-bottom: 6px;
+    text-wrap: balance;
+  }
+
+  .cta-te {
+    font-size: 16px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .divider {
+    width: 48px;
+    height: 1px;
+    background: var(--line);
+    margin: 0 auto 24px;
+  }
+
+  .contact-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: auto;
+  }
+
+  .contact-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  .contact-row .icon {
+    width: 20px;
+    height: 20px;
+    color: var(--brand);
+    flex-shrink: 0;
+  }
+
+  .contact-row a {
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .hours-block {
+    text-align: center;
+    margin-top: auto;
+    padding-top: 20px;
+  }
+
+  .hours-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .hours-text {
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+
+  .footer-line {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 16px;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  @media print {
+    body { padding: 0; background: #fff; }
+    .poster { border: none; max-width: 100%; aspect-ratio: auto; height: 100vh; }
+  }
+
+  @media (max-width: 500px) {
+    .poster { padding: 32px 24px 24px; aspect-ratio: auto; min-height: 100vh; }
+    .clinic-name { font-size: 22px; }
+    .qr-code { width: 180px; height: 180px; }
+    .cta-en { font-size: 18px; }
+  }
+</style>
+
+<div class="poster">
+  <div class="clinic-name">Ramachandra <span>Ortho</span> Care</div>
+  <div class="doctor-name">Dr. Ramachandrudu (Rajesh) · M.S. (Ortho)</div>
+
+  <div class="qr-frame">
+    <div class="qr-code">
+      <canvas id="qr" width="196" height="196"></canvas>
+    </div>
+    <div class="scan-label">Scan to book</div>
+  </div>
+
+  <div class="cta-block">
+    <div class="cta-en">Book your appointment online</div>
+    <div class="cta-te">ఆన్‌లైన్‌లో మీ అపాయింట్‌మెంట్ బుక్ చేసుకోండి</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="contact-section">
+    <div class="contact-row">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      <span>+91 93814 39203</span>
+    </div>
+    <div class="contact-row">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      <span>WhatsApp: +91 93814 39203</span>
+    </div>
+    <div class="contact-row">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      <a href="https://ramachandraorthocare.com" style="color: var(--brand); font-weight: 500;">ramachandraorthocare.com</a>
+    </div>
+  </div>
+
+  <div class="hours-block">
+    <div class="hours-label">Clinic hours</div>
+    <div class="hours-text">
+      Mon to Sat: 10:00 AM to 1:00 PM, 5:00 PM to 8:00 PM<br>
+      Sunday: Closed
+    </div>
+  </div>
+
+  <div class="footer-line">Chinnamushidiwada, Visakhapatnam · ramachandraorthocare.com</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+  // Generate QR code
+  const canvas = document.getElementById('qr');
+  new QRCode(canvas.parentElement, {
+    text: 'https://ramachandraorthocare.com/book',
+    width: 196,
+    height: 196,
+    colorDark: '#1a2332',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+  // QRCode library creates its own elements, hide the canvas we placed
+  canvas.hidden = true;
+</script>

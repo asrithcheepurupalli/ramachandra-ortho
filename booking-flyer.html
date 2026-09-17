@@ -1,0 +1,512 @@
+<title>Book Appointment - Ramachandra Ortho Care</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+@page { size: A4 portrait; margin: 0; }
+
+html, body {
+  width: 100%;
+  min-height: 100%;
+  background: #ffffff;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body { display: flex; justify-content: center; }
+
+.poster {
+  position: relative;
+  width: 794px;
+  height: 1123px;
+  overflow: hidden;
+  background: linear-gradient(90deg, #ffffff 0%, #ffffff 65%, #f2fbfa 100%);
+  color: #10202a;
+}
+
+.medical-bg {
+  position: absolute;
+  top: 0;
+  right: -25px;
+  width: 300px;
+  height: 720px;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.medical-bg::before {
+  content: "";
+  position: absolute;
+  right: 30px;
+  top: -80px;
+  width: 240px;
+  height: 760px;
+  border-radius: 50%;
+  background: linear-gradient(115deg, transparent 30%, #b8e2dc 45%, #e9f7f5 55%, transparent 70%);
+  transform: rotate(4deg);
+}
+
+.bone {
+  position: absolute;
+  right: 45px;
+  top: 90px;
+  width: 125px;
+  height: 480px;
+  border-radius: 60px;
+  background: radial-gradient(ellipse at center, #d8eeec 0%, #b9ddda 42%, #ffffff 70%);
+  transform: rotate(-8deg);
+  filter: blur(1px);
+}
+
+.bone::before, .bone::after {
+  content: "";
+  position: absolute;
+  left: 15px;
+  width: 95px;
+  height: 115px;
+  border-radius: 50%;
+  background: #d7eeec;
+}
+
+.bone::before { top: -30px; }
+.bone::after { bottom: -30px; }
+
+.tagline {
+  position: absolute;
+  top: 35px;
+  right: 45px;
+  width: 100px;
+  font-size: 13px;
+  line-height: 1.8;
+  letter-spacing: 3px;
+  font-weight: 500;
+  color: #173238;
+  text-align: left;
+  z-index: 2;
+}
+
+.tagline-line {
+  width: 45px;
+  height: 3px;
+  background: #006f60;
+  margin-top: 6px;
+}
+
+.logo-area {
+  position: absolute;
+  top: 28px;
+  left: 70px;
+  width: 540px;
+  text-align: center;
+  z-index: 5;
+}
+
+.logo-placeholder {
+  width: 350px;
+  height: 180px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, #0c7a68 0%, #0a5d50 100%);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -2px;
+}
+
+.logo-placeholder .brand { color: #e2f1ec; }
+
+.hero {
+  position: absolute;
+  top: 335px;
+  left: 55px;
+  width: 650px;
+  text-align: center;
+  z-index: 5;
+}
+
+.hero h1 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 51px;
+  line-height: 0.98;
+  letter-spacing: -2px;
+  color: #071820;
+  font-weight: 700;
+}
+
+.hero h1 span {
+  color: #00765e;
+  display: block;
+}
+
+.subtitle {
+  margin: 17px auto 0;
+  max-width: 600px;
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 600;
+  color: #102c33;
+}
+
+.qr-section {
+  position: absolute;
+  top: 535px;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  z-index: 10;
+}
+
+.qr-frame {
+  width: 245px;
+  height: 245px;
+  margin: 0 auto;
+  padding: 15px;
+  background: #ffffff;
+  border: 5px solid #00765e;
+  border-radius: 28px;
+  box-shadow: 0 8px 30px rgba(0, 70, 60, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#qr-code {
+  width: 205px;
+  height: 205px;
+}
+
+.qr-label {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 380px;
+  padding: 12px 25px;
+  border-radius: 30px;
+  background: #007c68;
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  box-shadow: 0 5px 15px rgba(0, 100, 80, 0.18);
+}
+
+.phone-icon {
+  width: 21px;
+  height: 27px;
+  border: 3px solid white;
+  border-radius: 4px;
+  position: relative;
+}
+
+.phone-icon::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: white;
+  bottom: 3px;
+  left: 6px;
+}
+
+.qr-help {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #26484a;
+}
+
+.features {
+  position: absolute;
+  top: 825px;
+  left: 55px;
+  width: 685px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  z-index: 5;
+}
+
+.feature {
+  position: relative;
+  text-align: center;
+  padding: 0 13px;
+}
+
+.feature:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 15px;
+  height: 70px;
+  width: 1px;
+  background: #9bd1c9;
+}
+
+.feature-icon {
+  width: 65px;
+  height: 65px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  background: #dff3ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #00765e;
+  font-size: 31px;
+}
+
+.feature-title {
+  font-size: 15px;
+  line-height: 1.15;
+  font-weight: 800;
+  color: #0a4f47;
+}
+
+.language-box {
+  position: absolute;
+  top: 925px;
+  left: 48px;
+  width: 698px;
+  height: 70px;
+  border-radius: 18px;
+  background: #e6f5f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  color: #086456;
+  z-index: 5;
+}
+
+.language-icon {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.language-copy { text-align: left; }
+
+.telugu {
+  font-family: "Noto Sans Telugu", "Nirmala UI", "Gautami", Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.language-sub {
+  font-family: "Noto Sans Telugu", "Nirmala UI", "Gautami", Arial, sans-serif;
+  font-size: 12px;
+}
+
+.available {
+  position: absolute;
+  top: 1004px;
+  width: 100%;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: #14645a;
+  font-weight: 700;
+  z-index: 5;
+}
+
+.available strong {
+  font-size: 13px;
+  letter-spacing: 1px;
+  margin-left: 8px;
+}
+
+.footer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 93px;
+  background: linear-gradient(165deg, #00745e 0%, #00594d 100%);
+  color: #ffffff;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 1.05fr 1.15fr 1fr;
+  align-items: center;
+  padding: 0 45px;
+}
+
+.footer-item {
+  min-height: 55px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+}
+
+.footer-item + .footer-item {
+  border-left: 1px solid rgba(255,255,255,0.65);
+}
+
+.footer-icon {
+  font-size: 27px;
+  flex-shrink: 0;
+}
+
+.footer-main {
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.footer-small {
+  margin-top: 4px;
+  font-size: 9px;
+  line-height: 1.25;
+  opacity: 0.95;
+}
+
+.footer-hours {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.wave-1, .wave-2 {
+  position: absolute;
+  left: -30px;
+  width: 860px;
+  height: 75px;
+  border-radius: 50%;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.wave-1 {
+  top: 1012px;
+  background: #006c5b;
+  transform: rotate(-1.5deg);
+}
+
+.wave-2 {
+  top: 1028px;
+  background: #008875;
+  transform: rotate(1deg);
+  opacity: 0.95;
+}
+
+@media print {
+  html, body {
+    width: 794px;
+    height: 1123px;
+    overflow: hidden;
+  }
+  .poster {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+</style>
+
+<main class="poster">
+  <div class="medical-bg">
+    <div class="bone"></div>
+  </div>
+
+  <div class="tagline">
+    MOVE<br/>BETTER<br/>LIVE<br/>BOLDER
+    <div class="tagline-line"></div>
+  </div>
+
+  <div class="logo-area">
+    <div class="logo-placeholder">
+      Ramachandra <span class="brand">Ortho</span>
+    </div>
+  </div>
+
+  <section class="hero">
+    <h1>Skip the Queue.<span>Book in Seconds.</span></h1>
+    <div class="subtitle">Scan the QR code to book your<br/>orthopedic consultation online.</div>
+  </section>
+
+  <section class="qr-section">
+    <div class="qr-frame">
+      <div id="qr-code"></div>
+    </div>
+    <div class="qr-label">
+      <span class="phone-icon"></span>
+      SCAN TO BOOK INSTANTLY
+      <span style="font-size:24px;">→</span>
+    </div>
+    <div class="qr-help">No app required. Simply scan with your phone camera.</div>
+  </section>
+
+  <section class="features">
+    <div class="feature">
+      <div class="feature-icon">▣</div>
+      <div class="feature-title">Instant<br/>Booking</div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">◷</div>
+      <div class="feature-title">Choose<br/>Your Time</div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">◉</div>
+      <div class="feature-title">WhatsApp<br/>Confirmation</div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">♙</div>
+      <div class="feature-title">Faster<br/>Check-in</div>
+    </div>
+  </section>
+
+  <section class="language-box">
+    <div class="language-icon">A文</div>
+    <div class="language-copy">
+      <div class="telugu">క్యూలో వేచి ఉండాల్సిన అవసరం లేదు.</div>
+      <div class="language-sub">QR స్కాన్ చేసి వెంటనే అపాయింట్‌మెంట్ బుక్ చేసుకోండి.</div>
+    </div>
+  </section>
+
+  <div class="available">
+    AVAILABLE IN <strong>తెలుగు</strong> • <strong>ENGLISH</strong> • <strong>हिन्दी</strong>
+  </div>
+
+  <div class="wave-1"></div>
+  <div class="wave-2"></div>
+
+  <footer class="footer">
+    <div class="footer-item">
+      <div class="footer-icon">☎</div>
+      <div>
+        <div class="footer-main">93814 39203</div>
+        <div class="footer-small">For appointments & enquiries</div>
+      </div>
+    </div>
+    <div class="footer-item">
+      <div class="footer-icon">⌖</div>
+      <div>
+        <div class="footer-main" style="font-size:14px;">Chinnamushidiwada</div>
+        <div class="footer-main" style="font-size:14px;">Visakhapatnam</div>
+        <div class="footer-small">Ramachandra Ortho Care & Clinics</div>
+      </div>
+    </div>
+    <div class="footer-item">
+      <div class="footer-icon">◷</div>
+      <div>
+        <div class="footer-main" style="font-size:13px;">Clinic Hours</div>
+        <div class="footer-hours">Mon – Sat<br/>10:00 AM – 1:00 PM<br/>5:00 PM – 8:00 PM</div>
+      </div>
+    </div>
+  </footer>
+</main>
+
+<script>
+const BOOKING_URL = "https://ramachandraorthocare.com/";
+new QRCode(document.getElementById("qr-code"), {
+  text: BOOKING_URL,
+  width: 205,
+  height: 205,
+  colorDark: "#000000",
+  colorLight: "#ffffff",
+  correctLevel: QRCode.CorrectLevel.H
+});
+</script>

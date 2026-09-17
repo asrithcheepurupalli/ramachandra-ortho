@@ -411,6 +411,7 @@ export async function sendNewAppointmentEmail(
     age: appt.age ? String(appt.age) : "",
     gender: appt.gender || "",
     locality: appt.locality || clinic.location.city || "Visakhapatnam",
+    phone: appt.phone || "",
     date: appt.date || "",
     time: appt.time || "",
     token: String(appt.token || ""),

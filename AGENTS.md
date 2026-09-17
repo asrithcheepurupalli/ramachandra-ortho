@@ -14,6 +14,16 @@ Cold-start brief for any AI model. Read this before touching the code. It tells 
 this project is, how the pieces connect, the invariants you must never break, and the
 conventions the codebase follows.
 
+---
+
+## ⚠️ STRICT OPERATIONAL INVARIANT: LIVE PRODUCTION DATA
+**Ramachandra Ortho Care is 100% LIVE IN PRODUCTION with REAL PATIENT RECORDS, LIVE APPOINTMENTS, AND REAL PAYMENTS.**
+- **NEVER propose, execute, or script destructive database actions (`TRUNCATE TABLE`, `DROP TABLE`, or raw bulk deletes).**
+- Any script such as `clear-database.sql` was a pre-go-live one-time purge script and **MUST NEVER BE RUN OR SUGGESTED** in production.
+- All database modifications must be non-destructive additive migrations in `supabase/migrations/`.
+
+---
+
 ## 1. What this is
 
 A production appointment-management system for a real orthopedic clinic in
@@ -22,14 +32,18 @@ Chinnamushidiwada, Visakhapatnam, India. Built by **made. by ac** for the clinic
 
 Surfaces:
 - **Patient website** (`/`): live "Doctor IN/OUT" availability banner, services, map,
-  hours, Google reviews, trilingual (English / Telugu / Hindi).
+  hours, Google reviews, trilingual (English / Telugu / Hindi), structured JSON-LD SEO schema.
 - **Booking** (`/book`): live slot picker, online payment via Razorpay, or pay-at-counter for
-  returning / free-review patients.
+  returning / free-review patients. Collects Name, Mobile, Age, Gender, Locality.
 - **My Appointment** (`/my-appointment`): phone-number lookup, view / reschedule / pay.
 - **Admin dashboard** (`/admin`): live queue with token numbers, walk-in reserve, schedule
   editor (drives availability everywhere), broadcast to a queue, patients list, revenue,
-  Bug Desk (error log).
+  1-click OP Slip printer, Bug Desk (error log).
 - **Doctor dashboard** (`/doctor`): today's queue + patients, staff-only.
+- **OP Slip Letterhead Printer** (`/print/op-slip`): prints patient metadata (Name, Code, Age,
+  Gender, Locality, Mobile, OP Date, 10-day Validity, Token, Time) directly onto pre-printed clinic A4 stationery.
+  Features configurable zero-margin layout with calibration sliders (top offset default 48mm, left/right margins,
+  font size) auto-saved in `localStorage`.
 - **WhatsApp channel**: patients can book / view / reschedule / pay by chatting with a bot
   (`lib/bot.ts`) on the clinic's WhatsApp number, plus a structured booking Flow. Admin and
   staff also operate over WhatsApp (broadcast, doctor digest, OTP codes).
@@ -38,16 +52,16 @@ Surfaces:
 
 ## 2. Tech stack
 
-- **Next.js** (App Router) + **React** + **TypeScript**, **Tailwind CSS v4**
+- **Next.js** (App Router, React 19) + **TypeScript**, **Tailwind CSS v4**
   (`@import "tailwindcss"` in app/globals.css). See the auto-generated warning at the top of
   this file: this Next version has breaking changes, read `node_modules/next/dist/docs/` before
   writing Next-specific code.
 - **Supabase** (`@supabase/ssr` + `@supabase/supabase-js`): Postgres database + auth.
 - **Razorpay**: online consultation-fee payments (payment links + webhook).
-- **Meta WhatsApp Cloud API** (direct, no BSP): all WhatsApp messaging.
-- **Resend**: transactional email (booking/reschedule mails, backup digest).
+- **Meta WhatsApp Cloud API** (direct Graph API v21.0, no BSP): all WhatsApp messaging.
+- **Resend**: transactional email (booking/reschedule mails with 1-click OP slip print link, backup digest).
 - **Vercel**: hosting (region `bom1`). GitHub Actions for CI + cron.
-- **Vitest**: unit tests. Playwright/cypress not used; UI verification is manual/browser-driven.
+- **Vitest**: unit tests. Run with `npm test`.
 
 ## 3. THE core mental model (read first)
 
@@ -70,51 +84,51 @@ the website/bot/Flow confirms a booking until that webhook lands. Returning pati
 payment-link id and only the service role may write the Razorpay audit columns (enforced by
 a DB trigger, migration `014`).
 
-## 4. Patient-facing flows
+## 4. Patient-facing flows & OP Slip System
 
-**Booking.** Patient picks date + time -> new/returning/free-review declaration -> name +
-phone -> creates a `payment_pending` hold (15-min expiry, auto-cancelled by the
+**Booking.** Patient picks date + time -> new/returning/free-review declaration -> name, phone,
+age, gender, locality -> creates a `payment_pending` hold (15-min expiry, auto-cancelled by the
 payment-timeout cron). New patients pay online via `/api/payments/link` -> Razorpay ->
-webhook -> `reserved`. Enforcement rules: one phone cannot hold two unpaid holds
-(`PendingHoldError`, enforce with "pay this one first" or "start fresh"); one phone cannot
-hold two appointments on the same date+time (`DuplicateSlotError`); a slot picked before
-submit can be taken under you (`SlotTakenError`, re-offer fresh slots). Lead time:
-`BOOKING_LEAD_MIN = 5 + slotMinutes` (~20 min) - a slot at or before now+lead is not bookable
-today (`isPastLeadTime`).
+webhook -> `reserved`. Enforcement rules:
+- One phone cannot hold two unpaid holds (`PendingHoldError`).
+- One phone cannot hold two appointments on the same date+time (`DuplicateSlotError`).
+- Slot collision handling (`SlotTakenError`).
+- Lead time: `BOOKING_LEAD_MIN = 5 + slotMinutes` (~20 min) - a slot at or before now+lead is not bookable today (`isPastLeadTime`).
+
+**Patient Code Sequence:** Real patient codes follow the format `PT#####` starting from `PT29500` (governed by Postgres sequence `patient_code_seq` via migration `017`).
+
+**OP Slip Printing (`/print/op-slip`):**
+- Zero-margin A4 print stylesheet (`@page { size: A4 portrait; margin: 0mm !important; }`).
+- Fits pre-printed clinic stationery with customizable top offset (default 48mm), left/right margin (15mm), and font size (13pt) calibrated via interactive sliders.
+- Displays: Patient Details (Name, `(PT#####)` code, Age Years/ Gender, Locality, Mobile / Phone), Date (`DD/MM/YYYY`), Op Valid up to (+10 days validity), Token Number, and Slot Time.
+- Accessible directly from the admin queue row or notification email (`/print/op-slip?name=...&code=...&phone=...&date=...&token=...`).
 
 **Appointment self-service.** Phone number is the trust boundary (no patient logins). Lookup
 is free; cancel/reschedule/pay on legacy appointments require a one-time WhatsApp OTP proof
-when the OTP gate is enabled (`lib/otp.ts`, `otp_challenges` table, template
-`ortho_verification_codev1`).
+when the OTP gate is enabled (`lib/otp.ts`, `otp_challenges` table, template `ortho_verification_codev1`).
 
 **Availability engine** (`lib/schedule.ts`): the single source of truth for "is the doctor
 in?". `statusAt()` returns in / soon / out using schedule windows + per-date exceptions
 (`closed`, `windows`, `disabled` slot times, `note`) + a manual front-desk override. It must
-use `allSlotsFor()` (which drops `disabled` times), not `windowsFor()` (raw hours) - that
-was a real bug where blocked morning slots still showed "in until 12:45". `nowIST()` is the
-wall-clock for every "what is today" decision, client AND server (Vercel runs UTC).
+use `allSlotsFor()` (which drops `disabled` times), not `windowsFor()` (raw hours).
+`nowIST()` is the wall-clock for every "what is today" decision, client AND server (Vercel runs UTC).
 
-**WhatsApp** (`lib/bot.ts`): intent routing (heuristic regex for the beta, Claude-pluggable
-in production), a stateful slot picker (day -> window -> range -> time chips), and the five
-automations. Ships to BOTH the browser (site chat `RCChat`) and the server (webhook), so it
-cannot statically import server-only modules - server-side errors self-fetch to
-`/api/bugdesk/report`. Phrase packs are per-language in `P[lang]` (en/te/hi). Notify senders
-(`lib/meta-whatsapp.ts`) never throw: they return `Promise<boolean>`; check it and report via
-bugdesk. WhatsApp auto-links a URL only if it sits alone on its own line in the message text;
-embedded URLs (review links, payment links, maps) must be on their own line.
+**WhatsApp** (`lib/bot.ts`): intent routing, stateful slot picker (batch-loaded to 1 range query per message),
+and automations. Dual client/server build. All outgoing WhatsApp messages are logged to `whatsapp_logs` for delivery audit.
 
 ## 5. Architecture map
 
 ```
 app/
-  page.tsx            Home
-  book/               Booking page
-  my-appointment/     Self-service lookup
+  page.tsx            Home (Services, Reviews, Doctor Status, SEO Schema)
+  book/               Booking page (Slot picker, Razorpay modal)
+  my-appointment/     Self-service lookup & management
+  print/op-slip/      Zero-margin A4 OP Slip Letterhead Printer
   login/ admin/ doctor/   Staff portals (gated by proxy.ts)
   api/
     book/             Create booking (DB write + notifications)
     slots/            Live availability for pickers (used by site + bot)
-    payments/link | webhook/    Razorpay
+    payments/link | webhook/    Razorpay payment links & webhook
     appointments/     lookup | reschedule | cancel-status | refund |
                       request-otp | verify-otp | admin-reschedule
     admin/            broadcast | bugdesk | notify-new | whatsapp-invite
@@ -124,21 +138,21 @@ app/
     whatsapp/         webhook + structured Flow endpoint
     bugdesk/report/   Error ingestion (IP rate-limited)
 lib/
-  clinic.config.ts    Single source of truth (see above)
+  clinic.config.ts    Single source of truth (contact, fees, slots, doctor info)
   db.ts / store.ts    Supabase / localStorage layers. Same shape.
   supabase.ts         hasSupabase() + browser client
   supabase-admin.ts   service-role client (server only)
   schedule.ts         Availability engine + nowIST + booking lead time
   bot.ts              WhatsApp assistant (client + server)
-  meta-whatsapp.ts    Graph API sends + signature verify (webhook)
+  meta-whatsapp.ts    Graph API sends + signature verify (webhook) + whatsapp_logs logging
   whatsapp-flow-crypto.ts   Structured Flow payload signing
   razorpay.ts         Payment links + refunds fetch
-  otp.ts              OTP gate
+  otp.ts              OTP gate (otp_challenges)
   phone.ts            Phone normalization + Indian mobile validation
   i18n.ts             Trilingual site copy (en/te/hi)
   rate-limit.ts       DB-backed limiter (rate_limits table) - use on public routes
-  bugdesk.ts          Error desk (report/reportError)
-  mailer.ts           Resend email
+  bugdesk.ts          Error desk (report/reportError -> error_logs table)
+  mailer.ts           Resend email (booking notifications + OP slip link)
   csv.ts, refunds.ts, reviews.ts, admin-db.ts, errors.ts, auth-server.ts
 proxy.ts              Middleware: auth gate for /admin /doctor /login; staff
                       role routing. Covers all page routes.
@@ -147,91 +161,56 @@ proxy.ts              Middleware: auth gate for /admin /doctor /login; staff
 ## 6. Database (Supabase)
 
 Tables: `patients`, `appointments`, `settings`, `staff_emails`, `rate_limits`,
-`otp_challenges`, `wa_sessions`, `doctor_digest_sent`, `error_logs` (bugdesk). Staff access
-is an allowlist in `staff_emails` checked by RPCs `is_staff()` / `staff_role()`,
-NOT an env var. Public signup is on, so a valid Supabase session alone is not proof of staff.
-`appointments` gets a `BEFORE INSERT OR UPDATE` trigger (migration `014`) that rejects writes
-to the Razorpay columns when `auth.role()` is not `service_role` - client-side dashboards
-must never write those. Migrations live in `supabase/migrations/` (001-014); keep
-`supabase/schema.sql` idempotent and in sync with them.
+`otp_challenges`, `wa_sessions`, `doctor_digest_sent`, `session_digest_sent`, `error_logs`, `whatsapp_logs`.
+
+Migrations (`supabase/migrations/`):
+- `001_staff_emails.sql`: Staff email allowlist & auth RPCs (`is_staff`, `staff_role`).
+- `002_pending_hold_and_rate_limits.sql`: Unpaid booking holds & rate limiter tables.
+- `003_age_and_session_digest.sql`: Patient age column and session digest tracking.
+- `004_age_not_null.sql`: Age constraint enforcement.
+- `005_bugdesk.sql`: Server error logging (`error_logs`).
+- `006_self_declared_claims.sql`: Returning patient & free review self-declarations.
+- `007_gender.sql`: Patient gender field.
+- `008_remove_slot_capacity.sql`: 1-patient-per-slot constraint.
+- `009_revoke_anon_staff_rpc.sql`: Security tightening on staff check RPCs.
+- `010_duplicate_slot_guard.sql`: Guard against duplicate appointments for same phone/slot.
+- `011_review_nudge.sql`: Google review automated follow-up tracking.
+- `012_free_visit_nudge.sql`: 10-day free review eligibility reminders.
+- `013_expired_payment_nudge.sql`: Abandoned payment recovery nudges.
+- `014_lock_razorpay_columns.sql`: DB trigger preventing non-service-role updates to payment audit columns.
+- `015_locality.sql`: Locality / area column on appointments.
+- `016_whatsapp_logs.sql`: WhatsApp message audit logs table with 7-day retention.
+- `017_patient_code_pt29500.sql`: Sequential patient code generation starting from `PT29500`.
 
 ## 7. Env vars & services
 
-Full reference with where to get each value: `.env.local.example`. Groups: **Supabase**
-(URL, anon key, service-role key - service role is server-only, never browser, never commit),
-**Meta WhatsApp** (token, phone-number-id, app secret + `META_APP_SECRET_ALT` for a second
-verified Meta app, verify token, per-template names/overrides), **Razorpay** (key id, key
-secret, webhook secret, `NEXT_PUBLIC_SITE_URL`), **Resend** (API key), plus **CRON_SECRET**.
-`CRON_SECRET` must match between the Vercel env and the GitHub Actions secrets, or cron calls
-401 (mismatch silently stops reminders - a known ops trap).
+Full reference in `.env.local.example`.
+- **Supabase:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+- **Meta WhatsApp:** `META_WHATSAPP_TOKEN`, `META_PHONE_NUMBER_ID`, `META_APP_SECRET`, `META_APP_SECRET_ALT`, `META_VERIFY_TOKEN`, `META_FLOW_PRIVATE_KEY_PASSPHRASE`.
+- **Razorpay:** `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`.
+- **Resend:** `RESEND_API_KEY`.
+- **Cron:** `CRON_SECRET` (must match Vercel env and GitHub Actions secrets).
 
 ## 8. Deploy, CI, cron
 
-- **Deploy:** pushing to `main` triggers Vercel's git-triggered auto-deploy to production.
-  Nothing else deploys. Build happens on Vercel.
-- **CI** (`.github/workflows/ci.yml`): lint + test + typecheck + build on every push/PR to
-  main. It guards code but does NOT gate the deploy (was tried, deliberately reverted).
-- **Cron** (`.github/workflows/*-cron.yml`): each posts `{CRON_SECRET}` to a `/api/cron/*`
-  route on a schedule. Check the Actions tab run history for failures.
+- **Deploy:** Pushing to `main` triggers Vercel auto-deploy to production (`bom1`).
+- **CI** (`.github/workflows/ci.yml`):
+  Runs `npm run lint` -> `npm test` -> `npx tsc --noEmit` -> `npm run build`.
+- **React 19 / ESLint Rule:** `react-hooks/set-state-in-effect` is strictly enforced. Never call `setState` synchronously in a mount `useEffect`; initialize persistent client state with lazy initializers `useState(() => ...)`.
 
-## 9. Testing
+## 9. Testing & Code Quality
 
-Vitest. `npm test` (alias `vitest run`). Existing coverage is focused on the hard parts:
-schedule/availability, booking rules (pending-hold, duplicate-slot, races), phone
-normalization, bot intent routing. When you change those, add a test.
+- Vitest: `npm test` (49 unit tests covering booking invariants, availability, phone normalization, bot routing).
+- Typecheck: `npx tsc --noEmit`.
+- Lint: `npm run lint`.
+- Build: `npm run build`.
 
-## 10. Working conventions (our ways of implementing)
+## 10. Working conventions
 
-- **Config-driven:** clinic identity, fees, contact, hours defaults all come from
-  `clinic.config.ts`.
-- **Dual-mode always:** build data paths so they work in both DB and mock mode; gate with
-  `hasSupabase()`; keep `lib/db.ts` and `lib/store.ts` the SAME shape.
-- **Notifications never break the booking:** every WhatsApp/email send returns a boolean;
-  check it and report a bugdesk row on failure, never throw.
-- **Report errors server-side via `lib/bugdesk`** (`reportError`/`report`), which writes
-  `error_logs` rows visible in /admin's Bug Desk tab.
-- **Public routes are rate-limited** via `lib/rate-limit.ts` (DB-backed, shared across
-  serverless instances). Do not reintroduce in-memory limits.
-- **Trilingual by default:** new user-facing copy needs en + te + hi (site copy in
-  `lib/i18n.ts`, bot phrases in `lib/bot.ts`).
-- **Phone numbers** go through `lib/phone.ts` `normalizePhone()` on every write/lookup;
-  validate `isValidIndianMobile()` (10 digits starting 6-9) on user input.
-- **Copy tone (humanizer rule):** no em/en dashes, no AI-sounding phrasing, natural
-  conversational Telugu/Hindi. Applies to patient-facing and AI-generation copy.
-- **WhatsApp URLs** go on their own line in message text, or Meta won't make them tappable.
-- **Doctor name** is "Dr. Ramachandrudu (Rajesh)"; the clinic is "Ramachandra Ortho Care".
-  Fees: ₹400 new / ₹350 returning (returning collected at the counter, never online).
-- **git:** commits use loksaiasrith123@gmail.com (Vercel requires a verified GitHub email).
-  Never add AI attribution lines (no "Co-Authored-By Claude") to commits or PRs. Push to
-  main only when asked / at checkpoints - main auto-deploys to prod.
-- **Confidential docs** in `docs/internal/` (pricing, valuation, budget) are gitignored. Their
-  content must NEVER appear in client-facing output. `docs/` client deliverables (PDFs,
-  RUNBOOK.md, REDESIGN docs) are intentionally untracked handover files.
-
-## 11. AI tooling available in the dev environment (MCPs)
-
-These are session-level Claude Code MCP servers, not repo config (no `.mcp.json`):
-- **Firecrawl**: web search / scrape / research.
-- **Mobbin**: UI screen/flow references (use on UI design work).
-- **claude-in-chrome**: browser automation to verify running pages. Verification preference:
-  drive Chrome and read the DOM / console output, do NOT rely on screenshots or images as
-  proof (the current model is text-only). The big-pickle operating rules: analyze DOM/
-  markdown, not screenshots.
-
-## 12. Gotchas / traps
-
-- **This Next.js version differs from training data** - read the docs in
-  `node_modules/next/dist/docs/` before Next-specific work.
-- **The AGENTS.md top block is auto-re-generated by `next dev`**; committing it with your
-  work keeps the tree clean, removing it just comes back.
-- **No CSP by design:** a nonce+strict-dynamic CSP was tried and broke statically
-  pre-rendered pages (React never hydrated). Other security headers (HSTS, X-Frame-Options,
-  XCTO, Referrer-Policy) live in `next.config.ts`; do not re-add a script-nonce CSP.
-- **Webhook signatures:** the WABA is on two Meta apps; check `META_APP_SECRET` AND
-  `META_APP_SECRET_ALT` (`verifySignature` in `lib/meta-whatsapp.ts`).
-- **OTP send quirk:** `sendVerificationCode` must pass the code in the body slot AND the URL
-  button param, or Meta rejects the send (#131008).
-- **Availability reads must respect `disabled` slots:** use `allSlotsFor()`, not
-  `windowsFor()`, when deciding "in / soon / until" - the raw windows include blocked times.
-- **Timezone:** every server-side "now" uses `nowIST()`; a bare `new Date()` on Vercel (UTC)
-  is up to 5.5h off and can flip the calendar date near midnight IST.
+- **Config-driven:** `clinic.config.ts` is the single source of truth for clinic identity and fees.
+- **Dual-mode always:** Keep `lib/db.ts` and `lib/store.ts` identical in shape for zero-config local dev.
+- **Notifications never throw:** WhatsApp and email helpers return boolean and log errors to Bug Desk.
+- **Indian Mobile Validation:** 10 digits starting with 6-9 (`lib/phone.ts`).
+- **Copy tone (humanizer):** Zero em/en dashes, concise, natural copy across English, Telugu, and Hindi.
+- **Doctor name:** "Dr. Ramachandrudu (Rajesh)"; clinic: "Ramachandra Ortho Care".
+- **Git:** Commits use `loksaiasrith123@gmail.com`. Never add AI attribution lines (`Co-Authored-By Claude`) to commits or PRs. Push to `main` only when asked / at checkpoints.

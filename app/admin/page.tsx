@@ -540,6 +540,7 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
                 age: a.age ? String(a.age) : "",
                 gender: a.gender || "",
                 locality: a.locality || "",
+                phone: a.phone || "",
                 date: a.date || "",
                 time: a.time || "",
                 token: String(a.token || ""),

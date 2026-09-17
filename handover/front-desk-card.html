@@ -1,0 +1,307 @@
+<title>Front Desk Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap');
+
+  :root {
+    --ink: #1a2332;
+    --muted: #6b7a8d;
+    --brand: #2563eb;
+    --brand-light: #dbeafe;
+    --bone: #f8f9fb;
+    --paper: #ffffff;
+    --line: #e2e6ec;
+    --green: #059669;
+    --green-light: #d1fae5;
+    --amber: #d97706;
+    --amber-light: #fef3c7;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #e8ecf0;
+      --muted: #8b9aad;
+      --brand: #60a5fa;
+      --brand-light: #1e3a5f;
+      --bone: #0f1724;
+      --paper: #1a2332;
+      --line: #2a3648;
+      --green: #34d399;
+      --green-light: #064e3b;
+      --amber: #fbbf24;
+      --amber-light: #78350f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e8ecf0;
+    --muted: #8b9aad;
+    --brand: #60a5fa;
+    --brand-light: #1e3a5f;
+    --bone: #0f1724;
+    --paper: #1a2332;
+    --line: #2a3648;
+    --green: #34d399;
+    --green-light: #064e3b;
+    --amber: #fbbf24;
+    --amber-light: #78350f;
+  }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--bone);
+    color: var(--ink);
+    padding: 24px 16px;
+  }
+
+  .card {
+    max-width: 640px;
+    margin: 0 auto;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .header {
+    background: var(--brand);
+    color: #fff;
+    padding: 20px 24px;
+    text-align: center;
+  }
+  .header h1 {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 20px;
+    font-weight: 400;
+    margin: 0 0 4px;
+  }
+  .header p {
+    font-size: 12px;
+    opacity: 0.85;
+    margin: 0;
+  }
+
+  .content {
+    padding: 20px 24px;
+  }
+
+  .flow {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .flow:last-of-type {
+    border-bottom: none;
+    margin-bottom: 12px;
+    padding-bottom: 0;
+  }
+
+  .flow-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .flow-number {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--brand-light);
+    color: var(--brand);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .flow-title {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .steps {
+    margin: 0;
+    padding: 0 0 0 38px;
+    list-style: none;
+    counter-reset: step;
+  }
+
+  .steps li {
+    position: relative;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink);
+    padding: 3px 0;
+    padding-left: 16px;
+  }
+
+  .steps li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 11px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--brand);
+  }
+
+  .steps .key {
+    font-weight: 600;
+    color: var(--brand);
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .info-box {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .info-box .label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .info-box .value {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    word-break: break-all;
+  }
+
+  .tip {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--amber-light);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 16px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .tip-icon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: var(--amber);
+    margin-top: 1px;
+  }
+
+  .support {
+    text-align: center;
+    padding: 14px 24px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .support a {
+    color: var(--brand);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .card { border: none; border-radius: 0; }
+  }
+
+  @media (max-width: 480px) {
+    .info-grid { grid-template-columns: 1fr; }
+    .content { padding: 16px 18px; }
+  }
+</style>
+
+<div class="card">
+  <div class="header">
+    <h1>How to Use the System</h1>
+    <p>Ramachandra Ortho Care · Front Desk Quick Reference</p>
+  </div>
+
+  <div class="content">
+    <!-- Flow 1: Walk-in -->
+    <div class="flow">
+      <div class="flow-header">
+        <div class="flow-number">1</div>
+        <div class="flow-title">Add a walk-in patient</div>
+      </div>
+      <ul class="steps">
+        <li>Open <span class="key">ramachandraorthocare.com/admin</span> and log in</li>
+        <li>You will land on the <span class="key">Today</span> tab</li>
+        <li>Scroll down to <span class="key">Walk-in / reserve</span></li>
+        <li>Enter patient name, phone (optional), age, gender</li>
+        <li>Click <span class="key">Add to queue</span></li>
+        <li>A token number will be issued automatically</li>
+      </ul>
+    </div>
+
+    <!-- Flow 2: Today's Queue -->
+    <div class="flow">
+      <div class="flow-header">
+        <div class="flow-number">2</div>
+        <div class="flow-title">Manage today's queue</div>
+      </div>
+      <ul class="steps">
+        <li>The <span class="key">Today</span> tab shows all patients for the day</li>
+        <li>Use <span class="key">Call next</span> to move a patient to "Waiting"</li>
+        <li>Click the green checkmark to mark a patient as "Consulting"</li>
+        <li>When done, mark them as "Done"</li>
+        <li>Use <span class="key">Broadcast</span> to send a WhatsApp message to all waiting patients</li>
+      </ul>
+    </div>
+
+    <!-- Flow 3: Reschedule/Cancel -->
+    <div class="flow">
+      <div class="flow-header">
+        <div class="flow-number">3</div>
+        <div class="flow-title">Reschedule or cancel</div>
+      </div>
+      <ul class="steps">
+        <li>Find the patient in today's queue or the <span class="key">Calendar</span> tab</li>
+        <li>Click the <span class="key">circular arrow</span> icon to reschedule</li>
+        <li>Pick a new date and time, then confirm</li>
+        <li>The patient gets an updated WhatsApp message automatically</li>
+        <li>To cancel instead, click the <span class="key">X</span> icon</li>
+      </ul>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-box">
+        <div class="label">Admin login</div>
+        <div class="value">ramachandraorthocare.com/admin</div>
+      </div>
+      <div class="info-box">
+        <div class="label">Doctor login</div>
+        <div class="value">ramachandraorthocare.com/doctor</div>
+      </div>
+      <div class="info-box">
+        <div class="label">Clinic WhatsApp</div>
+        <div class="value">+91 93814 39203</div>
+      </div>
+      <div class="info-box">
+        <div class="label">Booking page</div>
+        <div class="value">ramachandraorthocare.com/book</div>
+      </div>
+    </div>
+
+    <div class="tip">
+      <svg class="tip-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg>
+      <span>If anything stops working or shows an error, take a screenshot and WhatsApp it to the developer. Most issues can be fixed remotely in minutes.</span>
+    </div>
+  </div>
+
+  <div class="support">
+    Built by <a href="https://made-by-ac.com">made. by ac</a> · Support: +91 93816 30776
+  </div>
+</div>
