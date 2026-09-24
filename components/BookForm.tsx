@@ -54,15 +54,14 @@ export function BookForm() {
   const [duplicateSlot, setDuplicateSlot] = useState(false);
 
   // The flow starts on a short entry step with three choices: a new patient
-  // pays the flat ₹400 consultation fee online; a returning patient books at a
-  // reduced ₹350 but pays at the clinic counter, never online (the desk
-  // verifies and collects it, and the admin queue marks it "Returning
-  // patient"); a free-review visit within 10 days books at ₹0.
+  // pays the flat ₹400 consultation fee online; a returning patient pays a
+  // reduced ₹350, also online, to confirm; a free-review visit within 10 days
+  // books at ₹0 with no payment at all.
   const [stage, setStage] = useState<"patient" | "book" | "done">("patient");
-  // Self-declared payment exemption: claim bookings (returning_unverified,
-  // review_free) skip payment_pending/Razorpay entirely — the booking lands
-  // straight in "reserved". A returning patient pays the reduced fee at the
-  // clinic; a free review pays nothing.
+  // Self-declared claim: only review_free skips payment_pending/Razorpay
+  // entirely (the booking lands straight in "reserved", paid:true).
+  // returning_unverified follows the exact same payment_pending → Razorpay →
+  // reserved path as a new patient, just at the reduced fee.
   const [claim, setClaim] = useState<"returning_unverified" | "review_free" | null>(null);
 
   // Last unpaid hold, shown as the resume-payment banner on a returning visit.
@@ -117,10 +116,10 @@ export function BookForm() {
 
   // A booking landing on the confirmation screen unpaid is a resume candidate:
   // remember it so a patient who abandons the tab can come back and pay. A
-  // paid, claimed (free review, no online payment ever applies), or absent
+  // paid booking (including an immediately-paid free review) or absent
   // booking drops it (clearResume handles the paid paths).
   useEffect(() => {
-    if (booked && stage === "done" && !booked.paid && !booked.claimType) {
+    if (booked && stage === "done" && !booked.paid) {
       try { localStorage.setItem(RESUME_KEY, JSON.stringify(booked)); } catch {}
     }
   }, [booked, stage]);
@@ -351,12 +350,7 @@ export function BookForm() {
             {booked.patientCode && <Row icon={BadgeCheck} v={`${t("book.patient.code")}: ${booked.patientCode}`} />}
           </dl>
           {booked.patientCode && <p className="mt-3 rounded-xl bg-brand-tint px-3 py-2 text-xs text-brand">{t("book.patient.saveid", { code: booked.patientCode })}</p>}
-          {booked.claimType === "returning_unverified" ? (
-            <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
-              <p className="text-sm font-semibold text-out">{t("book.done.returning", { cur: clinic.currency, fee: booked.fee })}</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted">{t("book.done.returningSub")}</p>
-            </div>
-          ) : !booked.paid ? (
+          {!booked.paid ? (
             <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
               <p className="text-sm font-semibold text-out">{t("book.done.payRequired")}</p>
               <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -374,25 +368,23 @@ export function BookForm() {
           )}
           {/* The carry-over-to-next-day line is about confirmed no-shows; an
               unpaid booking is cancelled outright instead, so it would read as
-              a contradiction here. Show it once payment confirmed the slot —
-              or for a claim booking, which is already "reserved" and carries
-              over the same as any other confirmed appointment. */}
-          {(booked.paid || booked.claimType) && <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>}
+              a contradiction here. Show it only once payment confirmed the
+              slot. */}
+          {booked.paid && <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>}
           {payErr && <p role="alert" className="mt-3 text-sm text-out">{payErr}</p>}
           <div className="mt-6 flex flex-col gap-2">
-            {!booked.paid && !booked.claimType && (
+            {!booked.paid && (
               <button onClick={doPay} disabled={payBusy} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
                 {payBusy ? <span className="spinner" aria-hidden /> : <Wallet className="h-4 w-4 shrink-0" />} {t("book.done.paynow")}
               </button>
             )}
             {/* My Appointment won't show a payment_pending row (it's not real
                 until paid), so the "View appointment" link runs only once
-                payment confirmed the slot — or for a claim booking, which is
-                already "reserved" and real. It's the primary action in this
+                payment confirmed the slot. It's the primary action in this
                 cluster the moment the booking is real, so it leads — filled
                 brand, same weight as Pay now does for an unpaid one — rather
                 than hiding as a third outline link under WhatsApp. */}
-            {(booked.paid || booked.claimType) && (
+            {booked.paid && (
               <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark">
                 <CalendarDays className="h-4 w-4 shrink-0" /> {t("book.done.view")}
               </Link>
@@ -462,9 +454,8 @@ export function BookForm() {
             </div>
           </button>
 
-          {/* Returning patient: reduced fee (₹350), no online payment. The slot
-              confirms under "returning_unverified" (paid:false) and the admin
-              queue marks it to collect ₹{fee} at the clinic counter. */}
+          {/* Returning patient: reduced fee (₹350), paid online — same
+              payment_pending → Razorpay → reserved flow as a new patient. */}
           <button onClick={() => { setClaim("returning_unverified"); setStage("book"); }} className="press w-full rounded-3xl border border-line bg-surface p-5 text-left transition hover:border-brand/40">
             <div className="flex items-center gap-3">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent/15 text-out"><User className="h-5 w-5" /></span>

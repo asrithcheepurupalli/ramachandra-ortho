@@ -107,8 +107,9 @@ export type BotState = {
   pendingAge?: number;   // carry age through the gender step before submitting
   pendingGender?: "M" | "F" | null; // carry gender through the locality step before submitting
   // Patient type chosen up front (new = unset). Carried through the slot picker
-  // and into addBooking, so returning/free-review claims land straight in
-  // reserved with no online payment, mirroring the website form + WhatsApp Flow.
+  // and into addBooking. Returning claims still pay online (reduced fee) and
+  // go through the same payment_pending -> Razorpay -> reserved flow as a new
+  // patient; only a free-review claim lands straight in reserved, no payment.
   claim?: "returning_unverified" | "review_free";
 };
 // Stages the "cancel" escape hatch checks against, shared by the client and
@@ -259,9 +260,9 @@ type PhrasePack = {
   askPhone: string;
   askContactConfirm: (phone: string) => string;
   // First question of a fresh booking: which kind of patient — new (pay
-  // online), returning (pay at the counter), or a free review visit (₹0).
-  // The three chips below answer it; the fee split is what makes the choice
-  // meaningful before a slot is picked.
+  // online, full fee), returning (pay online, reduced fee), or a free review
+  // visit (₹0). The three chips below answer it; the fee split is what makes
+  // the choice meaningful before a slot is picked.
   patientTypePrompt: string;
   badPhone: string;
   slotTaken: string;
@@ -283,6 +284,8 @@ type PhrasePack = {
   confirm: (tok: number, s: string, feeAmt: number) => string;
   // The self-declared payment exemption (free review visit, no online payment).
   claimFreeConfirm: (tok: number, s: string) => string;
+  // Returning patient hold: same payment_pending shape as confirm(), reduced
+  // fee, plus the "bring your previous prescription" caution.
   claimReturningConfirm: (tok: number, s: string, feeAmt: number) => string;
   cancelAsk: string;
   payNone: string;
@@ -335,7 +338,7 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} is *not in today*. The next available is *${d} at ${t}*. Tap *Book appointment* to reserve.`,
     availNone: `${dr} has no slots in the coming days. Please call the clinic on ${clinic.contact.phone}.`,
     bookIntro: "Sure! Here are the open slots. Tap the one you want:",
-    patientTypePrompt: `First visit, a return visit, or a free review visit (within 10 days)?\n• *New patient*: ${cur}${fee} online to confirm\n• *Returning patient*: ${cur}${clinic.returningFee} at the clinic counter\n• *Free review visit*: no charge\nTap one below:`,
+    patientTypePrompt: `First visit, a return visit, or a free review visit (within 10 days)?\n• *New patient*: ${cur}${fee} online to confirm\n• *Returning patient*: ${cur}${clinic.returningFee} online to confirm (bring your previous prescription/OP slip)\n• *Free review visit*: no charge\nTap one below:`,
     pickDay: "Sure! Here are the days with open slots. Tap one:",
     pickWindow: (day: string) => `Sure! For ${day}, would you prefer morning or evening?`,
     pickRange: (day: string) => `That's a lot of open times for ${day}. Pick a range:`,
@@ -355,7 +358,7 @@ const P: Record<Lang, PhrasePack> = {
     flowBookFail: "Something went wrong booking that. Please message us and we'll sort it out.",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 15 minutes*. Complete the consultation fee payment to confirm the appointment.\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
         claimFreeConfirm: (tok: number, s: string) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · free review visit.\n\n*Bring your previous prescription and reports.* Without them, this visit cannot be considered a free review.\n\nMissed your slot? Moves to the next working day automatically.\n\n${WAIT_NOTE.en}`,
-        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *Booked!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt} — pay at desk.\n\n*Bring your previous prescription and reports.* Without them, this visit cannot be considered a returning patient visit.\n\nMissed your slot? Moves to the next working day automatically.\n\n${WAIT_NOTE.en}`,
+        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *Slot held!* Your token is *#${tok}* for ${s}.\n${dr} · ${cur}${feeAmt}. It's *held for 15 minutes*. Complete the consultation fee payment to confirm the appointment.\n\n*Bring your previous prescription and reports.* Without them, this visit cannot be considered a returning patient visit.\n\nMissed your slot? It's automatically moved to the next working day, no need to rebook.\n${WAIT_NOTE.en}`,
     cancelAsk: `Cancellations are handled by the clinic, so I can't cancel it for you here. Would you like to move it to a new time instead? Tap *Reschedule*, or call the clinic on ${clinic.contact.phone} to cancel.`,
     payNone: "You don't have any unpaid appointments right now.",
     payWhich: "You have a few unpaid appointments. Tap the one you'd like to pay for:",
@@ -396,7 +399,7 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} ఈరోజు *అందుబాటులో లేరు*. తర్వాత అందుబాటు: *${d}, ${t}*. బుక్ చేయడానికి *అపాయింట్‌మెంట్ బుక్ చేయండి* నొక్కండి.`,
     availNone: `రాబోయే రోజుల్లో స్లాట్‌లు లేవు. దయచేసి క్లినిక్‌కు కాల్ చేయండి: ${clinic.contact.phone}.`,
     bookIntro: "తప్పకుండా! ఖాళీగా ఉన్న స్లాట్‌లు ఇవి. మీకు కావలసినది నొక్కండి:",
-    patientTypePrompt: `మొదటిసారి వస్తున్నారా, మళ్ళీ వస్తున్నారా, లేదా ఉచిత రివ్యూ విజిట్ (10 రోజుల్లోపు)?\n• *కొత్త పేషెంట్*: ${cur}${fee} ఆన్‌లైన్‌లో చెల్లించాలి\n• *మళ్ళీ వచ్చే పేషెంట్*: క్లినిక్‌లో ${cur}${clinic.returningFee}\n• *ఉచిత రివ్యూ విజిట్*: ఉచితం\nకింద ఒకటి నొక్కండి:`,
+    patientTypePrompt: `మొదటిసారి వస్తున్నారా, మళ్ళీ వస్తున్నారా, లేదా ఉచిత రివ్యూ విజిట్ (10 రోజుల్లోపు)?\n• *కొత్త పేషెంట్*: ${cur}${fee} ఆన్‌లైన్‌లో చెల్లించాలి\n• *మళ్ళీ వచ్చే పేషెంట్*: ${cur}${clinic.returningFee} ఆన్‌లైన్‌లో చెల్లించాలి (పాత ప్రిస్క్రిప్షన్/OP స్లిప్ తీసుకురండి)\n• *ఉచిత రివ్యూ విజిట్*: ఉచితం\nకింద ఒకటి నొక్కండి:`,
     pickDay: "తప్పకుండా! ఖాళీ స్లాట్‌లు ఉన్న రోజులు ఇవి. ఒకటి నొక్కండి:",
     pickWindow: (day: string) => `సరే! ${day} కోసం, ఉదయం లేదా సాయంత్రం, ఏది కావాలి?`,
     pickRange: (day: string) => `${day} కోసం చాలా సమయాలు ఖాళీగా ఉన్నాయి. ఒక పరిధిని ఎంచుకోండి:`,
@@ -416,7 +419,7 @@ const P: Record<Lang, PhrasePack> = {
     flowBookFail: "బుక్ చేయడంలో ఏదో సమస్య వచ్చింది. దయచేసి మళ్ళీ మెసేజ్ చేయండి, మేము సరిచేస్తాము.",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఈ స్లాట్ *15 నిమిషాలు* మీ కోసమే ఉంటుంది. అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\nసమయం మిస్ అయితే పర్వాలేదు, అది దానంతట అదే మరుసటి రోజుకి మారిపోతుంది.\n${WAIT_NOTE.te}`,
         claimFreeConfirm: (tok: number, s: string) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ఫ్రీ రివ్యూ విజిట్.\n\n*పాత ప్రిస్క్రిప్షన్ మరియు రిపోర్టులు తీసుకురండి.* లేకపోతే ఫ్రీ రివ్యూగా పరిగణించబడదు.\n\nస్లాట్ మిస్ అయితే మరుసటి రోజుకి దానంతట మారిపోతుంది.\n\n${WAIT_NOTE.te}`,
-        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *బుక్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt} — డెస్క్‌లో చెల్లించండి.\n\n*పాత ప్రిస్క్రిప్షన్ మరియు రిపోర్టులు తీసుకురండి.* లేకపోతే రిటర్నింగ్ పేషెంట్‌గా పరిగణించబడదు.\n\nస్లాట్ మిస్ అయితే మరుసటి రోజుకి దానంతట మారిపోతుంది.\n\n${WAIT_NOTE.te}`,
+        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *స్లాట్ హోల్డ్ అయింది!* మీ టోకెన్ *#${tok}*, ${s}.\n${dr} · ${cur}${feeAmt}. ఈ స్లాట్ *15 నిమిషాలు* మీ కోసమే ఉంటుంది. అపాయింట్‌మెంట్ నిర్ధారించడానికి కన్సల్టేషన్ ఫీజు చెల్లించండి.\n\n*పాత ప్రిస్క్రిప్షన్ మరియు రిపోర్టులు తీసుకురండి.* లేకపోతే రిటర్నింగ్ పేషెంట్‌గా పరిగణించబడదు.\n\nసమయం మిస్ అయితే పర్వాలేదు, అది దానంతట అదే మరుసటి రోజుకి మారిపోతుంది.\n${WAIT_NOTE.te}`,
     cancelAsk: `రద్దులను క్లినిక్ నిర్వహిస్తుంది, కాబట్టి నేను ఇక్కడ రద్దు చేయలేను. బదులుగా కొత్త సమయానికి మార్చుకోవాలనుకుంటున్నారా? *షెడ్యూల్ మార్చండి* నొక్కండి, లేదా రద్దు కోసం క్లినిక్‌కు ${clinic.contact.phone} కాల్ చేయండి.`,
     payNone: "ప్రస్తుతం మీకు చెల్లించని అపాయింట్‌మెంట్‌లు లేవు.",
     payWhich: "మీకు కొన్ని చెల్లించని అపాయింట్‌మెంట్‌లు ఉన్నాయి. చెల్లించాల్సినది నొక్కండి:",
@@ -457,7 +460,7 @@ const P: Record<Lang, PhrasePack> = {
     availOut: (d: string, t: string) => `${dr} आज *उपलब्ध नहीं* हैं। अगली उपलब्धता: *${d}, ${t}*। बुक करने के लिए *अपॉइंटमेंट बुक करें* दबाएँ।`,
     availNone: `आने वाले दिनों में कोई स्लॉट नहीं है। कृपया क्लिनिक को कॉल करें: ${clinic.contact.phone}।`,
     bookIntro: "ज़रूर! ये खाली स्लॉट हैं। जो चाहिए उसे दबाएँ:",
-    patientTypePrompt: `पहली बार, दोबारा आ रहे हैं, या फ्री रिव्यू विज़िट (10 दिनों के भीतर)?\n• *नया मरीज़*: ${cur}${fee} ऑनलाइन चुकाएँ\n• *दोबारा आ रहे मरीज़*: क्लिनिक पर ${cur}${clinic.returningFee}\n• *फ्री रिव्यू विज़िट*: मुफ़्त\nनीचे एक चुनें:`,
+    patientTypePrompt: `पहली बार, दोबारा आ रहे हैं, या फ्री रिव्यू विज़िट (10 दिनों के भीतर)?\n• *नया मरीज़*: ${cur}${fee} ऑनलाइन चुकाएँ\n• *दोबारा आ रहे मरीज़*: ${cur}${clinic.returningFee} ऑनलाइन चुकाएँ (पुराना प्रिस्क्रिप्शन/OP स्लिप साथ लाएं)\n• *फ्री रिव्यू विज़िट*: मुफ़्त\nनीचे एक चुनें:`,
     pickDay: "ज़रूर! ये वे दिन हैं जिनमें स्लॉट खाली हैं। एक चुनें:",
     pickWindow: (day: string) => `ठीक है! ${day} के लिए, सुबह या शाम, कौन सा समय बेहतर रहेगा?`,
     pickRange: (day: string) => `${day} के लिए बहुत सारे खाली समय हैं। एक रेंज चुनें:`,
@@ -477,7 +480,7 @@ const P: Record<Lang, PhrasePack> = {
     flowBookFail: "बुकिंग में कुछ समस्या हुई। कृपया दोबारा मैसेज करें, हम ठीक कर देंगे।",
     confirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *15 मिनट* के लिए होल्ड है। अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
         claimFreeConfirm: (tok: number, s: string) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · फ्री रिव्यू विजिट।\n\n*पुराना प्रिस्क्रिप्शन और रिपोर्ट साथ लाएं।* बिना इनके यह विजिट फ्री रिव्यू नहीं मानी जाएगी।\n\nस्लॉट मिस हो जाए तो अगले कार्य दिवस पर अपने आप चला जाएगा।\n\n${WAIT_NOTE.hi}`,
-        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *बुक हो गया!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt} — डेस्क पर दें।\n\n*पुराना प्रिस्क्रिप्शन और रिपोर्ट साथ लाएं।* बिना इनके यह रिटर्निंग पेशेंट विजिट नहीं मानी जाएगी।\n\nस्लॉट मिस हो जाए तो अगले कार्य दिवस पर अपने आप चला जाएगा।\n\n${WAIT_NOTE.hi}`,
+        claimReturningConfirm: (tok: number, s: string, feeAmt: number) => `✅ *स्लॉट होल्ड है!* आपका टोकन *#${tok}*, ${s}।\n${dr} · ${cur}${feeAmt}। यह *15 मिनट* के लिए होल्ड है। अपॉइंटमेंट पुष्टि करने के लिए परामर्श शुल्क का भुगतान करें।\n\n*पुराना प्रिस्क्रिप्शन और रिपोर्ट साथ लाएं।* बिना इनके यह रिटर्निंग पेशेंट विजिट नहीं मानी जाएगी।\n\nसमय मिस हो जाए तो चिंता न करें, यह अपने आप अगले कार्य दिवस पर चला जाएगा।\n${WAIT_NOTE.hi}`,
     cancelAsk: `रद्दीकरण क्लिनिक संभालता है, इसलिए मैं इसे यहाँ रद्द नहीं कर सकता। क्या आप इसके बजाय इसे किसी नए समय पर ले जाना चाहेंगे? *रीशेड्यूल* दबाएँ, या रद्द करने के लिए क्लिनिक को ${clinic.contact.phone} पर कॉल करें।`,
     payNone: "अभी आपके पास कोई बकाया अपॉइंटमेंट नहीं है।",
     payWhich: "आपके कुछ अपॉइंटमेंट का भुगतान बाकी है। जिसका भुगतान करना है उसे दबाएँ:",
@@ -726,9 +729,10 @@ async function startRescheduleClient(phone: string, t: PhrasePack): Promise<BotO
 }
 
 // Shared entry into the day picker for a fresh booking. The patient-type choice
-// made up front (new = claim unset, returning = pay at the counter, free review
-// = ₹0) is carried through into addBooking so those claims land straight in
-// reserved with no online payment, mirroring the website form + WhatsApp Flow.
+// made up front (new = claim unset, returning = reduced fee, free review = ₹0)
+// is carried through into addBooking. New and returning both land as
+// payment_pending online-pay holds; only free review lands straight in
+// reserved with no payment, mirroring the website form + WhatsApp Flow.
 // "Returning patient" / "free review" typed as free text route here too, with
 // the claim preset by the switch below.
 async function startBooking(
@@ -742,12 +746,13 @@ async function startBooking(
 }
 
 // Booking-completion reply. The patient type was already declared before the
-// slot, so a normal (new-patient) booking simply prompts with a single Pay now
-// action — no standing-menu noise (doctor in/about/location/thanks) and no
-// post-hoc rebook chips; both are gone from this step. A returning / free-review
-// claim is confirmed instantly: no pay prompt, no pay chips. baseChips are the
-// surface's standing chips (chat omits location, flow includes it), shown only
-// to claim bookers whose confirmation has nothing else to offer.
+// slot. New and returning bookings both land as payment_pending holds, so both
+// get the same single Pay now action — no standing-menu noise (doctor
+// in/about/location/thanks) and no post-hoc rebook chips; both are gone from
+// this step. Only a free-review claim is confirmed instantly: no pay prompt,
+// no pay chips. baseChips are the surface's standing chips (chat omits
+// location, flow includes it), shown only to the free-review booker whose
+// confirmation has nothing else to offer.
 function bookingDoneReply(
   t: PhrasePack,
   c: PhrasePack["chips"],
@@ -762,7 +767,11 @@ function bookingDoneReply(
     return { reply: [t.claimFreeConfirm(appt.token, slot.label)], chips: baseChips, state };
   }
   if (appt.claimType === "returning_unverified") {
-    return { reply: [t.claimReturningConfirm(appt.token, slot.label, appt.fee)], chips: baseChips, state };
+    return {
+      reply: [t.claimReturningConfirm(appt.token, slot.label, appt.fee), t.payPrompt],
+      chips: [c.payNow],
+      state,
+    };
   }
   return {
     reply: [t.confirm(appt.token, slot.label, appt.fee), t.payPrompt],
@@ -1143,9 +1152,10 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
         return { reply: [t.viewPrompt], chips: [], state: { stage: "await_pay_phone" } };
       }
       const { appts } = await lookupClient(phone, true);
-      // Claim rows (returning/Free review) never pay online, so they must not
-      // surface in the pay list — the clinic collects them at the counter.
-      const unpaid = appts.filter((a) => !a.paid && !a.claimType);
+      // Free-review rows never pay online, so they must not surface in the pay
+      // list — that's the only claim type the clinic doesn't charge for. New
+      // and returning bookings both owe an online fee, so both show up here.
+      const unpaid = appts.filter((a) => !a.paid && a.claimType !== "review_free");
       if (!unpaid.length) {
         return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
       }
@@ -1270,9 +1280,10 @@ async function slotTakenFallbackServer(resched: { id: string; phone: string }, d
 
 // Server mirror of startBooking: "Returning patient" / "Free review visit"
 // chosen at the patient-type step (or typed as free text) open the day picker
-// with the claim preset, so the picker threads it into addBooking and the
-// booking lands reserved without a payment step. Stage is reset to idle here
-// exactly like the client — the claim rides in state, not the stage.
+// with the claim preset, so the picker threads it into addBooking. Returning
+// still lands payment_pending like a new booking, just at the reduced fee;
+// only free review lands reserved without a payment step. Stage is reset to
+// idle here exactly like the client — the claim rides in state, not the stage.
 async function startBookingServer(
   backend: Backend,
   sched: SchedState,
@@ -1348,11 +1359,9 @@ export function flowPayPrompt(lang: Lang): string { return P[lang].payPrompt; }
 // so the Flow follow-up carries a real tappable button, not just the word.
 export function flowPayNowLabel(lang: Lang): string { return P[lang].chips.payNow; }
 export function flowStartOverLabel(lang: Lang): string { return P[lang].chips.startOver; }
-// Flow-submission confirmations. A normal flow booking lands as a payment_pending
-// hold and gets the mandatory pay prompt; a claim selection (returning/Free
-// review) confirms straight away, and these render its done message. slotLabel
-// is e.g. "Fri, Sep 12 at 10:00 AM".
-export function flowReturningConfirmMsg(lang: Lang, tok: number, slotLabel: string, fee: number): string { return P[lang].claimReturningConfirm(tok, slotLabel, fee); }
+// Flow-submission confirmation for the one claim type that skips payment
+// entirely: a free-review booking lands reserved straight away and this
+// renders its done message. slotLabel is e.g. "Fri, Sep 12 at 10:00 AM".
 export function flowFreeConfirmMsg(lang: Lang, tok: number, slotLabel: string): string { return P[lang].claimFreeConfirm(tok, slotLabel); }
 
 // Shared by the resumePay intent and the pay intent's empty fallback: revives
@@ -1496,7 +1505,10 @@ export async function botReplyServer(
     const gender = state.pendingGender ?? null;
     try {
       const appt = await backend.addBooking({ name: state.name || "Patient", phone: bookPhone, age, gender, locality, date: state.slot.date, time: state.slot.time, source, replacePending: state.replacePending, claim: state.claim });
-      if (appt.claimType) await backend.notifyClaimBooking(appt);
+      // Only a free-review claim lands confirmed with no webhook to notify from —
+      // a returning claim is payment_pending like a new booking and gets its
+      // notification for free when the Razorpay webhook fires.
+      if (appt.claimType === "review_free") await backend.notifyClaimBooking(appt);
       return bookingDoneReply(t, c, appt, state.slot, state.name, bookPhone, [c.avail, c.about, c.location, c.done]);
     } catch (err) {
       if (err instanceof PendingHoldError) {
@@ -1663,10 +1675,10 @@ export async function botReplyServer(
       // includePending: a just-booked appointment is payment_pending until the
       // webhook confirms payment, and the whole point of the pay intent is to
       // collect that payment.
-      // Claim rows (returning/Free review) never pay online — the clinic collects
-      // at the counter — so exclude them or the pay intent would hand out a
-      // Razorpay link for a booking that must not be charged online.
-      const active = (await backend.activeAppointmentsByPhone(phone, true)).filter((a) => !a.paid && !a.claimType);
+      // Free-review rows never pay online — that's the only claim type the
+      // clinic doesn't charge for — so exclude only those, or the pay intent
+      // would hand out a Razorpay link for a booking that must not be charged.
+      const active = (await backend.activeAppointmentsByPhone(phone, true)).filter((a) => !a.paid && a.claimType !== "review_free");
       if (!active.length) {
         // Nothing active and unpaid — but a cancelled/lapsed hold may still be
         // revivable, so the stale "Pay now" chip self-heals into the same resume

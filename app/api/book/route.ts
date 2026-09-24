@@ -64,14 +64,15 @@ export async function POST(req: NextRequest) {
       replacePending: replacePending === true,
       claim: isClaim(claim) ? claim : undefined,
     });
-    // No confirmation template here. A new booking sits in payment_pending for
-    // the payment window, so nothing may say "confirmed" yet — the number arrives
-    // on the screen with the pay banner, and the real confirmation goes out as
-    // META_TEMPLATE_PAID once the Razorpay webhook flips it to reserved.
+    // No confirmation template here. A new or returning booking sits in
+    // payment_pending for the payment window, so nothing may say "confirmed"
+    // yet — the number arrives on the screen with the pay banner, and the real
+    // confirmation goes out as META_TEMPLATE_PAID once the Razorpay webhook
+    // flips it to reserved.
     //
-    // A claimed booking skips payment_pending and Razorpay entirely, so it
+    // Only a free review skips payment_pending and Razorpay entirely, so it
     // never reaches the webhook that would otherwise fire this — send it here.
-    if (appt.claimType) {
+    if (appt.claimType === "review_free") {
       const emailOk = await sendNewAppointmentEmail(appt);
       if (!emailOk) await reportError("book", new Error("claim email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
       const waOk = await sendBookingConfirmation(appt);

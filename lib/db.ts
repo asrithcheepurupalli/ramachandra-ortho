@@ -167,14 +167,15 @@ async function ensurePatient(
 // phone before inserting (the patient is choosing to start over rather than
 // pay the old hold).
 //
-// claim: a self-declared payment exemption. "review_free" (a follow-up visit
-// within the review window) books at ₹0, nothing is collected. "returning_unverified"
-// is a returning patient who pays a reduced ₹350 at the clinic counter, never
-// online — the admin queue flags the row so the desk collects it. In both
-// cases there's no pre-launch patient record to check the
-// self-declaration against, so it's trusted at booking time and verified in
-// person at the desk. A claimed booking skips payment_pending and Razorpay
-// entirely and lands straight in "reserved".
+// claim: a self-declared visit type. "review_free" (a follow-up visit within
+// the review window) books at ₹0, nothing is collected, and skips
+// payment_pending/Razorpay entirely — it lands straight in "reserved" with
+// paid:true. "returning_unverified" is a returning patient who pays a
+// reduced ₹350, but online, same as a new patient — it follows the exact
+// same payment_pending → Razorpay → reserved path, just at the lower fee.
+// There's no pre-launch patient record to check either self-declaration
+// against, so it's trusted at booking time and verified in person at the
+// desk (bring the previous OP slip / prescription).
 export async function dbAddBooking(input: {
   name: string; phone: string; age: number; gender?: "M" | "F" | null; locality?: string | null; date: string; time: string; source?: Source; replacePending?: boolean;
   claim?: "returning_unverified" | "review_free";
@@ -230,16 +231,20 @@ export async function dbAddBooking(input: {
       // cancelled). Conversion keeps the original token and never creates a
       // phantom row. appointments_pending_hold_idx guarantees at most one hold
       // per phone, so pending[0] is the only one.
+      // review_free converts straight to "reserved" (paid, confirmed — no
+      // payment step). returning_unverified stays "payment_pending" at the
+      // reduced fee, same as any other unpaid hold, waiting on Razorpay.
       const hold = pending![0];
       const sameSlot = hold.appt_date === input.date && hold.appt_time === input.time;
       if (input.claim && sameSlot) {
+        const confirmed = input.claim === "review_free";
         const { data: converted, error: convErr } = await db
           .from("appointments")
           .update({
-            status: "reserved",
+            status: confirmed ? "reserved" : "payment_pending",
             claim_type: input.claim,
-            fee: input.claim === "review_free" ? 0 : clinic.returningFee,
-            paid: input.claim === "review_free",
+            fee: confirmed ? 0 : clinic.returningFee,
+            paid: confirmed,
             source: input.source ?? "website",
             name: input.name,
           })
@@ -253,10 +258,12 @@ export async function dbAddBooking(input: {
           .maybeSingle();
         if (convErr) throw convErr;
         if (converted) {
-          // The hold was created patientless (deferred at booking, see above);
-          // converting it into a confirmed claim booking IS a confirmation, so
-          // promote the phone into patients now and stamp the code onto the row.
-          if (phone && !converted.patient_id) {
+          // The hold was created patientless (deferred at booking, see above).
+          // Only an immediately-confirmed claim (review_free) is a real
+          // confirmation here — promote the phone into patients now. A
+          // returning_unverified conversion is still an unpaid hold; its
+          // patient row is created later, when the webhook confirms payment.
+          if (confirmed && phone && !converted.patient_id) {
             const created = await ensurePatient(name, phone);
             const { error: backErr } = await db
               .from("appointments")
@@ -337,19 +344,20 @@ export async function dbAddBooking(input: {
 
   // The final claim: an explicit claim is trusted at booking time (verified in
   // person — there's no pre-launch record to check it against). "review_free"
-  // books at ₹0; "returning_unverified" keeps a reduced ₹350 fee but pays at
-  // the clinic (paid stays false, the desk collects it). Every other booking
-  // pays the flat ₹400 online.
+  // books at ₹0, nothing collected. "returning_unverified" keeps a reduced
+  // ₹350 fee, paid online same as a new patient. Every other booking pays the
+  // flat ₹400 online.
   const claim = input.claim;
   if (claim === "review_free") fee = 0;
   else if (claim === "returning_unverified") fee = clinic.returningFee;
 
-  // A claimed booking is confirmed at insert (status "reserved" below — no
+  // Only review_free is confirmed at insert (status "reserved" below — no
   // Razorpay step, no hold to wait on), so if it's the phone's first-ever
   // booking this is a genuinely confirmed patient: create the row now so the
-  // appointment carries the ROC code. A non-claim hold stays patientless until
-  // the payment webhook confirms it (see dbMarkPaidByPaymentLink).
-  if (claim && !patientId && phone) {
+  // appointment carries the ROC code. Every other booking (including a
+  // returning_unverified claim) stays patientless until the payment webhook
+  // confirms it (see dbMarkPaidByPaymentLink).
+  if (claim === "review_free" && !patientId && phone) {
     const created = await ensurePatient(name, phone);
     patientId = created.id;
     patientCode = created.patientCode;
@@ -357,9 +365,10 @@ export async function dbAddBooking(input: {
 
   // Bookings start payment_pending (not reserved): the slot is held + the
   // Razorpay link has a reference_id, but nothing shows in any queue until
-  // the webhook flips it to reserved. A free-review claim skips that entirely
-  // — there's no Razorpay step, so it goes straight to "reserved" with
-  // `paid` true (₹0, nothing ever collected).
+  // the webhook flips it to reserved. This applies to returning_unverified
+  // too, at the reduced fee. Only a free-review claim skips that entirely —
+  // there's no Razorpay step, so it goes straight to "reserved" with `paid`
+  // true (₹0, nothing ever collected).
   // Slot capacity is unlimited, so there's no race to guard against there
   // anymore — but the per-day token sequence can still collide under
   // concurrent inserts (two patients both computing "next token" before
@@ -387,7 +396,7 @@ export async function dbAddBooking(input: {
         reason: "Consultation",
         appt_date: input.date,
         appt_time: input.time,
-        status: claim ? "reserved" : "payment_pending",
+        status: claim === "review_free" ? "reserved" : "payment_pending",
         source: input.source ?? "website",
         fee,
         paid: claim === "review_free",
@@ -485,10 +494,11 @@ export async function dbGetOrCreatePaymentLink(id: string, phone: string, attemp
   const appt = owned.find((a) => a.id === id);
   if (!appt) throw new Error("not_found");
   if (appt.paid) throw new Error("already_paid");
-  // Claim bookings (returning/Free review) must never be charged online — the
-  // clinic collects them at the counter. Refuse outright so no code path can
-  // mint a Razorpay link for one.
-  if (appt.claimType) throw new Error("claim_no_payment");
+  // A free-review claim must never be charged online — it's ₹0, nothing is
+  // ever collected. Refuse outright so no code path can mint a Razorpay link
+  // for one. returning_unverified pays online same as a new patient, so it's
+  // not blocked here.
+  if (appt.claimType === "review_free") throw new Error("claim_no_payment");
 
   const db = supabaseAdmin();
   const { data: row, error } = await db
@@ -896,6 +906,26 @@ export async function dbClearSessionDigestSent(date: string, windowStart: string
     .delete()
     .eq("date", date)
     .eq("window_start", windowStart);
+  if (error) throw error;
+}
+
+// The end-of-day reconciliation digest cron's idempotency guard — a
+// conditional insert (primary key on date) so a GitHub Actions retry or a
+// second near-boundary trigger can never send the digest twice for the same
+// IST date. Returns whether THIS caller just inserted the row — the caller
+// sends only then.
+export async function dbMarkDailyDigestSent(date: string): Promise<boolean> {
+  const { error } = await supabaseAdmin().from("daily_digest_sent").insert({ date });
+  if (!error) return true;
+  if (error.code === "23505") return false; // unique violation — already sent today
+  throw error;
+}
+
+// A transient Resend failure shouldn't lose a day's reconciliation email
+// forever — clear the marker so a manual re-trigger (or the next day's run,
+// if run early) can retry.
+export async function dbClearDailyDigestSent(date: string): Promise<void> {
+  const { error } = await supabaseAdmin().from("daily_digest_sent").delete().eq("date", date);
   if (error) throw error;
 }
 

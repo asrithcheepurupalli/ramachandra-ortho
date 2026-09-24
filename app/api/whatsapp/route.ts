@@ -4,7 +4,7 @@
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
 import { dbAddBooking, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbReactivateExpiredHold, dbRescheduleAppointment } from "@/lib/db";
-import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowDuplicateSlotMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, flowReturningConfirmMsg, flowFreeConfirmMsg, type Backend, type ServerBotState } from "@/lib/bot";
+import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowDuplicateSlotMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, flowFreeConfirmMsg, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail, sendNewAppointmentEmail } from "@/lib/mailer";
 import { SlotTakenError, PendingHoldError, DuplicateSlotError } from "@/lib/errors";
@@ -26,10 +26,10 @@ const backend: Backend = {
     if (!emailOk) await reportError("whatsapp", new Error("reschedule email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
     return appt;
   },
-  // Claim bookings (returning_unverified / review_free) skip Razorpay, so
-  // there's no webhook to fire
-  // the staff notification the way a paid booking gets it — send it here
-  // instead, right after the claim booking is created.
+  // Only a free-review claim skips Razorpay entirely, so it's the only claim
+  // type with no webhook to fire the staff notification the way a paid (or
+  // payment_pending returning) booking gets it — send it here instead, right
+  // after the free-review booking is created.
   notifyClaimBooking: async (appt) => {
     const ok = await sendNewAppointmentEmail(appt);
     if (!ok) await reportError("whatsapp", new Error("claim email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
@@ -120,10 +120,10 @@ export async function POST(req: NextRequest) {
       try {
         const parsed = JSON.parse(message.interactive.nfm_reply.response_json);
         // The flow's "Patient type" choice decides how the booking confirms:
-        // "new" books as a regular hold that pays online (mandatory pay prompt
-        // below); "returning" and "review" are claim bookings that skip payment
-        // entirely and confirm straight away. The admin queue flags returning
-        // rows so the desk collects the fee at the counter.
+        // "new" and "returning" both book as a payment_pending hold that pays
+        // online (mandatory pay prompt below) — returning just carries the
+        // reduced fee. Only "review" is a claim booking that skips payment
+        // entirely and confirms straight away.
         const flowClaim: "returning_unverified" | "review_free" | undefined =
           parsed.patient_type === "returning" ? "returning_unverified"
           : parsed.patient_type === "review" ? "review_free"
@@ -140,26 +140,26 @@ export async function POST(req: NextRequest) {
           source: "whatsapp",
           claim: flowClaim,
         });
-        if (flowClaim) {
-          // Claim flow submissions land confirmed (reserved) with no Razorpay
-          // step, and no webhook ever fires for them — notify the desk directly
-          // and confirm to the patient in place of the pay prompt. Returning
-          // still carries the "pay at the clinic" note.
+        if (flowClaim === "review_free") {
+          // Free review lands confirmed (reserved) with no Razorpay step, and
+          // no webhook ever fires for it — notify the desk directly and
+          // confirm to the patient in place of the pay prompt.
           await backend.notifyClaimBooking(appt);
           const d = new Date(appt.date + "T00:00:00");
           const [hh, mm] = appt.time.split(":").map(Number);
           const ampm = hh >= 12 ? "PM" : "AM";
           const slotLabel = `${d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} at ${hh % 12 || 12}:${String(mm).padStart(2, "0")} ${ampm}`;
           try {
-            await sendText(from, flowClaim === "returning_unverified" ? flowReturningConfirmMsg(lang, appt.token, slotLabel, appt.fee) : flowFreeConfirmMsg(lang, appt.token, slotLabel));
+            await sendText(from, flowFreeConfirmMsg(lang, appt.token, slotLabel));
           } catch (err) { console.error("whatsapp flow: claim confirm failed", err); await reportError("whatsapp", err, { severity: "warning", info: { stage: "nfm_reply_claim_confirm", from } }); }
         } else {
-          // No confirmation template until payment lands. The slot is held 15
-          // minutes as payment_pending, so all we send now is the mandatory pay
-          // prompt with a REAL Pay now button (same interactive-reply path the
-          // conversational bot chips use), letting the patient tap rather than
-          // type. The real "appointment confirmed" template (META_TEMPLATE_PAID)
-          // fires from the Razorpay webhook once payment completes.
+          // New and returning both land payment_pending — no confirmation
+          // template until payment lands. The slot is held 15 minutes, so all
+          // we send now is the mandatory pay prompt with a REAL Pay now button
+          // (same interactive-reply path the conversational bot chips use),
+          // letting the patient tap rather than type. The real "appointment
+          // confirmed" template (META_TEMPLATE_PAID) fires from the Razorpay
+          // webhook once payment completes.
           try { await sendButtons(from, flowPayPrompt(lang), [flowPayNowLabel(lang)]); } catch (err) { console.error("whatsapp flow: pay prompt failed", err); await reportError("whatsapp", err, { severity: "critical", info: { stage: "nfm_reply_pay_prompt", from } }); }
         }
       } catch (err) {

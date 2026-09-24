@@ -589,3 +589,101 @@ export async function sendSessionDigestEmail(
   });
   return r.ok;
 }
+
+// End-of-day reconciliation digest (app/api/cron/daily-digest, 9:00 PM IST) —
+// every appointment for the day, split into the Morning and Evening sessions,
+// so the desk can cross-check the day's bookings against clinic records
+// before closing. Unlike sendSessionDigestEmail (fired per-session, paid vs
+// unpaid only), this shows the three-way payment source since a day-end
+// reconciliation needs to distinguish an online Razorpay payment from cash
+// collected at the desk.
+function payChip(paidVia: Appt["paidVia"]): string {
+  if (paidVia === "razorpay") return chip("Razorpay", BRAND.accentDark, BRAND.tint);
+  if (paidVia === "cash") return chip("Cash", BRAND.ok, "#e5f3ec");
+  return chip("Unpaid", BRAND.muted, "#edf1ef");
+}
+
+function digestRow(a: Pick<Appt, "token" | "time" | "name" | "phone" | "fee" | "paidVia" | "patientCode">): string {
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;">
+      <tr>
+        <td width="64" style="padding:13px 12px 13px 16px;vertical-align:middle;border:1px solid ${BRAND.line};border-right:none;background-color:${a.paidVia ? BRAND.tint : BRAND.soft};border-radius:14px 0 0 14px;">
+          <div style="font-family:${FONT};font-size:15px;font-weight:600;letter-spacing:-0.01em;color:${a.paidVia ? BRAND.accentDark : BRAND.ink};line-height:1.1;">${esc(fmt(a.time))}</div>
+          <div style="font-family:${FONT};font-size:10px;font-weight:600;color:${BRAND.muted};margin-top:2px;">#${esc(a.token)}</div>
+        </td>
+        <td style="padding:13px 14px;vertical-align:middle;border-top:1px solid ${BRAND.line};border-bottom:1px solid ${BRAND.line};background-color:#ffffff;">
+          <div class="e-ink" style="font-family:${FONT};font-size:14px;font-weight:600;letter-spacing:-0.01em;color:${BRAND.ink};line-height:1.25;">${esc(a.name)}${a.patientCode ? ` <span class="e-muted" style="font-weight:500;color:${BRAND.muted};">· ${esc(a.patientCode)}</span>` : ""}</div>
+          <div class="e-muted" style="font-family:${FONT};font-size:12px;color:${BRAND.muted};margin-top:2px;">${humanPhone(esc(a.phone))}</div>
+        </td>
+        <td style="padding:13px 12px;vertical-align:middle;text-align:right;white-space:nowrap;border-top:1px solid ${BRAND.line};border-bottom:1px solid ${BRAND.line};background-color:#ffffff;">
+          <div style="font-family:${FONT};font-size:13px;font-weight:600;color:${BRAND.ink};">${esc(clinic.currency)}${esc(a.fee)}</div>
+        </td>
+        <td width="86" style="padding:13px 16px 13px 10px;vertical-align:middle;text-align:right;white-space:nowrap;border:1px solid ${BRAND.line};border-left:none;background-color:#ffffff;border-radius:0 14px 14px 0;">
+          ${payChip(a.paidVia)}
+        </td>
+      </tr>
+    </table>`;
+}
+
+function digestSection(label: string, appts: Pick<Appt, "token" | "time" | "name" | "phone" | "fee" | "paidVia" | "patientCode">[]): string {
+  if (!appts.length) {
+    return `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;">
+        <tr><td style="padding:12px 16px;font-family:${FONT};font-size:12px;font-weight:600;letter-spacing:.04em;color:${BRAND.muted};border:1px dashed ${BRAND.line};border-radius:14px;">${esc(label.toUpperCase())} · no bookings</td></tr>
+      </table>`;
+  }
+  const paidCount = appts.filter((a) => a.paidVia).length;
+  const total = appts.reduce((sum, a) => sum + (a.fee || 0), 0);
+  const rows = appts.map(digestRow).join("");
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 0;background-color:${BRAND.tint};border-radius:14px;">
+      <tr>
+        <td style="padding:14px 18px;font-family:${FONT};font-size:12px;font-weight:600;letter-spacing:.04em;color:${BRAND.accentDark};">${esc(label.toUpperCase())} · ${esc(appts.length)} booking${appts.length === 1 ? "" : "s"}</td>
+        <td align="right" style="padding:14px 18px;font-family:${FONT};font-size:12px;font-weight:600;color:${BRAND.accentDark};">${esc(clinic.currency)}${esc(total)} · ${esc(paidCount)} paid</td>
+      </tr>
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">${rows}</table>`;
+}
+
+export async function sendEndOfDayDigestEmail(
+  date: string,
+  appts: Pick<Appt, "token" | "time" | "name" | "phone" | "fee" | "paidVia" | "patientCode">[]
+): Promise<boolean> {
+  const adminEmail = clinic.contact.adminEmail;
+  if (!adminEmail) return false;
+
+  const dateLabel = longDate(date, false);
+  const morning = appts.filter((a) => a.time < "14:00");
+  const evening = appts.filter((a) => a.time >= "14:00");
+  const total = appts.reduce((sum, a) => sum + (a.fee || 0), 0);
+  const paidCount = appts.filter((a) => a.paidVia).length;
+
+  const body = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0 0;">
+      <tr>
+        <td style="padding:0;">${detailsCard(`
+          ${detailRow("Total bookings", String(appts.length))}
+          ${detailRow("Paid", `${paidCount} of ${appts.length}`)}
+          ${detailRow("Collected", `${clinic.currency}${total}`, { accent: true })}
+        `)}</td>
+      </tr>
+    </table>
+    ${digestSection("Morning session", morning)}
+    ${digestSection("Evening session", evening)}
+    <p style="margin:18px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Cross-check this against the desk register before closing. "Unpaid" entries never confirmed payment online or in cash and should be followed up on.</p>`;
+
+  const r = await sendEmail({
+    to: adminEmail,
+    subject: `Day close · ${dateLabel} · ${appts.length} booking${appts.length === 1 ? "" : "s"}`,
+    html: shell({
+      chipText: "End of day",
+      chipFg: BRAND.accentDark,
+      chipBg: BRAND.tint,
+      headline: "Today's appointments, for reconciliation",
+      sub: `${dateLabel} · morning and evening sessions, so the desk can cross-check before closing.`,
+      body,
+      preheader: `${appts.length} bookings today · ${clinic.currency}${total} collected`,
+    }),
+  });
+  return r.ok;
+}

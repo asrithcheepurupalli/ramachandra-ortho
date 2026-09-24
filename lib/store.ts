@@ -250,8 +250,10 @@ export function addWalkIn(input: { name: string; phone: string; age: number; gen
 // replacePending: when true, cancel any existing payment_pending row for this
 // phone before inserting (the patient is choosing to start over rather than
 // pay the old hold).
-// claim: a self-declared payment exemption ("review_free") — see dbAddBooking.
-// Skips payment_pending/the deadline entirely and lands straight in "reserved".
+// claim: a self-declared visit type — see dbAddBooking. Only "review_free"
+// skips payment_pending/the deadline entirely and lands straight in
+// "reserved"; "returning_unverified" still goes through payment_pending at
+// the reduced fee, same as an ordinary booking.
 export function addBooking(input: {
   name: string; phone: string; age: number; gender?: "M" | "F" | null; locality?: string | null; date: string; time: string; source?: Source; replacePending?: boolean;
   claim?: "returning_unverified" | "review_free";
@@ -287,19 +289,20 @@ export function addBooking(input: {
   const reg = loadPatients();
   const existing = phone ? reg[phone] : undefined;
   // Mirror dbAddBooking: "review_free" is a self-declared exemption (₹0,
-  // nothing ever collected); "returning_unverified" keeps a reduced ₹350 fee
-  // but pays at the clinic (paid stays false). An existing registry phone just
-  // keeps its patient code.
+  // nothing ever collected, immediately confirmed); "returning_unverified"
+  // keeps a reduced ₹350 fee, paid online same as a new patient. An existing
+  // registry phone just keeps its patient code.
   const claim: "returning_unverified" | "review_free" | null = input.claim ?? null;
   const fee = claim === "review_free" ? 0 : claim === "returning_unverified" ? clinic.returningFee : clinic.consultationFee;
+  const confirmed = claim === "review_free";
   const patientCode = existing ? existing.patientCode : phone ? ensurePatient(reg, phone, input.name.trim()).patientCode : null;
   const appt: Appt = {
     id: rid(), token, name: input.name.trim(), phone,
     age: input.age, gender: input.gender ?? null, date: input.date, time: input.time,
-    status: claim ? "reserved" : "payment_pending", source: input.source ?? "website", fee,
-    paid: claim === "review_free", paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null, createdAt: Date.now(),
+    status: confirmed ? "reserved" : "payment_pending", source: input.source ?? "website", fee,
+    paid: confirmed, paidVia: null, paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null, reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null, createdAt: Date.now(),
     notes: null, patientCode, claimType: claim,
-    paymentDeadlineAt: claim ? null : Date.now() + PAYMENT_WINDOW_MS,
+    paymentDeadlineAt: confirmed ? null : Date.now() + PAYMENT_WINDOW_MS,
     locality: input.locality ?? null,
   };
   write([...nextAll, appt]);

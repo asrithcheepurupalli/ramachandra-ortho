@@ -3,8 +3,10 @@
 // dropdown), and each choice must thread the right claim into addBooking:
 //   New       → claim undefined → payment_pending hold, completion shows ONLY
 //               the Pay now button (the noisy standing-menu dropdown is gone).
-//   Returning → claim "returning_unverified" → reserved, ₹returningFee at the
-//               counter, instantly confirmed (no pay step), desk email fired.
+//   Returning → claim "returning_unverified" → payment_pending hold at the
+//               reduced ₹returningFee, completion shows ONLY the Pay now
+//               button plus the caution to bring the previous OP slip; the
+//               Razorpay webhook is what confirms it and fires the desk email.
 //   Free review → claim "review_free" → reserved at ₹0, instantly confirmed.
 // Also asserts the "cancel" escape hatch still works at this new stage.
 import { describe, test, expect } from "vitest";
@@ -75,14 +77,15 @@ function driveBooking() {
       addCalls.push({ claim: input.claim, replacePending: input.replacePending === true });
       const claim = input.claim ?? null;
       const fee = claim === "returning_unverified" ? clinic.returningFee : claim === "review_free" ? 0 : clinic.consultationFee;
+      const instant = claim === "review_free";
       return {
         id: "b1", token: 1, name: input.name, phone: input.phone, age: 0, gender: null,
-        date: input.date, time: input.time, status: claim ? "reserved" : "payment_pending",
-        source: "whatsapp", fee, paid: claim === "review_free", paidVia: claim === "review_free" ? "cash" : null,
+        date: input.date, time: input.time, status: instant ? "reserved" : "payment_pending",
+        source: "whatsapp", fee, paid: instant, paidVia: instant ? "cash" : null,
         paymentId: null, refundId: null, refundedAt: null, reminderSentAt: null,
         reviewNudgeSentAt: null, freeVisitReminderSentAt: null, cancelReason: null, expiredPaymentNudgedAt: null,
         createdAt: Date.now(), notes: null, patientCode: null,
-        claimType: claim, paymentDeadlineAt: claim ? null : Date.now() + 15 * 60 * 1000, locality: null,
+        claimType: claim, paymentDeadlineAt: instant ? null : Date.now() + 15 * 60 * 1000, locality: null,
       };
     },
     activeAppointmentsByPhone: () => Promise.resolve([]),
@@ -180,18 +183,18 @@ describe("patient type up front", () => {
     expect(payPrompt).toContain("Pay");
   });
 
-  test("Returning patient books reserved with the counter fee, confirmed with no pay step", async () => {
+  test("Returning patient books a hold at the reduced fee and completes with ONLY the Pay now button", async () => {
     const { walk } = driveBooking();
     const { out, addCalls, claimNotified } = await walk("Returning patient");
     expect(addCalls).toHaveLength(1);
     expect(addCalls[0].claim).toBe("returning_unverified");
-    expect(claimNotified).toBe(1); // webhook path fires the desk email itself
-    expect(out.chips).not.toContain("Pay now");
-    // paid:false but confirmed — the fee is collected at the counter, so the
-    // reply is the instant confirmation (quoting the counter fee), not the pay prompt.
+    expect(claimNotified).toBe(0); // no claim-time notify — the webhook confirms + notifies once paid
+    // Same dropdown trim as new patients: a single Pay now, no standing menu.
+    expect(out.chips).toEqual(["Pay now"]);
     const reply = out.reply.join("\n");
-    expect(reply).not.toContain("To confirm your slot");
+    expect(reply).toContain("To confirm your slot");
     expect(reply).toContain(`${clinic.currency}${clinic.returningFee}`);
+    expect(reply).toContain("previous prescription");
   });
 
   test("Free review visit books at ₹0 with no pay step", async () => {
