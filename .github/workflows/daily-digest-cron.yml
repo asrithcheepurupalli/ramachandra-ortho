@@ -9,9 +9,9 @@
 # the call 401s and the job fails.
 name: daily-digest-cron
 
+# Schedule now lives on cron-job.org — GitHub Actions' `schedule:` trigger is
+# best-effort and was queuing hours late. Kept only for manual runs.
 on:
-  schedule:
-    - cron: "30 15 * * *"
   workflow_dispatch: {}
 
 # Overlapping runs would just re-send the same day's digest twice — cancel any
