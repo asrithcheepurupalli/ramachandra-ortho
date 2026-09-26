@@ -5,9 +5,9 @@
 # and the Vercel env). ?test=1 dry-runs and returns row counts without sending.
 name: backup-cron
 
+# Schedule now lives on cron-job.org — GitHub Actions' `schedule:` trigger is
+# best-effort and was queuing hours late. Kept only for manual runs.
 on:
-  schedule:
-    - cron: "17 3 * * *"
   workflow_dispatch: {}
 
 # Overlapping runs would just resend the same day's dump twice — cancel any

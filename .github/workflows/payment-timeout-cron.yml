@@ -5,9 +5,9 @@
 # Idempotent: each tick only touches rows that are still payment_pending.
 name: payment-timeout-cron
 
+# Schedule now lives on cron-job.org — GitHub Actions' `schedule:` trigger is
+# best-effort and was queuing hours late. Kept only for manual runs.
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 # A run that overlaps the previous one is a waste (the route is idempotent,

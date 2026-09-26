@@ -9,9 +9,9 @@
 # the job fails.
 name: session-digest-cron
 
+# Schedule now lives on cron-job.org — GitHub Actions' `schedule:` trigger is
+# best-effort and was queuing hours late. Kept only for manual runs.
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 jobs:

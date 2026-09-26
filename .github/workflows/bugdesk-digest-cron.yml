@@ -5,9 +5,9 @@
 # and the Vercel env). ?test=1 dry-runs the plan without sending.
 name: bugdesk-digest-cron
 
+# Schedule now lives on cron-job.org — GitHub Actions' `schedule:` trigger is
+# best-effort and was queuing hours late. Kept only for manual runs.
 on:
-  schedule:
-    - cron: "0 0,6,12,18 * * *"
   workflow_dispatch: {}
 
 # Overlapping runs are harmless (each skips rows already marked) but wasteful —
