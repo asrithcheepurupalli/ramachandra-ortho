@@ -57,7 +57,15 @@ export function BookForm() {
   // pays the flat ₹400 consultation fee online; a returning patient pays a
   // reduced ₹350, also online, to confirm; a free-review visit within 10 days
   // books at ₹0 with no payment at all.
-  const [stage, setStage] = useState<"patient" | "book" | "done">("patient");
+  //
+  // "pay" sits between booking and "done": an unpaid hold (new/returning
+  // patient) lands here first, no token shown, no celebration, and drops
+  // straight into Razorpay checkout. Patients were mistaking the old flow's
+  // token-with-celebration screen for a finished booking and never tapping
+  // Pay now, so nothing celebrates or reveals a token until the appointment
+  // is actually paid (free-review is paid at ₹0 on creation and skips this
+  // stage entirely, landing straight on "done").
+  const [stage, setStage] = useState<"patient" | "book" | "pay" | "done">("patient");
   // Self-declared claim: only review_free skips payment_pending/Razorpay
   // entirely (the booking lands straight in "reserved", paid:true).
   // returning_unverified follows the exact same payment_pending → Razorpay →
@@ -117,9 +125,11 @@ export function BookForm() {
   // A booking landing on the confirmation screen unpaid is a resume candidate:
   // remember it so a patient who abandons the tab can come back and pay. A
   // paid booking (including an immediately-paid free review) or absent
-  // booking drops it (clearResume handles the paid paths).
+  // booking drops it (clearResume handles the paid paths). Landing on "pay"
+  // is the only way an unpaid booking exists now (see the stage comment
+  // above), so that's the condition instead of the old "done" check.
   useEffect(() => {
-    if (booked && stage === "done" && !booked.paid) {
+    if (booked && stage === "pay" && !booked.paid) {
       try { localStorage.setItem(RESUME_KEY, JSON.stringify(booked)); } catch {}
     }
   }, [booked, stage]);
@@ -128,7 +138,7 @@ export function BookForm() {
   const resumePay = () => {
     if (!resume) return;
     setBooked(resume);
-    setStage("done");
+    setStage("pay");
     if (typeof window !== "undefined") window.scrollTo(0, 0);
   };
 
@@ -236,6 +246,7 @@ export function BookForm() {
 
     setPendingHold(false);
     setDuplicateSlot(false);
+    let fresh: Appt;
     if (hasSupabase()) {
       setSubmitting(true);
       try {
@@ -263,7 +274,8 @@ export function BookForm() {
           setErr(data.error ?? "Could not book. Please try again.");
           return;
         }
-        setBooked(data.appointment as Appt);
+        fresh = data.appointment as Appt;
+        setBooked(fresh);
       } catch {
         setErr("Could not book. Please try again.");
         return;
@@ -272,7 +284,8 @@ export function BookForm() {
       }
     } else {
       try {
-        setBooked(addBooking({ ...form, gender: form.gender || null, date: effDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined }));
+        fresh = addBooking({ ...form, gender: form.gender || null, date: effDate, time: selTime, source: "website", replacePending, claim: claim ?? undefined });
+        setBooked(fresh);
       } catch (err) {
         // MOCK_MODE mirrors the API: a same-slot duplicate surfaces the same
         // inline banner the live path shows.
@@ -281,57 +294,135 @@ export function BookForm() {
         return;
       }
     }
-    setStage("done");
+    // Paid on arrival (free-review, ₹0) goes straight to the celebration
+    // screen with its token. Everything else is an unpaid hold: land on
+    // "pay" instead, no token, and let the auto-redirect effect below push
+    // it straight into Razorpay checkout.
+    setStage(fresh.paid ? "done" : "pay");
     if (typeof window !== "undefined") window.scrollTo(0, 0);
   };
 
-  /* ── confirmation ─────────────────────────────────────────────────────── */
-  if (stage === "done" && booked) {
-    const d = new Date(booked.date + "T00:00:00");
+  const startOver = () => { setBooked(null); clearResume(); setStage("patient"); setClaim(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: 0, gender: "", locality: "" }); };
 
-    const doPay = async () => {
-      setPayBusy(true); setPayErr("");
-      try {
-        if (hasSupabase()) {
-          const res = await fetch("/api/payments/link", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: booked.id, phone: booked.phone }),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            if (res.status === 400 && data?.code === "already_paid") {
-              // The webhook beat us to it — the row is already paid. This is
-              // really a confirm, not an error: mirror the paid state and drop
-              // the resume entry so we never ask for money again. (A 400 with a
-              // different code is a validation error, so only this branch
-              // confirms the booking.)
-              clearResume();
-              setBooked({ ...booked, paid: true, status: "reserved" });
-            } else if (res.status === 404) {
-              // Hold expired (the payment-timeout cron cancelled it) — nothing
-              // left to pay.
-              clearResume();
-              setPayErr(data.error ?? t("myappt.payerror"));
-            } else {
-              setPayErr(data.error ?? "Could not get payment link. Tap Pay now to try again.");
-            }
-            setPayBusy(false);
-            return;
+  // Shared by the "pay" stage (auto-triggered) and its manual fallback
+  // button. Not stage-gated itself — only called while stage is "pay" and
+  // booked is an unpaid hold, but defined once at the top level so the
+  // auto-redirect effect below can reach it too.
+  const doPay = async () => {
+    if (!booked) return;
+    setPayBusy(true); setPayErr("");
+    try {
+      if (hasSupabase()) {
+        const res = await fetch("/api/payments/link", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: booked.id, phone: booked.phone }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 400 && data?.code === "already_paid") {
+            // The webhook beat us to it — the row is already paid. This is
+            // really a confirm, not an error: mirror the paid state, drop the
+            // resume entry, and move on to the real celebration screen now
+            // that the appointment is actually confirmed. (A 400 with a
+            // different code is a validation error, so only this branch
+            // confirms the booking.)
+            clearResume();
+            setBooked({ ...booked, paid: true, status: "reserved" });
+            setStage("done");
+          } else if (res.status === 404) {
+            // Hold expired (the payment-timeout cron cancelled it) — nothing
+            // left to pay.
+            clearResume();
+            setPayErr(data.error ?? t("myappt.payerror"));
+          } else {
+            setPayErr(data.error ?? "Could not get payment link. Tap Pay now to try again.");
           }
-          window.location.href = data.url as string;
-        } else {
-          togglePaid(booked.id);
-          // Mirror what the DB webhook does — the paid hold becomes reserved.
-          clearResume();
-          setBooked({ ...booked, paid: true, status: "reserved" });
           setPayBusy(false);
+          return;
         }
-      } catch {
-        setPayErr(t("myappt.payerror"));
+        window.location.href = data.url as string;
+      } else {
+        togglePaid(booked.id);
+        // Mirror what the DB webhook does — the paid hold becomes reserved.
+        clearResume();
+        setBooked({ ...booked, paid: true, status: "reserved" });
+        setStage("done");
         setPayBusy(false);
       }
-    };
+    } catch {
+      setPayErr(t("myappt.payerror"));
+      setPayBusy(false);
+    }
+  };
+
+  // Auto-redirect into Razorpay checkout the moment an unpaid hold lands on
+  // "pay" — this is what replaces the old "tap Pay now yourself" step that
+  // patients kept missing. The payErr guard stops it from retrying itself in
+  // a loop after a failure; the manual button on the screen below is the
+  // fallback once that happens, or if a slow network hasn't redirected yet.
+  useEffect(() => {
+    if (stage !== "pay" || !booked || booked.paid || payBusy || payErr) return;
+    // Deferred a tick (not called synchronously in the effect body) so the
+    // setState calls inside doPay run as their own scheduled update, not as
+    // part of this render's commit.
+    const timer = setTimeout(() => { doPay(); }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, booked?.id]);
+
+  /* ── payment (unpaid hold, no token yet) ─────────────────────────────── */
+  if (stage === "pay" && booked && !booked.paid) {
+    const d = new Date(booked.date + "T00:00:00");
+    return (
+      <main key="pay" className="stage-in mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-12">
+        <div className="rounded-3xl border border-line bg-surface p-7 text-center shadow-lift">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-brand-tint text-brand">
+            {payBusy ? <span className="spinner" aria-hidden /> : <Wallet className="h-8 w-8" />}
+          </div>
+          <h1 className="mt-5 text-2xl font-semibold">{t("book.pay.title")}</h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted">
+            {t("book.pay.detail", {
+              date: d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }),
+              time: fmt(booked.time),
+            })}
+          </p>
+          <dl className="mt-5 space-y-2 text-left text-sm">
+            <Row icon={User} v={booked.name} />
+            <Row icon={CalendarDays} v={d.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })} />
+            <Row icon={Clock} v={fmt(booked.time)} />
+            <Row icon={Ticket} v={`${clinic.doctor.name} · ${clinic.currency}${booked.fee}`} />
+          </dl>
+          <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
+            <p className="text-xs leading-relaxed text-muted">
+              {t("book.done.deadline", { time: new Date((booked.paymentDeadlineAt ?? booked.createdAt + 15 * 60_000)).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) })}
+            </p>
+          </div>
+          {booked.claimType && (
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-orange-300 bg-orange-100 px-3 py-2.5 dark:border-orange-700/60 dark:bg-orange-950/40">
+              <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-orange-700 dark:text-orange-400" />
+              <p className="text-xs font-medium leading-relaxed text-orange-900 dark:text-orange-200">{t("book.done.bringPrescription")}</p>
+            </div>
+          )}
+          {payErr ? (
+            <p role="alert" className="mt-3 text-sm text-out">{payErr}</p>
+          ) : (
+            <p className="mt-3 text-xs leading-relaxed text-muted">{payBusy ? t("book.pay.redirecting") : t("book.pay.manual")}</p>
+          )}
+          <div className="mt-6 flex flex-col gap-2">
+            <button onClick={doPay} disabled={payBusy} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
+              {payBusy ? <span className="spinner" aria-hidden /> : <Wallet className="h-4 w-4 shrink-0" />} {t("book.done.paynow")}
+            </button>
+            <button onClick={startOver} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.pay.cancel")}</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  /* ── confirmation (paid, or free review claimed at ₹0) ───────────────── */
+  if (stage === "done" && booked && booked.paid) {
+    const d = new Date(booked.date + "T00:00:00");
 
     return (
       <main key="done" className="stage-in mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-5 py-12">
@@ -350,51 +441,26 @@ export function BookForm() {
             {booked.patientCode && <Row icon={BadgeCheck} v={`${t("book.patient.code")}: ${booked.patientCode}`} />}
           </dl>
           {booked.patientCode && <p className="mt-3 rounded-xl bg-brand-tint px-3 py-2 text-xs text-brand">{t("book.patient.saveid", { code: booked.patientCode })}</p>}
-          {!booked.paid ? (
-            <div className="mt-4 rounded-2xl border border-accent/40 bg-accent-tint px-4 py-3">
-              <p className="text-sm font-semibold text-out">{t("book.done.payRequired")}</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted">
-                {t("book.done.deadline", { time: new Date((booked.paymentDeadlineAt ?? booked.createdAt + 15 * 60_000)).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) })}
-              </p>
-            </div>
-          ) : (
-            <p className="mt-5 text-sm leading-relaxed text-muted">{t("book.done.msg")}</p>
-          )}
+          <p className="mt-5 text-sm leading-relaxed text-muted">{t("book.done.msg")}</p>
           {booked.claimType && (
             <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-orange-300 bg-orange-100 px-3 py-2.5 dark:border-orange-700/60 dark:bg-orange-950/40">
               <ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-orange-700 dark:text-orange-400" />
               <p className="text-xs font-medium leading-relaxed text-orange-900 dark:text-orange-200">{t("book.done.bringPrescription")}</p>
             </div>
           )}
-          {/* The carry-over-to-next-day line is about confirmed no-shows; an
-              unpaid booking is cancelled outright instead, so it would read as
-              a contradiction here. Show it only once payment confirmed the
-              slot. */}
-          {booked.paid && <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>}
-          {payErr && <p role="alert" className="mt-3 text-sm text-out">{payErr}</p>}
+          <p className="mt-2 text-xs leading-relaxed text-brand">{t("book.noshow")}</p>
           <div className="mt-6 flex flex-col gap-2">
-            {!booked.paid && (
-              <button onClick={doPay} disabled={payBusy} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60">
-                {payBusy ? <span className="spinner" aria-hidden /> : <Wallet className="h-4 w-4 shrink-0" />} {t("book.done.paynow")}
-              </button>
-            )}
-            {/* My Appointment won't show a payment_pending row (it's not real
-                until paid), so the "View appointment" link runs only once
-                payment confirmed the slot. It's the primary action in this
-                cluster the moment the booking is real, so it leads — filled
-                brand, same weight as Pay now does for an unpaid one — rather
-                than hiding as a third outline link under WhatsApp. */}
-            {booked.paid && (
-              <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark">
-                <CalendarDays className="h-4 w-4 shrink-0" /> {t("book.done.view")}
-              </Link>
-            )}
+            {/* Booking is confirmed now, so "View appointment" is the primary
+                action here, filled brand, leading the cluster. */}
+            <Link href={`/my-appointment?phone=${encodeURIComponent(booked.phone)}`} className="press flex w-full items-center justify-center gap-2 rounded-full bg-brand px-3 py-3 text-center text-sm font-semibold text-white transition hover:bg-brand-dark">
+              <CalendarDays className="h-4 w-4 shrink-0" /> {t("book.done.view")}
+            </Link>
             <a href={waLink(`Hi, I have booked appointment token #${booked.token} with Dr. Ramachandrudu on ${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} at ${fmt(booked.time)}.`)} target="_blank" rel="noreferrer" className="press flex w-full items-center justify-center gap-2 rounded-full border border-brand px-3 py-3 text-center text-sm font-semibold text-brand transition hover:bg-brand-tint"><MessageCircle className="h-4 w-4 shrink-0" /> {t("cta.whatsapp")}</a>
             {/* Stacked full-width, not a flex-1 side-by-side row. Telugu/Hindi
                 labels ("మరొకటి బుక్ చేయండి") run longer than a half-width
                 column can hold on one line. */}
             <div className="grid grid-cols-1 gap-2">
-              <button onClick={() => { setBooked(null); clearResume(); setStage("patient"); setClaim(null); setSelDate(null); setSelTime(null); setForm({ name: "", phone: "", age: 0, gender: "", locality: "" }); }} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
+              <button onClick={startOver} className="press w-full rounded-full border border-line py-3 text-sm font-semibold text-ink">{t("book.done.another")}</button>
               <Link href="/" className="press w-full rounded-full border border-line py-3 text-center text-sm font-semibold text-ink">{t("book.done.home")}</Link>
             </div>
           </div>
