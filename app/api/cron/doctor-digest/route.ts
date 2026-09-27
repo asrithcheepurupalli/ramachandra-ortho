@@ -38,7 +38,9 @@ export async function POST(req: NextRequest) {
     const isTest = req.nextUrl.searchParams.get("test") === "1";
     const date = ymd(nowIST());
     const appts = await dbApptsForDate(date);
-    const active = appts.filter((a) => a.status !== "cancelled");
+    // Excludes payment_pending too, not just cancelled: an unpaid hold isn't
+    // a confirmed booking, so the doctor shouldn't see it as one.
+    const active = appts.filter((a) => a.status !== "cancelled" && a.status !== "payment_pending");
 
     if (isTest) {
       return NextResponse.json({ date, scanned: appts.length, active: active.length, test: true });

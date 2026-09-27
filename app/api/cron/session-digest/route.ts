@@ -61,8 +61,12 @@ export async function POST(req: NextRequest) {
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const sched = await dbLoadSchedule();
     const windows = windowsFor(now, sched);
-    // Fetch today's rows once and bucket them per window below.
-    const todays = (await dbApptsForDate(date)).filter((a) => a.status !== "cancelled");
+    // Fetch today's rows once and bucket them per window below. Excludes
+    // payment_pending too, not just cancelled: an unpaid hold isn't a
+    // confirmed booking (nothing confirms one until the Razorpay webhook or a
+    // free-review claim), so it must never appear as someone the desk should
+    // expect in this session.
+    const todays = (await dbApptsForDate(date)).filter((a) => a.status !== "cancelled" && a.status !== "payment_pending");
 
     const planned: Array<{ label: string; window: string; due: boolean; appts: number }> = [];
     const sends: Array<{ label: string; window: string; ok: boolean }> = [];

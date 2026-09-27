@@ -540,16 +540,24 @@ export async function sendSessionDigestEmail(
   if (!adminEmail || !appts.length) return false;
 
   const dateLabel = longDate(date, false);
-  const paidCount = appts.filter((a) => a.paid).length;
+  // A ₹0 free-review claim is settled at booking (paid:true, nothing ever
+  // charged) same as a real online payment — either way there's nothing left
+  // to collect, so both count as "paid" here.
+  const settled = (a: Pick<Appt, "paid" | "fee">) => a.paid || a.fee === 0;
+  const paidCount = appts.filter(settled).length;
   const total = appts.reduce((sum, a) => sum + (a.fee || 0), 0);
 
   const rows = appts
-    .map(
-      (a) => `
+    .map((a) => {
+      const isSettled = settled(a);
+      // Free-review is settled but never "Paid" in the online/cash sense —
+      // its own chip says so instead of the generic Paid/Unpaid pair.
+      const statusChip = a.fee === 0 ? chip("Free", BRAND.accentDark, BRAND.tint) : isSettled ? chip("Paid", BRAND.ok, BRAND.tint) : chip("Unpaid", BRAND.muted, "#edf1ef");
+      return `
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;">
         <tr>
-          <td width="64" style="padding:13px 12px 13px 16px;vertical-align:middle;border:1px solid ${BRAND.line};border-right:none;background-color:${a.paid ? BRAND.tint : BRAND.soft};border-radius:14px 0 0 14px;">
-            <div style="font-family:${FONT};font-size:15px;font-weight:600;letter-spacing:-0.01em;color:${a.paid ? BRAND.accentDark : BRAND.ink};line-height:1.1;">${esc(fmt(a.time))}</div>
+          <td width="64" style="padding:13px 12px 13px 16px;vertical-align:middle;border:1px solid ${BRAND.line};border-right:none;background-color:${isSettled ? BRAND.tint : BRAND.soft};border-radius:14px 0 0 14px;">
+            <div style="font-family:${FONT};font-size:15px;font-weight:600;letter-spacing:-0.01em;color:${isSettled ? BRAND.accentDark : BRAND.ink};line-height:1.1;">${esc(fmt(a.time))}</div>
             <div style="font-family:${FONT};font-size:10px;font-weight:600;color:${BRAND.muted};margin-top:2px;">#${esc(a.token)}</div>
           </td>
           <td style="padding:13px 14px;vertical-align:middle;border:1px solid ${BRAND.line};border-left:none;background-color:#ffffff;border-radius:0 14px 14px 0;">
@@ -557,22 +565,22 @@ export async function sendSessionDigestEmail(
             <div class="e-muted" style="font-family:${FONT};font-size:12px;color:${BRAND.muted};margin-top:2px;">${humanPhone(esc(a.phone))}</div>
           </td>
           <td style="padding:13px 16px 13px 10px;vertical-align:middle;text-align:right;white-space:nowrap;">
-            ${a.paid ? chip("Paid", BRAND.ok, BRAND.tint) : chip("Unpaid", BRAND.muted, "#edf1ef")}
+            ${statusChip}
           </td>
         </tr>
-      </table>`
-    )
+      </table>`;
+    })
     .join("");
 
   const body = `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0 0;background-color:${BRAND.tint};border-radius:14px;">
       <tr>
         <td style="padding:14px 18px;font-family:${FONT};font-size:12px;font-weight:600;letter-spacing:.04em;color:${BRAND.accentDark};">${esc(appts.length)} booking${appts.length === 1 ? "" : "s"} for the ${esc(label.toLowerCase())} session</td>
-        <td align="right" style="padding:14px 18px;font-family:${FONT};font-size:12px;font-weight:600;color:${BRAND.accentDark};">${esc(clinic.currency)}${esc(total)} · ${esc(paidCount)} paid</td>
+        <td align="right" style="padding:14px 18px;font-family:${FONT};font-size:12px;font-weight:600;color:${BRAND.accentDark};">${esc(clinic.currency)}${esc(total)} · ${esc(paidCount)} paid or free</td>
       </tr>
     </table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">${rows}</table>
-    <p style="margin:16px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Unpaid entries were settled in cash at the desk. Sent 45 minutes before the session starts.</p>`;
+    <p style="margin:16px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Unpaid entries settle in cash at the desk. Free entries are free-review visits, never charged. Sent 45 minutes before the session starts.</p>`;
 
   const r = await sendEmail({
     to: adminEmail,
@@ -596,19 +604,24 @@ export async function sendSessionDigestEmail(
 // before closing. Unlike sendSessionDigestEmail (fired per-session, paid vs
 // unpaid only), this shows the three-way payment source since a day-end
 // reconciliation needs to distinguish an online Razorpay payment from cash
-// collected at the desk.
-function payChip(paidVia: Appt["paidVia"]): string {
-  if (paidVia === "razorpay") return chip("Razorpay", BRAND.accentDark, BRAND.tint);
-  if (paidVia === "cash") return chip("Cash", BRAND.ok, "#e5f3ec");
+// collected at the desk. A ₹0 free-review claim never gets paid_via written
+// (nothing was ever collected for it, online or cash — see dbAddBooking), so
+// it must be checked ahead of paidVia here or it reads as an unpaid ₹0
+// balance owed instead of the free visit it actually is.
+function payChip(a: Pick<Appt, "paidVia" | "fee">): string {
+  if (a.fee === 0) return chip("Free", BRAND.accentDark, BRAND.tint);
+  if (a.paidVia === "razorpay") return chip("Razorpay", BRAND.accentDark, BRAND.tint);
+  if (a.paidVia === "cash") return chip("Cash", BRAND.ok, "#e5f3ec");
   return chip("Unpaid", BRAND.muted, "#edf1ef");
 }
 
 function digestRow(a: Pick<Appt, "token" | "time" | "name" | "phone" | "fee" | "paidVia" | "patientCode">): string {
+  const settled = !!a.paidVia || a.fee === 0;
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;">
       <tr>
-        <td width="64" style="padding:13px 12px 13px 16px;vertical-align:middle;border:1px solid ${BRAND.line};border-right:none;background-color:${a.paidVia ? BRAND.tint : BRAND.soft};border-radius:14px 0 0 14px;">
-          <div style="font-family:${FONT};font-size:15px;font-weight:600;letter-spacing:-0.01em;color:${a.paidVia ? BRAND.accentDark : BRAND.ink};line-height:1.1;">${esc(fmt(a.time))}</div>
+        <td width="64" style="padding:13px 12px 13px 16px;vertical-align:middle;border:1px solid ${BRAND.line};border-right:none;background-color:${settled ? BRAND.tint : BRAND.soft};border-radius:14px 0 0 14px;">
+          <div style="font-family:${FONT};font-size:15px;font-weight:600;letter-spacing:-0.01em;color:${settled ? BRAND.accentDark : BRAND.ink};line-height:1.1;">${esc(fmt(a.time))}</div>
           <div style="font-family:${FONT};font-size:10px;font-weight:600;color:${BRAND.muted};margin-top:2px;">#${esc(a.token)}</div>
         </td>
         <td style="padding:13px 14px;vertical-align:middle;border-top:1px solid ${BRAND.line};border-bottom:1px solid ${BRAND.line};background-color:#ffffff;">
@@ -619,7 +632,7 @@ function digestRow(a: Pick<Appt, "token" | "time" | "name" | "phone" | "fee" | "
           <div style="font-family:${FONT};font-size:13px;font-weight:600;color:${BRAND.ink};">${esc(clinic.currency)}${esc(a.fee)}</div>
         </td>
         <td width="86" style="padding:13px 16px 13px 10px;vertical-align:middle;text-align:right;white-space:nowrap;border:1px solid ${BRAND.line};border-left:none;background-color:#ffffff;border-radius:0 14px 14px 0;">
-          ${payChip(a.paidVia)}
+          ${payChip(a)}
         </td>
       </tr>
     </table>`;
@@ -632,7 +645,9 @@ function digestSection(label: string, appts: Pick<Appt, "token" | "time" | "name
         <tr><td style="padding:12px 16px;font-family:${FONT};font-size:12px;font-weight:600;letter-spacing:.04em;color:${BRAND.muted};border:1px dashed ${BRAND.line};border-radius:14px;">${esc(label.toUpperCase())} · no bookings</td></tr>
       </table>`;
   }
-  const paidCount = appts.filter((a) => a.paidVia).length;
+  // Free-review (₹0) counts as settled alongside a real online/cash payment —
+  // nothing is owed on it either.
+  const paidCount = appts.filter((a) => a.paidVia || a.fee === 0).length;
   const total = appts.reduce((sum, a) => sum + (a.fee || 0), 0);
   const rows = appts.map(digestRow).join("");
   return `
@@ -656,21 +671,23 @@ export async function sendEndOfDayDigestEmail(
   const morning = appts.filter((a) => a.time < "14:00");
   const evening = appts.filter((a) => a.time >= "14:00");
   const total = appts.reduce((sum, a) => sum + (a.fee || 0), 0);
-  const paidCount = appts.filter((a) => a.paidVia).length;
+  // Free-review (₹0) counts as settled alongside a real online/cash payment —
+  // nothing is owed on it either, so it shouldn't drag this count down.
+  const paidCount = appts.filter((a) => a.paidVia || a.fee === 0).length;
 
   const body = `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0 0;">
       <tr>
         <td style="padding:0;">${detailsCard(`
           ${detailRow("Total bookings", String(appts.length))}
-          ${detailRow("Paid", `${paidCount} of ${appts.length}`)}
+          ${detailRow("Paid or free", `${paidCount} of ${appts.length}`)}
           ${detailRow("Collected", `${clinic.currency}${total}`, { accent: true })}
         `)}</td>
       </tr>
     </table>
     ${digestSection("Morning session", morning)}
     ${digestSection("Evening session", evening)}
-    <p style="margin:18px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Cross-check this against the desk register before closing. "Unpaid" entries never confirmed payment online or in cash and should be followed up on.</p>`;
+    <p style="margin:18px 0 0;font-family:${FONT};font-size:12.5px;line-height:1.6;color:${BRAND.muted};">Cross-check this against the desk register before closing. "Unpaid" entries never confirmed payment online or in cash and should be followed up on. "Free" entries are free-review visits, never charged.</p>`;
 
   const r = await sendEmail({
     to: adminEmail,
