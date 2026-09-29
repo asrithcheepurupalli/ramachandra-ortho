@@ -297,16 +297,38 @@ export async function dbAddBooking(input: {
   // cancelled/done rows are dead and don't block. Runs after the hold block
   // so a claim converting its own hold in place (returns early above) and a
   // replacePending cancel are never mistaken for a duplicate.
+  //
+  // The real backstop is the appointments_slot_guard partial unique index
+  // (migration 010) — but this SELECT is what turns that index's 23505 into a
+  // friendly DuplicateSlotError before an INSERT is even attempted, and it's
+  // also the only guard at all if that index is ever missing (as it silently
+  // was for a while: confirmed on 2026-09-28 that
+  // 010_duplicate_slot_guard.sql's CREATE UNIQUE INDEX never actually took on
+  // the live database, despite showing as applied in migration history — a
+  // returning-patient WhatsApp booking landed a duplicate hold on a slot the
+  // same phone already held paid). Never swallow this query's error: `dup`
+  // being empty must mean "checked, none found", not "couldn't check, so
+  // assume none" — the previous `.maybeSingle()` version discarded the error
+  // entirely, so a failed check silently behaved like a clean one.
   if (phone) {
-    const { data: dup } = await db
+    const { data: dup, error: dupErr } = await db
       .from("appointments")
       .select("id")
       .in("phone", phoneMatchVariants(phone))
       .eq("appt_date", input.date)
       .eq("appt_time", input.time)
       .in("status", ["reserved", "confirmed", "waiting", "consulting", "payment_pending"])
-      .maybeSingle();
-    if (dup) throw new DuplicateSlotError();
+      .limit(1);
+    if (dupErr) {
+      await report({
+        source: "db/dbAddBooking",
+        message: "Duplicate-slot check failed — refusing booking to fail safe",
+        severity: "critical",
+        info: { phone, date: input.date, time: input.time, error: dupErr.message },
+      });
+      throw dupErr;
+    }
+    if (dup && dup.length > 0) throw new DuplicateSlotError();
   }
 
   // Patient record: the patients table (deduped by phone) is the source of
