@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Printer, Sliders, ArrowLeft, Eye, RotateCcw, Pencil, Check, X } from "lucide-react";
+import { Printer, Sliders, ArrowLeft, Eye, EyeOff, RotateCcw, Pencil, Check, X } from "lucide-react";
 import { clinic } from "@/clinic.config";
 import { nowIST, ymd } from "@/lib/schedule";
 import { supabaseBrowser, hasSupabase } from "@/lib/supabase";
@@ -49,6 +49,14 @@ function OpSlipPrinterInner() {
   const [showEdit, setShowEdit] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
+
+  // Some patients don't want their patient ID printed on the slip. This
+  // hides just the "(PT#####)" bit next to the name on THIS print job — it
+  // never touches the `code` value itself, so toggling it back on restores
+  // the code without needing to re-type or re-fetch it. Deliberately not
+  // persisted: it's a per-slip decision, not a standing preference, so a
+  // fresh patient always starts with the code showing.
+  const [hideCode, setHideCode] = useState(false);
 
   // Calibration & margin settings (persisted to localStorage with lazy initializers for React 19)
   const [topMarginMm, setTopMarginMm] = useState(() => {
@@ -210,6 +218,19 @@ function OpSlipPrinterInner() {
             </button>
 
             <button
+              onClick={() => setHideCode(!hideCode)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                hideCode
+                  ? "border-amber-600 bg-amber-50 text-amber-800 font-semibold"
+                  : "border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50"
+              }`}
+              title={code ? `Patient ID: ${code}` : "No patient ID set for this slip"}
+            >
+              {hideCode ? <EyeOff className="h-3.5 w-3.5 text-amber-700" /> : <Eye className="h-3.5 w-3.5" />}
+              {hideCode ? "Patient ID Hidden" : "Hide Patient ID"}
+            </button>
+
+            <button
               onClick={() => setShowOverlay(!showOverlay)}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                 showOverlay
@@ -297,7 +318,17 @@ function OpSlipPrinterInner() {
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-neutral-700">Patient Code</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-neutral-700">Patient Code</label>
+                  <button
+                    type="button"
+                    onClick={() => setHideCode(!hideCode)}
+                    className={`flex items-center gap-1 text-[10px] font-semibold ${hideCode ? "text-amber-700" : "text-neutral-400 hover:text-neutral-600"}`}
+                  >
+                    {hideCode ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    {hideCode ? "Hidden on slip" : "Hide on slip"}
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={code}
@@ -552,7 +583,7 @@ function OpSlipPrinterInner() {
               <div className="col-span-7 space-y-1.5">
                 <div className="font-bold text-black" style={{ fontSize: `${fontSizePt + 1}pt` }}>
                   <span>{name || "____________________"}</span>
-                  {code ? <span className="ml-1.5 font-bold">({code})</span> : null}
+                  {code && !hideCode ? <span className="ml-1.5 font-bold">({code})</span> : null}
                 </div>
                 <div className="font-medium text-black">
                   {ageGenderDisplay}
