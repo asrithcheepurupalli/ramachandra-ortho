@@ -78,6 +78,21 @@ const toMin = (t: string) => {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 };
+// How long after a slot's start time a still-pending appointment counts as
+// "past" on the admin queue. Display only: nothing changes status or money at
+// this point, the row just stops looking like part of the live queue.
+export const PAST_SLOT_GRACE_MIN = 30;
+
+// True once a slot is far enough behind `now` (already in IST, see nowIST)
+// that a patient still marked pending is almost certainly finished or a
+// no-show, not waiting. Earlier dates are always past; later dates never.
+export function isPastSlot(date: string, time: string, now: Date, graceMin = PAST_SLOT_GRACE_MIN): boolean {
+  const today = ymd(now);
+  if (date < today) return true;
+  if (date > today) return false;
+  return now.getHours() * 60 + now.getMinutes() >= toMin(time) + graceMin;
+}
+
 // Minimum lead time before a slot can be booked today. Now that a slot can
 // hold any number of bookings, walking in right at a slot's start time and
 // booking it isn't fair to everyone already queued for that slot and the

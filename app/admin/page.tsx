@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { Fragment, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, CalendarCog, Users, IndianRupee, ArrowLeft, Plus,
-  Megaphone, PhoneCall, Check, X, Play, Clock, CircleDot, Globe, MessageCircle,
+  Megaphone, PhoneCall, Check, X, Clock, CircleDot, Globe, MessageCircle,
   Footprints, RotateCcw, TriangleAlert, ChevronLeft, ChevronRight, CalendarOff, LogOut, Send, MessageSquare,
   Printer,
 } from "lucide-react";
@@ -17,7 +17,7 @@ import {
 } from "@/lib/store";
 import {
   statusAt, fmt, weekdayName, defaultWeeklyHours, applySchedule, setOverride,
-  weeklyHours, exceptions, overrideRef, ymd, nowIST, windowsFor, allSlotsFor, isPastLeadTime,
+  weeklyHours, exceptions, overrideRef, ymd, nowIST, windowsFor, allSlotsFor, isPastLeadTime, isPastSlot,
   type WeeklyHours, type Exception,
 } from "@/lib/schedule";
 import { hasSupabase, supabaseBrowser } from "@/lib/supabase";
@@ -311,18 +311,29 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
   const [date, setDate] = useState(() => ymd(new Date()));
   const [showCancelled, setShowCancelled] = useState(false);
   const isToday = date === ymd(new Date());
+  // Re-evaluate "past slot" every minute so rows sink on their own.
+  const [clock, setClock] = useState(() => nowIST());
+  useEffect(() => { const id = setInterval(() => setClock(nowIST()), 60_000); return () => clearInterval(id); }, []);
   // payment_pending rows are online bookings still awaiting payment — not yet
   // real to the desk. Hidden until the Razorpay webhook flips them to reserved
   // (or the timeout cron cancels them), same as the doctor page.
   const list = apptsForDate(appts, date).filter((a) => a.status !== "payment_pending");
   const active = list.filter((a) => a.status !== "cancelled");
   const cancelledRows = list.filter((a) => a.status === "cancelled");
-  const displayQueue = showCancelled ? [...active, ...cancelledRows] : active;
-  const inQueue = list.filter((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
+  // Pending rows whose slot ended 30+ min ago sink below the live queue with a
+  // "Past slot" tag. Display only: no status or money changes until the desk
+  // taps. Walk-ins are exempt on today (they queue by token, not by slot).
+  const pending = list.filter((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
+  const isPast = (a: Appt) => (a.source !== "walkin" || a.date < ymd(clock)) && isPastSlot(a.date, a.time, clock);
+  const pastRows = pending.filter(isPast);
+  const pastIds = new Set(pastRows.map((a) => a.id));
+  const liveRows = active.filter((a) => !pastIds.has(a.id));
+  const displayQueue = showCancelled ? [...liveRows, ...pastRows, ...cancelledRows] : [...liveRows, ...pastRows];
+  const inQueue = pending.filter((a) => !pastIds.has(a.id));
   const serving = list.find((a) => a.status === "consulting");
   const next = inQueue[0];
   // Net collected — money that came in then went out (a refunded row) counts
-  // toward nothing. dbMarkRefunded keeps paid=true so the refund is traceable;
+  // toward nothing. a refunded row keeps paid=true so the refund is traceable;
   // refunded_at is what rollups must subtract.
   const revenue = list.filter((a) => a.paid && a.refundedAt == null).reduce((s, a) => s + a.fee, 0);
   // Cash still owed to the desk today: every non-cancelled unpaid row. Row
@@ -334,8 +345,7 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
 
   const callNext = () => {
     if (serving) changeStatus(serving.id, "done", serving.status, patch);
-    const n = apptsForDate(appts, date).find((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
-    if (n) changeStatus(n.id, "consulting", n.status, patch);
+    if (next) changeStatus(next.id, "consulting", next.status, patch);
   };
 
   return (
@@ -391,7 +401,16 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
             </div>
           </div>
           <ul className="divide-y divide-line">
-            {displayQueue.map((a) => <QueueRow key={a.id} a={a} patch={patch} />)}
+            {displayQueue.map((a, i) => (
+              <Fragment key={a.id}>
+                {pastIds.has(a.id) && (i === 0 || !pastIds.has(displayQueue[i - 1].id)) && (
+                  <li className="bg-line/30 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted sm:px-6">
+                    Earlier slots, not marked done ({pastRows.length})
+                  </li>
+                )}
+                <QueueRow a={a} patch={patch} past={pastIds.has(a.id)} />
+              </Fragment>
+            ))}
             {active.length === 0 && cancelledRows.length === 0 && <li className="px-6 py-10 text-center text-sm text-muted">No appointments on this date.</li>}
             {active.length === 0 && cancelledRows.length > 0 && !showCancelled && <li className="px-6 py-10 text-center text-sm text-muted">No active appointments. {cancelledRows.length} cancelled — tap above to show.</li>}
           </ul>
@@ -422,7 +441,7 @@ const statusMeta: Record<ApptStatus, { label: string; cls: string }> = {
   payment_pending: { label: "Awaiting payment", cls: "bg-accent-tint text-accent" },
 };
 
-function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
+function QueueRow({ a, patch, past = false }: { a: Appt; patch: Patch; past?: boolean }) {
   const S = sourceMeta[a.source];
   const today = ymd(nowIST());
   const [rescheduling, setRescheduling] = useState(false);
@@ -465,40 +484,17 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
     }
   };
 
-  const cancel = () => {
-    // A paid online booking is refunded automatically on cancel, so say so
-    // before the click, not after. Cash and unpaid rows have nothing to refund.
-    const autoRefund = a.paid && a.paidVia === "razorpay" && !a.refundedAt;
-    const refundLine = autoRefund
-      ? ` They paid ${money(a.fee)} online, so this will ALSO refund ${money(a.fee)} to them automatically.`
-      : "";
-    if (!window.confirm(`Cancel Token #${a.token} (${a.name})?${refundLine} This sends them a WhatsApp cancellation notice right away and can't be undone.`)) return;
-    changeStatus(a.id, "cancelled", a.status, patch);
-  };
-  // Cancelling a paid online booking refunds it automatically (see the status
-  // route). This button is for a refund issued by hand in the Razorpay
-  // dashboard instead: it just records it, so the desk
-  // has a way to close the loop instead of a paid+cancelled row sitting
-  // there forever with no record of the money going back out.
-  const recordRefund = () => {
-    const refundId = window.prompt(`Razorpay refund ID for Token #${a.token} (${a.name})?\n\nOnly enter this after the refund is already issued from the Razorpay dashboard.`);
-    if (!refundId || !refundId.trim()) return;
-    const prevRefundedAt = a.refundedAt;
-    patch(a.id, { refundedAt: Date.now(), refundId: refundId.trim() });
-    fetch("/api/appointments/refund", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: a.id, refundId: refundId.trim() }),
-    })
-      .then((res) => { if (!res.ok) throw new Error(String(res.status)); })
-      .catch((err) => {
-        console.error("admin: could not record refund", err);
-        patch(a.id, { refundedAt: prevRefundedAt, refundId: a.refundId });
-        window.alert("Could not save the refund record — please try again.");
-      });
+  // One-tap finish for a pending row: reception rarely uses Start consult, and
+  // Done is only reachable through it, so finished patients never left the
+  // queue (and the review nudge, which only targets done rows, never fired).
+  // Marking done on an unpaid row also records the fee as cash collected, so
+  // that case asks first; paid rows and free visits are a single tap.
+  const markDone = () => {
+    if (!a.paid && a.fee > 0 && !window.confirm(`Mark Token #${a.token} (${a.name}) done? This also records ${money(a.fee)} as cash collected.`)) return;
+    changeStatus(a.id, "done", a.status, patch);
   };
   return (
-    <li className={`px-4 py-3 sm:px-6 sm:py-3.5 ${a.status === "consulting" ? "bg-in/[0.04]" : ""}`}>
+    <li className={`px-4 py-3 sm:px-6 sm:py-3.5 ${a.status === "consulting" ? "bg-in/[0.04]" : ""} ${past ? "opacity-70" : ""}`}>
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
       <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg font-mono text-xs font-semibold sm:h-10 sm:w-10 sm:text-sm ${a.status === "done" ? "bg-muted/10 text-muted" : "bg-brand text-white"}`}>{a.token}</div>
       <div className="min-w-0 flex-1">
@@ -512,6 +508,7 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
             <span title="Returning patient, reduced fee paid online" className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Returning patient</span>
           )}
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${statusMeta[a.status].cls}`}>{statusMeta[a.status].label}</span>
+          {past && <span title="This slot ended more than 30 minutes ago and the row was never marked done" className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Past slot</span>}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted">
           <span>{fmt(a.time)}</span> · <span className="inline-flex items-center gap-1"><S.icon className="h-3 w-3" />{S.label}</span>{ageGenderLabel(a)}
@@ -527,8 +524,6 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
           <span title={`Refunded${a.refundId ? " · " + a.refundId : ""}`} className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Refunded</span>
         ) : a.claimType === "review_free" ? (
           <span title="Free review visit, nothing to collect" className="shrink-0 rounded-full bg-muted/10 px-2.5 py-0.5 text-[11px] font-medium text-muted">Free</span>
-        ) : a.paid && a.paidVia === "razorpay" && a.status === "cancelled" ? (
-          <button onClick={recordRefund} title="Record a refund already issued from the Razorpay dashboard" className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100">Mark refunded</button>
         ) : a.paid && a.paidVia === "razorpay" ? (
           <span title="Paid online via payment link. Cannot be un-marked at the desk." className="shrink-0 rounded-full bg-in/15 px-2 py-0.5 text-[11px] font-medium text-in">Paid online</span>
         ) : a.paid ? (
@@ -560,16 +555,13 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
           </button>
         )}
         {["reserved", "confirmed", "waiting"].includes(a.status) && (
-          <button onClick={() => changeStatus(a.id, "consulting", a.status, patch)} title="Start consult" className="rounded-lg border border-line p-2 text-brand hover:bg-brand-tint"><Play className="h-[18px] w-[18px]" /></button>
+          <button onClick={markDone} title="Mark done" aria-label={`Mark Token ${a.token} done`} className="rounded-lg border border-line p-2 text-in hover:bg-in/10"><Check className="h-[18px] w-[18px]" /></button>
         )}
         {a.status === "consulting" && (
           <button onClick={() => changeStatus(a.id, "done", a.status, patch)} title="Mark done" className="rounded-lg border border-line p-2 text-in hover:bg-in/10"><Check className="h-[18px] w-[18px]" /></button>
         )}
         {["reserved", "confirmed", "waiting"].includes(a.status) && !rescheduling && (
           <button onClick={openReschedule} title="Reschedule" className="rounded-lg border border-line p-2 text-muted hover:text-brand hover:bg-brand-tint"><RotateCcw className="h-[18px] w-[18px]" /></button>
-        )}
-        {a.status !== "done" && a.status !== "cancelled" && !rescheduling && (
-          <button onClick={cancel} title="Cancel" className="rounded-lg border border-line p-2 text-muted hover:text-out hover:bg-out/10"><X className="h-[18px] w-[18px]" /></button>
         )}
         {rescheduling && (
           <button onClick={() => setRescheduling(false)} title="Close" className="rounded-lg border border-line p-2 text-muted hover:bg-line/40"><X className="h-[18px] w-[18px]" /></button>
@@ -1137,7 +1129,7 @@ function Revenue({ appts }: { appts: Appt[] }) {
   const isToday = date === ymd(new Date());
   const list = apptsForDate(appts, date).filter((a) => a.paid);
   // Net, not gross: a refunded row's money came in then went out, so it must
-  // be subtracted (dbMarkRefunded's docstring rule), not counted as collected.
+  // be subtracted, not counted as collected.
   const collected = list.filter((a) => a.refundedAt == null);
   const total = collected.reduce((s, a) => s + a.fee, 0);
   const bySource = (["website", "whatsapp", "walkin"] as Source[]).map((s) => ({

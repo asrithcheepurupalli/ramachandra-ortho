@@ -755,22 +755,6 @@ export async function dbReactivateExpiredHold(phone: string): Promise<Appt | nul
   return revived ? rowToAppt(revived) : null;
 }
 
-// Records that a paid appointment was refunded (a Razorpay refund id + the
-// moment). The appointment keeps paid=true and paid_via='razorpay' — money
-// really did come in then go back out; refunded_at is what marks the return,
-// so revenue rollups can subtract refunded rows. No-op-safe: only flips rows
-// that are actually paid via Razorpay and not already refunded.
-export async function dbMarkRefunded(id: string, refundId: string): Promise<void> {
-  const { error } = await supabaseAdmin()
-    .from("appointments")
-    .update({ razorpay_refund_id: refundId, refunded_at: new Date().toISOString() })
-    .eq("id", id)
-    .eq("paid", true)
-    .eq("paid_via", "razorpay")
-    .is("refunded_at", null);
-  if (error) throw error;
-}
-
 // The automatic-reminder cron's idempotency guard: marks an appointment as
 // reminded with a conditional update (only the row still carrying
 // reminder_sent_at = NULL flips), so two overlapping cron runs can never both
