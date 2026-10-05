@@ -466,11 +466,18 @@ function QueueRow({ a, patch }: { a: Appt; patch: Patch }) {
   };
 
   const cancel = () => {
-    if (!window.confirm(`Cancel Token #${a.token} (${a.name})? This sends them a WhatsApp cancellation notice right away and can't be undone.`)) return;
+    // A paid online booking is refunded automatically on cancel, so say so
+    // before the click, not after. Cash and unpaid rows have nothing to refund.
+    const autoRefund = a.paid && a.paidVia === "razorpay" && !a.refundedAt;
+    const refundLine = autoRefund
+      ? ` They paid ${money(a.fee)} online, so this will ALSO refund ${money(a.fee)} to them automatically.`
+      : "";
+    if (!window.confirm(`Cancel Token #${a.token} (${a.name})?${refundLine} This sends them a WhatsApp cancellation notice right away and can't be undone.`)) return;
     changeStatus(a.id, "cancelled", a.status, patch);
   };
-  // Refunds are manual by clinic policy (see lib/refunds.ts) — this just
-  // records a refund already issued from the Razorpay dashboard, so the desk
+  // Cancelling a paid online booking refunds it automatically (see the status
+  // route). This button is for a refund issued by hand in the Razorpay
+  // dashboard instead: it just records it, so the desk
   // has a way to close the loop instead of a paid+cancelled row sitting
   // there forever with no record of the money going back out.
   const recordRefund = () => {

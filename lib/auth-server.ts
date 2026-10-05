@@ -11,16 +11,22 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { SUPA_URL, SUPA_ANON } from "@/lib/supabase";
 
-export async function requireStaff(): Promise<boolean> {
-  if (!SUPA_URL || !SUPA_ANON) return false;
+// The signed-in staff member's email, or null when not signed in / not staff.
+// Same gate as requireStaff, but hands back who it was for audit trails.
+export async function requireStaffEmail(): Promise<string | null> {
+  if (!SUPA_URL || !SUPA_ANON) return null;
   const cookieStore = await cookies();
   const supabase = createServerClient(SUPA_URL, SUPA_ANON, {
     cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
   });
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) return false;
+  if (!user?.email) return null;
   const { data } = await supabase.rpc("is_staff", { check_email: user.email });
-  return data === true;
+  return data === true ? user.email : null;
+}
+
+export async function requireStaff(): Promise<boolean> {
+  return (await requireStaffEmail()) !== null;
 }
 
 // Which portal (/admin vs /doctor) the signed-in staff email should land on.
