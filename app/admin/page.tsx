@@ -320,11 +320,12 @@ function Today({ appts, patch }: { appts: Appt[]; patch: Patch }) {
   const list = apptsForDate(appts, date).filter((a) => a.status !== "payment_pending");
   const active = list.filter((a) => a.status !== "cancelled");
   const cancelledRows = list.filter((a) => a.status === "cancelled");
-  // Pending rows whose slot ended 30+ min ago sink below the live queue with a
-  // "Past slot" tag. Display only: no status or money changes until the desk
-  // taps. Walk-ins are exempt on today (they queue by token, not by slot).
+  // Today only: pending rows whose slot ended 30+ min ago sink below the live
+  // queue, dimmed, under a divider. Display only: no status or money changes
+  // until the desk taps. Walk-ins are exempt (they queue by token, not slot).
+  // Other dates list everything in plain order.
   const pending = list.filter((a) => ["reserved", "confirmed", "waiting"].includes(a.status));
-  const isPast = (a: Appt) => (a.source !== "walkin" || a.date < ymd(clock)) && isPastSlot(a.date, a.time, clock);
+  const isPast = (a: Appt) => a.date === ymd(clock) && a.source !== "walkin" && isPastSlot(a.date, a.time, clock);
   const pastRows = pending.filter(isPast);
   const pastIds = new Set(pastRows.map((a) => a.id));
   const liveRows = active.filter((a) => !pastIds.has(a.id));
@@ -508,7 +509,6 @@ function QueueRow({ a, patch, past = false }: { a: Appt; patch: Patch; past?: bo
             <span title="Returning patient, reduced fee paid online" className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">Returning patient</span>
           )}
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${statusMeta[a.status].cls}`}>{statusMeta[a.status].label}</span>
-          {past && <span title="This slot ended more than 30 minutes ago and the row was never marked done" className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">Past slot</span>}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted">
           <span>{fmt(a.time)}</span> · <span className="inline-flex items-center gap-1"><S.icon className="h-3 w-3" />{S.label}</span>{ageGenderLabel(a)}
