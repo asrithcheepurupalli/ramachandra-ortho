@@ -3,7 +3,7 @@
 // Always acks POST with 200 quickly; Meta retries (and can disable) a webhook
 // that errors or is slow, so failures are logged, never surfaced as a non-200.
 import { NextResponse, type NextRequest } from "next/server";
-import { dbAddBooking, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbReactivateExpiredHold, dbRescheduleAppointment } from "@/lib/db";
+import { dbAddBooking, dbLoadSchedule, dbLoadWaSession, dbSaveWaSession, dbActiveAppointmentsByPhone, dbGetOrCreatePaymentLink, dbReactivateExpiredHold, dbRescheduleAppointment, dbUpdateWhatsAppDeliveryStatus } from "@/lib/db";
 import { botReplyServer, botStartServer, langPickPrompt, matchLangChoice, detectLangSwitch, flowSlotTakenMsg, flowBookFailMsg, flowPendingHoldMsg, flowDuplicateSlotMsg, flowPayPrompt, flowPayNowLabel, flowStartOverLabel, flowFreeConfirmMsg, type Backend, type ServerBotState } from "@/lib/bot";
 import { sendText, sendButtons, sendList, sendBookingConfirmation, verifySignature, safeEqual } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail, sendNewAppointmentEmail } from "@/lib/mailer";
@@ -84,16 +84,26 @@ export async function POST(req: NextRequest) {
     const payload = JSON.parse(rawBody);
     const value = payload?.entry?.[0]?.changes?.[0]?.value;
     // Delivery/read/failed callbacks arrive on the same messages webhook field.
-    // Log them so a template Meta accepts but silently drops (authentication
-    // messages in particular) still leaves a verdict in the Vercel logs —
-    // "delivered", or a failed status carrying Meta's error code.
+    // Persisted (migration 020, matched on wamid) so "did the patient actually
+    // get this?" has an answer after the fact — before this they were only
+    // console.log-ed, gone within Vercel's ~1h log retention. A failed
+    // delivery (number not on WhatsApp, blocked the business, template
+    // paused by Meta, etc.) is escalated to the Bug Desk so it surfaces in
+    // the digest instead of silently looking like a successful send forever.
     for (const st of value?.statuses ?? []) {
-      console.log(
-        "WhatsApp status",
-        st.id ?? "",
-        st.status ?? "",
-        Array.isArray(st.errors) ? JSON.stringify(st.errors) : ""
-      );
+      const errDetail = Array.isArray(st.errors) ? JSON.stringify(st.errors) : null;
+      console.log("WhatsApp status", st.id ?? "", st.status ?? "", errDetail ?? "");
+      if (st.id && st.status) {
+        const row = await dbUpdateWhatsAppDeliveryStatus(st.id, st.status, errDetail);
+        if (st.status === "failed") {
+          await report({
+            source: "whatsapp/delivery",
+            message: `WhatsApp message failed to deliver${row?.template_name ? ` (${row.template_name})` : ""}`,
+            severity: "warning",
+            info: { wamid: st.id, phone: row?.phone, patientName: row?.patient_name, templateName: row?.template_name, errors: st.errors },
+          });
+        }
+      }
     }
     const message = value?.messages?.[0];
     if (!message) return new NextResponse("OK", { status: 200 }); // status/read receipts, no-op

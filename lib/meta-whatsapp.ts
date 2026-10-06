@@ -67,7 +67,7 @@ function sleep(ms: number): Promise<void> {
 // assuming success just because the HTTP call didn't throw. Retries once on
 // network errors and 5xx/429 responses (transient) — never on other 4xx,
 // which represent a rejected request that a retry can't fix.
-async function callGraphApiWithResult(payload: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+async function callGraphApiWithResult(payload: Record<string, unknown>): Promise<{ ok: boolean; error?: string; wamid?: string }> {
   const token = process.env.META_WHATSAPP_TOKEN;
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
   if (!token || !phoneNumberId) {
@@ -95,7 +95,12 @@ async function callGraphApiWithResult(payload: Record<string, unknown>): Promise
         if (retryable && attempt < GRAPH_MAX_ATTEMPTS) { await sleep(GRAPH_RETRY_DELAY_MS); continue; }
         return { ok: false, error: lastError };
       }
-      return { ok: true };
+      // Meta's success body carries the per-message id ("wamid") this send
+      // was assigned — the only handle a later delivery-status callback
+      // gives us to match back to this row. Never fail the send over a
+      // malformed/absent body; the message already went out.
+      const wamid = await res.json().then((j) => j?.messages?.[0]?.id as string | undefined).catch(() => undefined);
+      return { ok: true, wamid };
     } catch (err: unknown) {
       lastError = err instanceof Error ? err.message : String(err);
       console.error("Meta WhatsApp send error", err);
@@ -116,6 +121,7 @@ function recordWhatsAppLog(entry: {
   status: "sent" | "failed" | "skipped";
   details?: string | null;
   errorMessage?: string | null;
+  wamid?: string | null;
 }) {
   dbInsertWhatsAppLog(entry).catch((err) => {
     console.error("Failed to record whatsapp log:", err);
@@ -147,6 +153,7 @@ export async function sendText(phone: string, body: string, patientName?: string
     patientName,
     messageType: "text",
     status: res.ok ? "sent" : "failed",
+    wamid: res.wamid ?? null,
     details: body.slice(0, 160),
     errorMessage: res.error ?? null,
   });
@@ -190,6 +197,7 @@ export async function sendButtons(phone: string, body: string, options: string[]
     patientName,
     messageType: "interactive",
     status: res.ok ? "sent" : "failed",
+    wamid: res.wamid ?? null,
     details: `Buttons: [${options.join(", ")}] | ${body.slice(0, 120)}`,
     errorMessage: res.error ?? null,
   });
@@ -233,6 +241,7 @@ export async function sendList(phone: string, body: string, buttonLabel: string,
     patientName,
     messageType: "interactive",
     status: res.ok ? "sent" : "failed",
+    wamid: res.wamid ?? null,
     details: `List: ${buttonLabel} (${options.length} rows) | ${body.slice(0, 120)}`,
     errorMessage: res.error ?? null,
   });
@@ -319,6 +328,7 @@ async function sendTemplate(
     messageType: "template",
     templateName,
     status: res.ok ? "sent" : "failed",
+    wamid: res.wamid ?? null,
     details: params.length ? `Params: [${params.join(", ")}]` : (urlButtonValue ? `Code: ${urlButtonValue}` : null),
     errorMessage: res.error ?? null,
   });

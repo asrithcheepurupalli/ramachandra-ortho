@@ -1041,6 +1041,7 @@ export async function dbInsertWhatsAppLog(entry: {
   status: "sent" | "failed" | "skipped";
   details?: string | null;
   errorMessage?: string | null;
+  wamid?: string | null;
 }): Promise<void> {
   try {
     const db = supabaseAdmin();
@@ -1052,9 +1053,38 @@ export async function dbInsertWhatsAppLog(entry: {
       status: entry.status,
       details: entry.details ?? null,
       error_message: entry.errorMessage ?? null,
+      wamid: entry.wamid ?? null,
     });
   } catch (err) {
     console.error("Failed to insert whatsapp log:", err);
+  }
+}
+
+// Meta's delivery-status callback (sent -> delivered -> read, or failed)
+// arrives on the same webhook as inbound messages, keyed by wamid — the id
+// callGraphApiWithResult captured at send time. Matches that row and records
+// the outcome (migration 020); before this, the callback was only
+// console.log-ed and lost within Vercel's ~1h log retention, so a failed
+// delivery left no trace once the desk asked about it later. Returns the
+// matched row (if any) so the caller can decide whether to escalate.
+export async function dbUpdateWhatsAppDeliveryStatus(
+  wamid: string,
+  status: string,
+  errorDetail?: string | null
+): Promise<{ phone: string; template_name: string | null; patient_name: string | null } | null> {
+  try {
+    const db = supabaseAdmin();
+    const { data, error } = await db
+      .from("whatsapp_logs")
+      .update({ delivery_status: status, delivery_error: errorDetail ?? null, delivered_at: new Date().toISOString() })
+      .eq("wamid", wamid)
+      .select("phone, template_name, patient_name")
+      .maybeSingle();
+    if (error) throw error;
+    return data ?? null;
+  } catch (err) {
+    console.error("Failed to update whatsapp delivery status:", err);
+    return null;
   }
 }
 
