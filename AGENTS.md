@@ -19,7 +19,7 @@ conventions the codebase follows.
 ## ⚠️ STRICT OPERATIONAL INVARIANT: LIVE PRODUCTION DATA
 **Ramachandra Ortho Care is 100% LIVE IN PRODUCTION with REAL PATIENT RECORDS, LIVE APPOINTMENTS, AND REAL PAYMENTS.**
 - **NEVER propose, execute, or script destructive database actions (`TRUNCATE TABLE`, `DROP TABLE`, or raw bulk deletes).**
-- Any script such as `clear-database.sql` was a pre-go-live one-time purge script and **MUST NEVER BE RUN OR SUGGESTED** in production.
+- `clear-database.sql` was a pre-go-live one-time purge script (TRUNCATE on every table). It has been deleted now that the clinic is live with real data — **never recreate or suggest a script like it** against production.
 - All database modifications must be non-destructive additive migrations in `supabase/migrations/`.
 
 ---
