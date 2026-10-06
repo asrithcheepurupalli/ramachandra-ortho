@@ -190,6 +190,9 @@ function LangToggle({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void 
 
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 function Hero({ status, t }: { status: Status | null; t: T }) {
+  // Same number for calls and WhatsApp (clinic.config.ts) — spelled out once
+  // here so both hero mentions below stay in sync.
+  const phoneDisplay = clinic.contact.phone.replace("+91", "").replace(/(\d{5})(\d{5})/, "$1 $2");
   return (
     <header className="relative overflow-hidden">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
@@ -216,9 +219,10 @@ function Hero({ status, t }: { status: Status | null; t: T }) {
               </Link>
               <a href={waLink("Hi, I would like to book an appointment with Dr. Ramachandrudu.")} target="_blank" rel="noreferrer" className="focus-ring press inline-flex items-center gap-2 rounded-full border border-line bg-surface px-6 py-3.5 text-[15px] font-semibold text-ink transition hover:border-brand/40">
                 <MessageCircle className="h-[18px] w-[18px] text-brand" /> {t("cta.whatsapp")}
+                <span className="font-normal text-muted">· {phoneDisplay} (via WhatsApp)</span>
               </a>
               <a href={`tel:${clinic.contact.phone}`} className="focus-ring ulink inline-flex items-center gap-2 text-[14px] text-muted hover:text-ink">
-                <Phone className="h-4 w-4 text-brand" /> For appointments: {clinic.contact.phone.replace("+91", "").replace(/(\d{5})(\d{5})/, "$1 $2")}
+                <Phone className="h-4 w-4 text-brand" /> For queries, call {phoneDisplay}
               </a>
             </div>
           </Reveal>
