@@ -84,8 +84,8 @@ export async function POST(req: NextRequest) {
   }
 
   // ── post-expiry re-nudge ──────────────────────────────────────────────────
-  // Both WhatsApp and website patients get the same interactive nudge. Mark-then-
-  // send with idempotency guard: only the row that wins the conditional update on
+  // WhatsApp-sourced holds only get the interactive nudge (website holds have no
+  // open 24h window, see the query below). Mark-then-send with idempotency guard: only the row that wins the conditional update on
   // expired_payment_nudged_at being null sends; a failed send rolls the flag back
   // so the next tick (within 5 min) retries. Bounded to the last 24h so a
   // never-sent nudge is not retried forever.
@@ -97,7 +97,16 @@ export async function POST(req: NextRequest) {
       .eq("status", "cancelled")
       .eq("cancel_reason", "payment_timeout")
       .is("expired_payment_nudged_at", null)
-      .in("source", ["whatsapp", "website"])
+      // whatsapp only: sendButtons is a free-form interactive send, which Meta
+      // only allows inside the 24h customer-service window opened by the
+      // patient's last inbound message. A WhatsApp-sourced hold always has
+      // that window open (they just chatted with the bot); a website-sourced
+      // hold never does (the patient never messaged this number at all), so
+      // the send was guaranteed to fail with Meta error 131047 every time —
+      // confirmed from a real failed delivery (migration 020's tracking) on
+      // 2026-10-07. It still showed "sent" in our logs before that, since
+      // Meta accepts the API call and only rejects delivery asynchronously.
+      .eq("source", "whatsapp")
       .gt("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
       .not("phone", "is", null);
 
