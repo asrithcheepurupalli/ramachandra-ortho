@@ -40,7 +40,7 @@ async function reportBotError(
           source,
           message,
           severity: opts?.severity ?? "warning",
-          info,
+          info: err ? { ...info, error: err instanceof Error ? err.message : String(err) } : info,
         }),
         // Never let a slow/hung desk hold up a webhook ack or booking tail.
         signal: AbortSignal.timeout(5000),
@@ -1685,7 +1685,12 @@ export async function botReplyServer(
       // Free-review rows never pay online — that's the only claim type the
       // clinic doesn't charge for — so exclude only those, or the pay intent
       // would hand out a Razorpay link for a booking that must not be charged.
-      const active = (await backend.activeAppointmentsByPhone(phone, true)).filter((a) => !a.paid && a.claimType !== "review_free");
+      // Past-dated unpaid rows (legacy "reserved" leftovers) can't be paid for:
+      // createPaymentLink refuses them as an expired hold, which used to surface
+      // here as a critical "create payment link failed" and block the live booking
+      // from being picked. Only offer appointments that haven't happened yet.
+      const todayStr = ymd(nowIST());
+      const active = (await backend.activeAppointmentsByPhone(phone, true)).filter((a) => !a.paid && a.claimType !== "review_free" && a.date >= todayStr);
       if (!active.length) {
         // Nothing active and unpaid — but a cancelled/lapsed hold may still be
         // revivable, so the stale "Pay now" chip self-heals into the same resume
