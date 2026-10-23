@@ -1074,7 +1074,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
     if (digits.length >= 10) {
       const phone10 = digits.slice(-10);
       const { appts } = await lookupClient(phone10, true);
-      const unpaid = appts.filter((a) => !a.paid);
+      const unpaid = appts.filter((a) => !a.paid && a.date >= ymd(nowIST()));
       if (!unpaid.length) return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
       if (unpaid.length === 1) {
         const link = await payClientLink(unpaid[0].id, phone10);
@@ -1162,7 +1162,7 @@ export async function botReply(input: string, lang: Lang, state: BotState, sourc
       // Free-review rows never pay online, so they must not surface in the pay
       // list — that's the only claim type the clinic doesn't charge for. New
       // and returning bookings both owe an online fee, so both show up here.
-      const unpaid = appts.filter((a) => !a.paid && a.claimType !== "review_free");
+      const unpaid = appts.filter((a) => !a.paid && a.claimType !== "review_free" && a.date >= ymd(nowIST()));
       if (!unpaid.length) {
         return { reply: [t.payNone], chips: [c.book], state: { stage: "idle" } };
       }
@@ -1567,6 +1567,7 @@ export async function botReplyServer(
           await backend.reschedule(state.resched.id, state.pendingDate, match);
           return { reply: [t.reschedDone(label)], chips: [c.avail, c.book, c.done], state: { stage: "idle" } };
         } catch (err) {
+          if (err instanceof DuplicateSlotError) return { reply: [t.duplicateSlot], chips: [c.view, c.resched, c.book], state: { stage: "idle" } };
           if (err instanceof SlotTakenError) return slotTakenFallbackServer(state.resched, state.pendingDate, match, backend, sched, t);
           await reportBotError("bot", "reschedule failed", { stage: "time_pick", id: state.resched.id }, err);
           return { reply: [t.reschedFail], chips: [c.book], state: { stage: "idle" } };

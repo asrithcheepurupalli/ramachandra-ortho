@@ -470,6 +470,9 @@ export async function dbRescheduleAppointment(id: string, date: string, time: st
 
   if (!error && data) return rowToAppt(data);
   if (!error) throw new Error("not_found"); // status guard blocked the move
+  // The patient already holds a live appointment at that exact date+time
+  // (same phone): surface it as the friendly duplicate, not a raw 23505.
+  if (error.message.includes("appointments_slot_guard")) throw new DuplicateSlotError();
   throw error;
 }
 

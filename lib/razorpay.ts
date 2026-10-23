@@ -28,7 +28,7 @@ function normalizeIndianPhone(raw: string): string | null {
 // that as "couldn't start payment right now", never a thrown exception that
 // could take down a page render.
 export async function createPaymentLink(
-  appt: Pick<Appt, "id" | "name" | "phone" | "fee" | "createdAt">
+  appt: Pick<Appt, "id" | "name" | "phone" | "fee" | "createdAt"> & { status?: Appt["status"] }
 ): Promise<{ id: string; short_url: string } | null> {
   const auth = authHeader();
   if (!auth) {
@@ -52,9 +52,13 @@ export async function createPaymentLink(
   // manual reconciliation). If the hold has fully elapsed there is nothing
   // left to pay for, so bail rather than mint a link for a freed slot.
   const nowSec = Math.floor(Date.now() / 1000);
-  const holdDeadlineSec = Math.floor(new Date(appt.createdAt).getTime() / 1000) + 900;
+  // The 15-minute hold only governs fresh payment_pending bookings. A
+  // confirmed-but-unpaid legacy row (reserved etc.) has no hold to expire, so
+  // it still gets a link (floored at the minimum expiry) instead of bailing.
+  const isHold = !appt.status || appt.status === "payment_pending";
+  const holdDeadlineSec = isHold ? Math.floor(new Date(appt.createdAt).getTime() / 1000) + 900 : 0;
   const linkFloorSec = nowSec + 900 + 60;
-  if (holdDeadlineSec <= nowSec) {
+  if (isHold && holdDeadlineSec <= nowSec) {
     console.error("Razorpay payment link skipped: booking hold already expired");
     return null;
   }

@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { dbActiveAppointmentsByPhone, dbRescheduleAppointment } from "@/lib/db";
 import { sendBookingConfirmation } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail } from "@/lib/mailer";
-import { SlotTakenError } from "@/lib/errors";
+import { SlotTakenError, DuplicateSlotError } from "@/lib/errors";
 import { ymd, nowIST } from "@/lib/schedule";
 import { otpVerified, otpEnabled } from "@/lib/otp";
 import { reportError } from "@/lib/bugdesk";
@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     if (!emailOk) await reportError("appointments/reschedule", new Error("email notify failed"), { severity: "warning", info: { channel: "email", appt: appt.id } });
     return NextResponse.json({ appointment: appt });
   } catch (err) {
+    if (err instanceof DuplicateSlotError) { return NextResponse.json({ error: "You already have an appointment at that date and time.", code: "duplicate_slot" }, { status: 409 }); }
     if (err instanceof SlotTakenError) { return NextResponse.json({ error: "That time isn't available. Please pick another slot." }, { status: 409 }); }
     console.error("/api/appointments/reschedule", err);
     await reportError("appointments/reschedule", err, { severity: "warning" });

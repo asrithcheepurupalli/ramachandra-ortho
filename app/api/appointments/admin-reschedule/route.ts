@@ -8,7 +8,7 @@ import { dbRescheduleAppointment } from "@/lib/db";
 import { sendBookingConfirmation } from "@/lib/meta-whatsapp";
 import { sendRescheduledEmail } from "@/lib/mailer";
 import { reportError } from "@/lib/bugdesk";
-import { SlotTakenError } from "@/lib/errors";
+import { SlotTakenError, DuplicateSlotError } from "@/lib/errors";
 import { ymd, nowIST } from "@/lib/schedule";
 
 export async function POST(req: NextRequest) {
@@ -31,6 +31,9 @@ export async function POST(req: NextRequest) {
     if (!emailOk) await reportError("appointments/admin-reschedule", new Error("email notify failed"), { severity: "warning", info: { appt: appt.id } });
     return NextResponse.json({ appointment: appt });
   } catch (err) {
+    if (err instanceof DuplicateSlotError) {
+      return NextResponse.json({ error: "This patient already has an appointment at that date and time.", code: "duplicate_slot" }, { status: 409 });
+    }
     if (err instanceof SlotTakenError) {
       return NextResponse.json({ error: "That slot is not available. Pick another time." }, { status: 409 });
     }
